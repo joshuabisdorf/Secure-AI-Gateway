@@ -127,6 +127,7 @@ async def chat_completion(
         - Authenticates the caller.
         - Enforces and records the configured model allowlist decision.
         - Sends the normalized request to the configured provider when allowed.
+        - Records requested and resolved model identities on successful completion.
         - Records completion outcome and request latency without prompt content.
         - Converts known upstream provider failures to a generic 502 response.
 
@@ -147,7 +148,7 @@ async def chat_completion(
             request_id=request_id,
             event="model_policy",
             outcome="deny",
-            model=request.model,
+            requested_model=request.model,
             reason=str(exc.detail),
         )
         raise
@@ -156,7 +157,7 @@ async def chat_completion(
         request_id=request_id,
         event="model_policy",
         outcome="allow",
-        model=request.model,
+        requested_model=request.model,
     )
 
     try:
@@ -167,7 +168,7 @@ async def chat_completion(
             request_id=request_id,
             event="chat_completion",
             outcome="error",
-            model=request.model,
+            requested_model=request.model,
             provider=provider.name,
             reason=exc.reason,
             latency_ms=latency_ms,
@@ -182,7 +183,7 @@ async def chat_completion(
             request_id=request_id,
             event="chat_completion",
             outcome="error",
-            model=request.model,
+            requested_model=request.model,
             provider=provider.name,
             reason=type(exc).__name__,
             latency_ms=latency_ms,
@@ -194,7 +195,8 @@ async def chat_completion(
         request_id=request_id,
         event="chat_completion",
         outcome="success",
-        model=request.model,
+        requested_model=request.model,
+        resolved_model=response.model,
         provider=provider.name,
         latency_ms=latency_ms,
     )
