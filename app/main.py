@@ -2,6 +2,7 @@ from fastapi import Depends, FastAPI
 
 from app.auth import authenticate_api_key
 from app.models import ChatCompletionRequest, ChatCompletionResponse
+from app.policies.model_access import enforce_model_allowed
 from app.providers.fake import FakeProvider
 
 app = FastAPI(
@@ -46,13 +47,15 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid gateway API key.
+        - The requested model is explicitly allowed by gateway policy.
 
     Modifies:
         - Provider-specific state, if any.
 
     Effects:
         - Authenticates the caller.
-        - Sends the normalized request to the configured provider.
+        - Enforces the configured model allowlist.
+        - Sends the normalized request to the configured provider when allowed.
 
     Inputs:
         - request: Requested model and chat messages.
@@ -61,4 +64,5 @@ async def chat_completion(
     Outputs:
         - An OpenAI-style chat-completion response.
     """
+    enforce_model_allowed(request.model)
     return await provider.chat_completion(request)

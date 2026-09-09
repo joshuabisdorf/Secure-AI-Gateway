@@ -11,10 +11,10 @@ def test_chat_completion(monkeypatch) -> None:
         - The FastAPI application and fake provider can be imported.
 
     Modifies:
-        - Temporarily configures SAG_API_KEY for this test process.
+        - Temporarily configures SAG_API_KEY and SAG_ALLOWED_MODELS.
 
     Effects:
-        - Exercises an authenticated chat-completion request.
+        - Exercises an authenticated and policy-approved chat-completion request.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.
@@ -23,6 +23,7 @@ def test_chat_completion(monkeypatch) -> None:
         - None. Assertions determine whether the test passes.
     """
     monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
+    monkeypatch.setenv("SAG_ALLOWED_MODELS", "fake-model")
 
     client = TestClient(app)
 
