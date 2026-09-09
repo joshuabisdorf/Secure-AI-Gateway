@@ -4,6 +4,7 @@ from app.models import (
     ChatChoice,
     ChatCompletionRequest,
     ChatCompletionResponse,
+    ChatUsage,
     ChoiceMessage,
 )
 from app.providers.base import Provider
@@ -27,6 +28,7 @@ class MockProvider(Provider):
 
         Effects:
             - Produces a deterministic non-network model response for testing.
+            - Includes deterministic token and zero-cost usage accounting.
 
         Inputs:
             - request: The requested model and messages.
@@ -47,4 +49,10 @@ class MockProvider(Provider):
                     finish_reason="stop",
                 )
             ],
+            usage=ChatUsage(
+                prompt_tokens=2,
+                completion_tokens=3,
+                total_tokens=5,
+                cost=0.0,
+            ),
         )
