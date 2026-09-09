@@ -12,7 +12,8 @@ def emit_audit_event(
     request_id: str,
     event: str,
     outcome: str,
-    model: str | None = None,
+    requested_model: str | None = None,
+    resolved_model: str | None = None,
     provider: str | None = None,
     reason: str | None = None,
     latency_ms: float | None = None,
@@ -34,7 +35,8 @@ def emit_audit_event(
         - request_id: Correlation identifier for the request.
         - event: Audit event category.
         - outcome: Decision or result for the event.
-        - model: Optional requested model name.
+        - requested_model: Optional model name requested by the gateway client.
+        - resolved_model: Optional model name reported by the upstream provider.
         - provider: Optional upstream provider name.
         - reason: Optional non-secret decision reason.
         - latency_ms: Optional elapsed request latency in milliseconds.
@@ -49,8 +51,10 @@ def emit_audit_event(
         "outcome": outcome,
     }
 
-    if model is not None:
-        payload["model"] = model
+    if requested_model is not None:
+        payload["requested_model"] = requested_model
+    if resolved_model is not None:
+        payload["resolved_model"] = resolved_model
     if provider is not None:
         payload["provider"] = provider
     if reason is not None:
