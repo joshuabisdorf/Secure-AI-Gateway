@@ -9,14 +9,15 @@ from app.audit import emit_audit_event
 from app.auth import authenticate_api_key
 from app.models import ChatCompletionRequest, ChatCompletionResponse
 from app.policies.model_access import enforce_model_allowed
-from app.providers.fake import FakeProvider
+from app.providers.base import ProviderError
+from app.providers.factory import build_provider
 
 app = FastAPI(
     title="Secure AI Gateway",
     version="0.1.0",
 )
 
-provider = FakeProvider()
+provider = build_provider()
 _request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
@@ -127,6 +128,7 @@ async def chat_completion(
         - Enforces and records the configured model allowlist decision.
         - Sends the normalized request to the configured provider when allowed.
         - Records completion outcome and request latency without prompt content.
+        - Converts known upstream provider failures to a generic 502 response.
 
     Inputs:
         - request: Requested model and chat messages.
@@ -159,6 +161,21 @@ async def chat_completion(
 
     try:
         response = await provider.chat_completion(request)
+    except ProviderError as exc:
+        latency_ms = (perf_counter() - http_request.state.started_at) * 1000
+        emit_audit_event(
+            request_id=request_id,
+            event="chat_completion",
+            outcome="error",
+            model=request.model,
+            provider=provider.name,
+            reason=exc.reason,
+            latency_ms=latency_ms,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Upstream provider request failed.",
+        ) from exc
     except Exception as exc:
         latency_ms = (perf_counter() - http_request.state.started_at) * 1000
         emit_audit_event(
@@ -166,6 +183,7 @@ async def chat_completion(
             event="chat_completion",
             outcome="error",
             model=request.model,
+            provider=provider.name,
             reason=type(exc).__name__,
             latency_ms=latency_ms,
         )
@@ -177,6 +195,7 @@ async def chat_completion(
         event="chat_completion",
         outcome="success",
         model=request.model,
+        provider=provider.name,
         latency_ms=latency_ms,
     )
     return response
