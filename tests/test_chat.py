@@ -3,26 +3,27 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_chat_completion(monkeypatch) -> None:
+def test_chat_completion(monkeypatch, gateway_api_key) -> None:
     """
     RME
 
     Requires:
         - The FastAPI application and mock provider can be imported.
+        - Gateway client authentication is configured.
 
     Modifies:
-        - Temporarily configures SAG_API_KEY and SAG_ALLOWED_MODELS.
+        - Temporarily configures SAG_ALLOWED_MODELS.
 
     Effects:
-        - Exercises an authenticated and policy-approved chat-completion request.
+        - Exercises an identified, authenticated, and policy-approved chat request.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.
+        - gateway_api_key: Raw API key for the configured test client.
 
     Outputs:
         - None. Assertions determine whether the test passes.
     """
-    monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
 
     client = TestClient(app)
@@ -30,7 +31,7 @@ def test_chat_completion(monkeypatch) -> None:
     response = client.post(
         "/v1/chat/completions",
         headers={
-            "Authorization": "Bearer sag_test_key",
+            "Authorization": f"Bearer {gateway_api_key}",
         },
         json={
             "model": "mock-model",
