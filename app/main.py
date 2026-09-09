@@ -14,7 +14,11 @@ from app.policies.model_access import enforce_model_allowed
 from app.providers.base import ProviderError
 from app.providers.factory import build_provider
 from app.rate_limit import InMemoryRateLimiter, get_client_rate_limit
-from app.usage_budget import InMemoryUsageLedger, get_client_usage_budget
+from app.usage_budget import (
+    InMemoryUsageLedger,
+    UsageBudgetDecision,
+    get_client_usage_budget,
+)
 
 app = FastAPI(
     title="Secure AI Gateway",
@@ -50,6 +54,59 @@ def resolve_request_id(candidate: str | None) -> str:
         return candidate
 
     return f"req_{uuid4().hex}"
+
+
+def _budget_audit_fields(
+    decision: UsageBudgetDecision,
+    *,
+    include_cost: bool,
+) -> dict[str, int | float | str | None]:
+    """
+    RME
+
+    Requires:
+        - decision contains current daily usage state.
+        - include_cost is true only when cost accounting is known or enforced.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Converts internal budget state into safe audit fields.
+        - Omits cumulative cost fields when provider cost is not known.
+
+    Inputs:
+        - decision: Current daily usage-budget decision.
+        - include_cost: Whether cost accounting should be exposed.
+
+    Outputs:
+        - Keyword arguments suitable for emit_audit_event.
+    """
+    fields: dict[str, int | float | str | None] = {
+        "token_limit_daily": decision.token_limit_daily,
+        "tokens_used_daily": decision.tokens_used_daily,
+        "tokens_remaining_daily": decision.tokens_remaining_daily,
+        "budget_reset_at": decision.reset_at.isoformat(),
+    }
+
+    if include_cost:
+        fields.update(
+            {
+                "cost_limit_daily_usd": (
+                    float(decision.cost_limit_daily_usd)
+                    if decision.cost_limit_daily_usd is not None
+                    else None
+                ),
+                "cost_used_daily_usd": float(decision.cost_used_daily_usd),
+                "cost_remaining_daily_usd": (
+                    float(decision.cost_remaining_daily_usd)
+                    if decision.cost_remaining_daily_usd is not None
+                    else None
+                ),
+            }
+        )
+
+    return fields
 
 
 @app.middleware("http")
@@ -249,21 +306,10 @@ async def chat_completion(
             client_id=principal.client_id,
             key_id=principal.key_id,
             reason=budget_decision.reason,
-            token_limit_daily=budget_decision.token_limit_daily,
-            tokens_used_daily=budget_decision.tokens_used_daily,
-            tokens_remaining_daily=budget_decision.tokens_remaining_daily,
-            cost_limit_daily_usd=(
-                float(budget_decision.cost_limit_daily_usd)
-                if budget_decision.cost_limit_daily_usd is not None
-                else None
+            **_budget_audit_fields(
+                budget_decision,
+                include_cost=usage_budget.cost_limit_daily_usd is not None,
             ),
-            cost_used_daily_usd=float(budget_decision.cost_used_daily_usd),
-            cost_remaining_daily_usd=(
-                float(budget_decision.cost_remaining_daily_usd)
-                if budget_decision.cost_remaining_daily_usd is not None
-                else None
-            ),
-            budget_reset_at=budget_decision.reset_at.isoformat(),
         )
         raise HTTPException(
             status_code=403,
@@ -339,11 +385,14 @@ async def chat_completion(
         outgoing_response.headers["X-Usage-Tokens-Remaining"] = str(
             updated_budget.tokens_remaining_daily
         )
-    outgoing_response.headers["X-Usage-Cost-USD"] = str(updated_budget.cost_used_daily_usd)
-    if updated_budget.cost_remaining_daily_usd is not None:
-        outgoing_response.headers["X-Usage-Cost-Remaining-USD"] = str(
-            updated_budget.cost_remaining_daily_usd
+    if usage.cost is not None:
+        outgoing_response.headers["X-Usage-Cost-USD"] = str(
+            updated_budget.cost_used_daily_usd
         )
+        if updated_budget.cost_remaining_daily_usd is not None:
+            outgoing_response.headers["X-Usage-Cost-Remaining-USD"] = str(
+                updated_budget.cost_remaining_daily_usd
+            )
 
     emit_audit_event(
         request_id=request_id,
@@ -355,21 +404,10 @@ async def chat_completion(
         reason=updated_budget.reason,
         request_tokens=usage.total_tokens,
         request_cost_usd=usage.cost,
-        token_limit_daily=updated_budget.token_limit_daily,
-        tokens_used_daily=updated_budget.tokens_used_daily,
-        tokens_remaining_daily=updated_budget.tokens_remaining_daily,
-        cost_limit_daily_usd=(
-            float(updated_budget.cost_limit_daily_usd)
-            if updated_budget.cost_limit_daily_usd is not None
-            else None
+        **_budget_audit_fields(
+            updated_budget,
+            include_cost=usage.cost is not None,
         ),
-        cost_used_daily_usd=float(updated_budget.cost_used_daily_usd),
-        cost_remaining_daily_usd=(
-            float(updated_budget.cost_remaining_daily_usd)
-            if updated_budget.cost_remaining_daily_usd is not None
-            else None
-        ),
-        budget_reset_at=updated_budget.reset_at.isoformat(),
     )
 
     latency_ms = (perf_counter() - http_request.state.started_at) * 1000
