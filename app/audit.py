@@ -29,6 +29,15 @@ def emit_audit_event(
     limit_rpm: int | None = None,
     remaining: int | None = None,
     retry_after_seconds: int | None = None,
+    request_tokens: int | None = None,
+    request_cost_usd: float | None = None,
+    token_limit_daily: int | None = None,
+    tokens_used_daily: int | None = None,
+    tokens_remaining_daily: int | None = None,
+    cost_limit_daily_usd: float | None = None,
+    cost_used_daily_usd: float | None = None,
+    cost_remaining_daily_usd: float | None = None,
+    budget_reset_at: str | None = None,
 ) -> None:
     """
     RME
@@ -58,6 +67,15 @@ def emit_audit_event(
         - limit_rpm: Optional requests-per-minute limit applied to the client.
         - remaining: Optional requests remaining in the current rate-limit window.
         - retry_after_seconds: Optional delay before a denied client should retry.
+        - request_tokens: Optional provider-reported tokens used by one request.
+        - request_cost_usd: Optional provider-reported USD cost for one request.
+        - token_limit_daily: Optional configured daily token budget.
+        - tokens_used_daily: Optional cumulative UTC-day token usage.
+        - tokens_remaining_daily: Optional remaining UTC-day token capacity.
+        - cost_limit_daily_usd: Optional configured daily USD budget.
+        - cost_used_daily_usd: Optional cumulative UTC-day USD cost.
+        - cost_remaining_daily_usd: Optional remaining UTC-day USD capacity.
+        - budget_reset_at: Optional ISO timestamp for the next budget reset.
 
     Outputs:
         - None.
@@ -69,25 +87,31 @@ def emit_audit_event(
         "outcome": outcome,
     }
 
-    if client_id is not None:
-        payload["client_id"] = client_id
-    if key_id is not None:
-        payload["key_id"] = key_id
-    if requested_model is not None:
-        payload["requested_model"] = requested_model
-    if resolved_model is not None:
-        payload["resolved_model"] = resolved_model
-    if provider is not None:
-        payload["provider"] = provider
-    if reason is not None:
-        payload["reason"] = reason
+    optional_fields = {
+        "client_id": client_id,
+        "key_id": key_id,
+        "requested_model": requested_model,
+        "resolved_model": resolved_model,
+        "provider": provider,
+        "reason": reason,
+        "limit_rpm": limit_rpm,
+        "remaining": remaining,
+        "retry_after_seconds": retry_after_seconds,
+        "request_tokens": request_tokens,
+        "request_cost_usd": request_cost_usd,
+        "token_limit_daily": token_limit_daily,
+        "tokens_used_daily": tokens_used_daily,
+        "tokens_remaining_daily": tokens_remaining_daily,
+        "cost_limit_daily_usd": cost_limit_daily_usd,
+        "cost_used_daily_usd": cost_used_daily_usd,
+        "cost_remaining_daily_usd": cost_remaining_daily_usd,
+        "budget_reset_at": budget_reset_at,
+    }
+    for field, value in optional_fields.items():
+        if value is not None:
+            payload[field] = value
+
     if latency_ms is not None:
         payload["latency_ms"] = round(latency_ms, 3)
-    if limit_rpm is not None:
-        payload["limit_rpm"] = limit_rpm
-    if remaining is not None:
-        payload["remaining"] = remaining
-    if retry_after_seconds is not None:
-        payload["retry_after_seconds"] = retry_after_seconds
 
     audit_logger.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
