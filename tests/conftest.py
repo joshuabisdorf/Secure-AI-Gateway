@@ -6,6 +6,7 @@ import pytest
 # This must run during test collection, before test modules import app.main.
 os.environ["SAG_PROVIDER"] = "mock"
 os.environ["SAG_CLIENT_RATE_LIMITS"] = "test-client:10000"
+os.environ["SAG_CLIENT_DAILY_BUDGETS"] = "test-client:1000000:1000.00"
 
 TEST_API_KEY = "sag_testkey_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
 TEST_CLIENTS = (
@@ -15,30 +16,32 @@ TEST_CLIENTS = (
 
 
 @pytest.fixture(autouse=True)
-def reset_rate_limit_state():
+def reset_process_local_policy_state():
     """
     RME
 
     Requires:
-        - The gateway application exposes its process-local rate limiter.
+        - The gateway exposes process-local rate-limit and usage-ledger state.
 
     Modifies:
-        - Process-local gateway rate-limit state before and after each test.
+        - Process-local gateway rate-limit and usage-budget state around each test.
 
     Effects:
-        - Prevents request counts from leaking between tests.
+        - Prevents request counts and usage totals from leaking between tests.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Fixture setup and teardown isolate limiter state.
+        - None. Fixture setup and teardown isolate process-local state.
     """
-    from app.main import rate_limiter
+    from app.main import rate_limiter, usage_ledger
 
     rate_limiter.reset()
+    usage_ledger.reset()
     yield
     rate_limiter.reset()
+    usage_ledger.reset()
 
 
 @pytest.fixture
