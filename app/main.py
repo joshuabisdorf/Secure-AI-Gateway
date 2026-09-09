@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
+from app.api_keys import Principal
 from app.audit import emit_audit_event
 from app.auth import authenticate_api_key
 from app.models import ChatCompletionRequest, ChatCompletionResponse
@@ -109,14 +110,14 @@ def health() -> dict[str, str]:
 async def chat_completion(
     request: ChatCompletionRequest,
     http_request: Request,
-    _: str = Depends(authenticate_api_key),
+    principal: Principal = Depends(authenticate_api_key),
 ) -> ChatCompletionResponse:
     """
     RME
 
     Requires:
         - request satisfies the gateway chat-completion schema.
-        - The caller provides a valid gateway API key.
+        - The caller provides a valid gateway API key mapped to a client identity.
         - The requested model is explicitly allowed by gateway policy.
 
     Modifies:
@@ -124,17 +125,18 @@ async def chat_completion(
         - The audit logging stream.
 
     Effects:
-        - Authenticates the caller.
+        - Authenticates and identifies the caller.
         - Enforces and records the configured model allowlist decision.
         - Sends the normalized request to the configured provider when allowed.
         - Records requested and resolved model identities on successful completion.
+        - Attributes policy and completion events to the authenticated client.
         - Records completion outcome and request latency without prompt content.
         - Converts known upstream provider failures to a generic 502 response.
 
     Inputs:
         - request: Requested model and chat messages.
         - http_request: HTTP request containing request ID and timing context.
-        - _: Authenticated gateway credential supplied by dependency injection.
+        - principal: Authenticated client identity supplied by dependency injection.
 
     Outputs:
         - An OpenAI-style chat-completion response.
@@ -148,6 +150,8 @@ async def chat_completion(
             request_id=request_id,
             event="model_policy",
             outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
             requested_model=request.model,
             reason=str(exc.detail),
         )
@@ -157,6 +161,8 @@ async def chat_completion(
         request_id=request_id,
         event="model_policy",
         outcome="allow",
+        client_id=principal.client_id,
+        key_id=principal.key_id,
         requested_model=request.model,
     )
 
@@ -168,6 +174,8 @@ async def chat_completion(
             request_id=request_id,
             event="chat_completion",
             outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
             requested_model=request.model,
             provider=provider.name,
             reason=exc.reason,
@@ -183,6 +191,8 @@ async def chat_completion(
             request_id=request_id,
             event="chat_completion",
             outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
             requested_model=request.model,
             provider=provider.name,
             reason=type(exc).__name__,
@@ -195,6 +205,8 @@ async def chat_completion(
         request_id=request_id,
         event="chat_completion",
         outcome="success",
+        client_id=principal.client_id,
+        key_id=principal.key_id,
         requested_model=request.model,
         resolved_model=response.model,
         provider=provider.name,
