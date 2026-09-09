@@ -62,7 +62,7 @@ Configuration is supplied through environment variables. For local development, 
 cp .env.example .env
 ```
 
-Then edit `.env` for the environment you are running.
+Then edit `.env` for the environment you are running. The committed template uses shell-safe assignments, so it can also be loaded into a Bash session when needed.
 
 ### Gateway variables
 
@@ -70,7 +70,7 @@ Then edit `.env` for the environment you are running.
 | --- | --- |
 | `SAG_PROVIDER` | Selects the provider backend. Currently `mock` or `openai`. |
 | `SAG_API_KEY` | Bearer credential required by clients calling the gateway. |
-| `SAG_ALLOWED_MODELS` | Comma-separated list of model names allowed by gateway policy. |
+| `SAG_ALLOWED_MODELS` | Comma-separated list of exact model names allowed by gateway policy. |
 
 ### Provider-specific variables
 
@@ -79,9 +79,27 @@ The OpenAI provider uses:
 | Variable | Purpose |
 | --- | --- |
 | `OPENAI_API_KEY` | Upstream provider credential. Required when `SAG_PROVIDER=openai`. |
-| `OPENAI_BASE_URL` | Optional OpenAI-compatible base URL override. |
+| `OPENAI_BASE_URL` | Optional OpenAI-compatible base URL override. Leave empty to use the standard provider URL. |
 
 `.env` is ignored by Git. Do not commit real gateway keys or upstream provider credentials.
+
+### Loading `.env`
+
+Uvicorn can load the file directly:
+
+```bash
+uvicorn app.main:app --reload --env-file .env
+```
+
+If another shell also needs the values, for example to use `$SAG_API_KEY` in `curl`, load them with:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+The `.env.example` template intentionally avoids shell metacharacter placeholders such as `<value>` so this works in Bash.
 
 ## Providers
 
@@ -93,8 +111,10 @@ Example `.env` configuration:
 
 ```dotenv
 SAG_PROVIDER=mock
-SAG_API_KEY=<gateway-api-key>
+SAG_API_KEY=local-gateway-key
 SAG_ALLOWED_MODELS=mock-model
+OPENAI_API_KEY=
+OPENAI_BASE_URL=
 ```
 
 The mock provider is intentionally distinguishable from a real provider so tests cannot be mistaken for successful upstream model calls.
@@ -107,16 +127,13 @@ Example `.env` configuration:
 
 ```dotenv
 SAG_PROVIDER=openai
-SAG_API_KEY=<gateway-api-key>
-SAG_ALLOWED_MODELS=<allowed-model-name>
-OPENAI_API_KEY=<provider-api-key>
+SAG_API_KEY=replace-with-gateway-key
+SAG_ALLOWED_MODELS=replace-with-allowed-model
+OPENAI_API_KEY=replace-with-provider-key
+OPENAI_BASE_URL=
 ```
 
-`OPENAI_BASE_URL` is optional and defaults to the standard OpenAI API base URL. It can also be used with compatible endpoints:
-
-```dotenv
-OPENAI_BASE_URL=<provider-base-url>
-```
+`OPENAI_BASE_URL` is optional. Leave it empty to use the standard OpenAI API base URL, or set it to an OpenAI-compatible endpoint when needed.
 
 Real upstream requests can incur provider charges. Automated tests use the mock provider or mocked HTTP transport and do not require real upstream credentials.
 
@@ -246,20 +263,30 @@ Expected body:
 
 ### Chat request
 
-Use a model name that exactly matches one of the entries configured in `SAG_ALLOWED_MODELS`:
+If the shell needs the gateway key from `.env`, load it first:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+For the mock-provider development configuration:
 
 ```bash
 curl -i \
   -X POST http://127.0.0.1:8000/v1/chat/completions \
-  -H "Authorization: Bearer <gateway-api-key>" \
+  -H "Authorization: Bearer $SAG_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "<allowed-model-name>",
+    "model": "mock-model",
     "messages": [
       {"role": "user", "content": "hello"}
     ]
   }'
 ```
+
+For a real provider, replace `mock-model` in the request with the exact model name configured in `SAG_ALLOWED_MODELS`.
 
 FastAPI documentation is available at:
 
