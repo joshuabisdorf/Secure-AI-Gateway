@@ -14,6 +14,7 @@ Implemented:
 - structured high-entropy gateway API keys
 - SHA-256 API-key verification without storing raw gateway keys
 - PostgreSQL-backed persistent client/key registry
+- database-backed API-key revocation and atomic rotation
 - deployment-wide and per-client model allowlists
 - per-client requests-per-minute rate limiting
 - per-client UTC-day token/cost budgets
@@ -113,7 +114,7 @@ gateway_api_keys
   revoked_at
 ```
 
-That layout supports multiple keys per client and the upcoming revocation/rotation workflow.
+That layout supports multiple keys per client, immediate revocation, and transactional key rotation.
 
 ### Start PostgreSQL
 
@@ -203,6 +204,38 @@ Keep the raw key on the client side, for example:
 ```dotenv
 SAG_CLIENT_API_KEY=sag_<key-id>_<secret>
 ```
+
+## API-key revocation and rotation
+
+List non-secret client/key metadata:
+
+```bash
+python -m app.clients list
+```
+
+Revoke one key by its public key ID:
+
+```bash
+python -m app.clients revoke <key-id>
+```
+
+A revoked key remains in PostgreSQL for attribution/history but is excluded from authentication immediately. Repeating the same revoke command is safe and reports that the key was already revoked.
+
+Rotate all active keys for a client:
+
+```bash
+python -m app.clients rotate local-dev
+```
+
+Rotation runs in one PostgreSQL transaction. It creates a replacement key hash and revokes all previously active keys for that client before committing. The command prints the new raw key exactly once; PostgreSQL never stores that raw value.
+
+After rotation, replace the client-side credential in `.client.env`:
+
+```dotenv
+SAG_CLIENT_API_KEY=sag_<new-key-id>_<new-secret>
+```
+
+Do not discard the printed raw replacement key until the client-side secret store has been updated. Because only the hash is persisted, the raw key cannot be recovered from PostgreSQL later.
 
 ## Authentication behavior
 
@@ -401,13 +434,13 @@ Secure-AI-Gateway/
 - [x] structured/high-entropy API keys
 - [x] hashed API-key verification
 - [x] PostgreSQL persistent client/key registry
+- [x] key revocation and rotation workflow
 - [x] global model allowlist
 - [x] per-client model policy
 - [x] per-client rate limiting
 - [x] daily token/cost budgets
 - [x] structured audit logging
 - [x] request correlation
-- [ ] key revocation and rotation workflow
 - [ ] persistent usage accounting
 - [ ] Redis-backed distributed rate limiting
 
