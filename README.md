@@ -2,7 +2,7 @@
 
 A security-focused gateway that sits between applications and large language model providers or local models.
 
-The project is intended to provide a centralized enforcement point for authentication, authorization, usage controls, data protection, model access, tool permissions, and security telemetry before requests reach an LLM provider.
+The project provides a centralized enforcement point for authentication, authorization, usage controls, data protection, model access, tool permissions, and security telemetry before requests reach an LLM provider.
 
 ## Project Status
 
@@ -12,41 +12,63 @@ The current codebase provides:
 
 - FastAPI application foundation
 - `/health` endpoint
+- OpenAI-style `/v1/chat/completions` endpoint
+- provider abstraction with a deterministic fake provider
+- bearer API-key authentication
+- fail-closed model allowlist enforcement
 - automated tests with `pytest`
 - isolated Python project configuration
 
-The next milestone is an OpenAI-compatible `/v1/chat/completions` endpoint backed by a provider abstraction and a fake provider for deterministic testing.
+The next security milestone is structured audit logging, followed by a real upstream provider implementation.
 
-## Planned Architecture
+## Architecture
 
 ```text
 Application
     |
+    | Bearer gateway API key
     v
 Secure AI Gateway
     |
-    +-- Authentication
-    +-- Rate limiting
-    +-- Model allowlists
-    +-- Token and cost budgets
-    +-- PII detection/redaction
-    +-- Prompt-injection detection
-    +-- Tool permissions
-    +-- Policy engine
-    +-- Audit logging
-    +-- Model routing
+    +-- Authentication              [implemented]
+    +-- Model allowlist             [implemented]
+    +-- Rate limiting               [planned]
+    +-- Token and cost budgets      [planned]
+    +-- PII detection/redaction     [planned]
+    +-- Prompt-injection detection  [planned]
+    +-- Tool permissions            [planned]
+    +-- Policy engine               [planned]
+    +-- Audit logging               [next]
+    +-- Model routing               [planned]
     |
     v
 OpenAI / Anthropic / Local Models
 ```
 
-The gateway is designed so that applications authenticate to the gateway rather than receiving direct access to upstream provider credentials.
+Applications authenticate to the gateway rather than receiving direct access to upstream provider credentials.
 
-## Security Goals
+## Current Security Behavior
 
-Planned controls include:
+The chat-completions endpoint requires two independent conditions before a request reaches the provider:
 
-- API-key authentication
+1. The caller must provide the configured `SAG_API_KEY` as a bearer token.
+2. The requested model must appear in `SAG_ALLOWED_MODELS`.
+
+The model policy fails closed. If no usable allowlist is configured, authenticated requests return `503` rather than being forwarded without policy enforcement. Requests for models outside the allowlist return `403`.
+
+Example environment configuration:
+
+```bash
+export SAG_API_KEY="sag_dev_change_me"
+export SAG_ALLOWED_MODELS="fake-model,another-model"
+```
+
+Do not commit real API keys. `.env` is ignored by Git; `.env.example` documents supported development variables without containing secrets.
+
+## Planned Security Controls
+
+- per-user API keys and identities
+- hashed API-key storage
 - per-user rate limits
 - model allowlists
 - per-request and per-user token/cost budgets
@@ -74,7 +96,7 @@ denied_tools:
 max_cost_per_request: 0.10
 ```
 
-LLM output will be treated as untrusted input. A model may request an action, but authorization will be enforced by code outside the model.
+LLM output is treated as untrusted input. A model may request an action, but authorization is enforced by code outside the model.
 
 ## Technology Stack
 
@@ -106,15 +128,26 @@ Planned:
 Secure-AI-Gateway/
 ├── app/
 │   ├── __init__.py
-│   └── main.py
+│   ├── auth.py
+│   ├── main.py
+│   ├── models.py
+│   ├── policies/
+│   │   ├── __init__.py
+│   │   └── model_access.py
+│   └── providers/
+│       ├── __init__.py
+│       ├── base.py
+│       └── fake.py
 ├── tests/
-│   └── test_health.py
+│   ├── test_auth.py
+│   ├── test_chat.py
+│   ├── test_health.py
+│   └── test_model_policy.py
+├── .env.example
 ├── .gitignore
 ├── pyproject.toml
 └── README.md
 ```
-
-This layout will expand as provider, policy, authentication, audit, and detection components are introduced.
 
 ## Development Setup
 
@@ -146,6 +179,13 @@ python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
 
+### Configure development security policy
+
+```bash
+export SAG_API_KEY="sag_dev_change_me"
+export SAG_ALLOWED_MODELS="fake-model"
+```
+
 ### Run the tests
 
 ```bash
@@ -156,12 +196,6 @@ pytest -q
 
 ```bash
 uvicorn app.main:app --reload
-```
-
-The API will be available at:
-
-```text
-http://127.0.0.1:8000
 ```
 
 Health check:
@@ -176,6 +210,19 @@ Expected response:
 {"status":"ok"}
 ```
 
+Authenticated chat request:
+
+```bash
+curl \
+  -X POST http://127.0.0.1:8000/v1/chat/completions \
+  -H "Authorization: Bearer $SAG_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "fake-model",
+    "messages": [{"role": "user", "content": "hello"}]
+  }'
+```
+
 FastAPI documentation is available at:
 
 ```text
@@ -184,7 +231,7 @@ http://127.0.0.1:8000/docs
 
 ## Development Across LMDE and WSL2
 
-The project is developed from separate Linux working copies on LMDE and Ubuntu under WSL2.
+The project uses separate Linux working copies on LMDE and Ubuntu under WSL2.
 
 ```text
              GitHub
@@ -198,14 +245,14 @@ The project is developed from separate Linux working copies on LMDE and Ubuntu u
 
 GitHub is the synchronization point for source code. Virtual environments, `.env` files, secrets, local databases, and Docker containers are not shared between environments.
 
-Typical workflow before starting work:
+Before starting work:
 
 ```bash
 git pull
 source .venv/bin/activate
 ```
 
-Typical workflow after completing a tested change:
+After completing a tested local change:
 
 ```bash
 pytest -q
@@ -225,31 +272,6 @@ Project functions use an RME-style docstring where appropriate:
 - **Inputs** — function inputs
 - **Outputs** — returned values or produced outputs
 
-Example:
-
-```python
-def health() -> dict[str, str]:
-    """
-    RME
-
-    Requires:
-        - The FastAPI application is running.
-
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Reports the health status of the gateway.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A dictionary containing the gateway health status.
-    """
-    return {"status": "ok"}
-```
-
 ## Roadmap
 
 ### Phase 1 — Gateway foundation
@@ -257,15 +279,16 @@ def health() -> dict[str, str]:
 - [x] FastAPI application
 - [x] health endpoint
 - [x] automated test foundation
-- [ ] OpenAI-compatible chat-completions schema
-- [ ] provider interface
-- [ ] fake provider
+- [x] OpenAI-compatible chat-completions schema
+- [x] provider interface
+- [x] fake provider
 - [ ] real upstream provider
 
 ### Phase 2 — Core security controls
 
-- [ ] API-key authentication
-- [ ] model allowlists
+- [x] API-key authentication
+- [x] model allowlist enforcement
+- [ ] per-user identities and API keys
 - [ ] policy engine
 - [ ] structured audit logging
 - [ ] rate limiting
@@ -312,7 +335,7 @@ Precision           = TP / (TP + FP)
 Latency Overhead    = gateway latency - direct provider latency
 ```
 
-External provider calls will be isolated behind provider interfaces so most tests can run deterministically without internet access, provider credentials, or API cost.
+External provider calls are isolated behind provider interfaces so most tests can run deterministically without internet access, provider credentials, or API cost.
 
 ## License
 
