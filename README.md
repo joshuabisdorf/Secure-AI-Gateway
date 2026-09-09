@@ -2,7 +2,7 @@
 
 Secure AI Gateway is a security-focused proxy between applications and large language model providers or local model backends.
 
-It provides a centralized enforcement point for client authentication, model authorization, request throttling, provider routing, audit logging, request correlation, and future controls such as usage budgets, PII handling, prompt-injection detection, and tool authorization.
+It provides a centralized enforcement point for client authentication, model authorization, request throttling, usage budgets, provider routing, audit logging, request correlation, and future controls such as PII handling, prompt-injection detection, and tool authorization.
 
 ## Project Status
 
@@ -13,26 +13,22 @@ Currently implemented:
 - FastAPI application
 - `/health` endpoint
 - OpenAI-style `/v1/chat/completions` endpoint
-- provider abstraction
 - deterministic non-network mock provider
 - OpenAI upstream provider
 - OpenRouter upstream provider
-- per-client gateway identities
-- structured high-entropy gateway API keys
+- per-client identities and structured gateway API keys
 - hashed gateway API-key verification
-- deployment-wide model allowlist
-- per-client model allowlists
+- deployment-wide and per-client model allowlists
 - per-client requests-per-minute rate limiting
-- `429` responses with `Retry-After`
-- rate-limit response headers
+- per-client daily token and cost budgets
+- provider usage normalization
 - structured JSON audit logging with client attribution
 - request correlation through `X-Request-ID`
-- requested-versus-resolved model audit attribution
-- request latency measurement
+- requested-versus-resolved model attribution
 - sanitized upstream provider failures
 - automated tests with `pytest`
 
-The next major milestone is token and cost budgets.
+The next infrastructure milestone is persistent policy and usage state so client records, revocation, rate limits, and budgets can survive process restarts and scale across replicas.
 
 ## Architecture
 
@@ -48,10 +44,11 @@ Secure AI Gateway
     +-- Per-client rate limiting    [implemented]
     +-- Global model allowlist      [implemented]
     +-- Per-client model policy     [implemented]
+    +-- Daily token/cost budgets    [implemented]
     +-- Audit logging               [implemented]
     +-- Request correlation         [implemented]
     +-- Provider routing            [implemented]
-    +-- Token and cost budgets      [next]
+    +-- Persistent policy state     [next]
     +-- PII detection/redaction     [planned]
     +-- Prompt-injection detection  [planned]
     +-- Tool permissions            [planned]
@@ -70,7 +67,7 @@ For local development:
 cp .env.example .env
 ```
 
-The server `.env` contains provider credentials, hashed gateway-client records, authorization policy, and client rate limits. It does not need to contain raw gateway client keys.
+The server `.env` contains provider credentials, hashed gateway-client records, authorization policy, rate limits, and usage budgets. Raw gateway client keys stay outside the server configuration.
 
 ### Gateway variables
 
@@ -79,41 +76,47 @@ The server `.env` contains provider credentials, hashed gateway-client records, 
 | `SAG_PROVIDER` | Provider backend: `mock`, `openai`, or `openrouter`. |
 | `SAG_CLIENTS` | Comma-separated hashed gateway client-key registry. |
 | `SAG_ALLOWED_MODELS` | Deployment-wide model ceiling. |
-| `SAG_CLIENT_ALLOWED_MODELS` | Per-client model grants. |
+| `SAG_CLIENT_ALLOWED_MODELS` | Per-client exact model grants. |
 | `SAG_CLIENT_RATE_LIMITS` | Per-client protected chat requests allowed per minute. |
+| `SAG_CLIENT_DAILY_BUDGETS` | Per-client UTC-day token and USD budgets. |
 
-`SAG_CLIENTS` records use:
+Client records use:
 
 ```text
 client_id:key_id:sha256[,client_id:key_id:sha256...]
 ```
 
-Per-client model grants use:
+Model grants use:
 
 ```text
 client_id:model[,client_id:model...]
 ```
 
-Per-client rate limits use:
+Rate limits use:
 
 ```text
 client_id:requests_per_minute[,client_id:requests_per_minute...]
 ```
 
-Example:
+Daily usage budgets use:
 
-```dotenv
-SAG_ALLOWED_MODELS=openrouter/free,nvidia/model:free
-SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free,service-a:nvidia/model:free
-SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
+```text
+client_id:daily_tokens:daily_cost_usd[,client_id:daily_tokens:daily_cost_usd...]
 ```
 
-A chat request is processed only when the authenticated client has rate-limit policy and the requested model passes **both** authorization layers:
+Use `-` to disable one budget dimension:
 
-1. the model is globally enabled in `SAG_ALLOWED_MODELS`; and
-2. the authenticated `client_id` has that exact model in `SAG_CLIENT_ALLOWED_MODELS`.
+```dotenv
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00,service-a:100000:-,service-b:-:5.00
+```
 
-This lets the global allowlist act as a hard deployment ceiling while individual clients receive narrower permissions.
+This means:
+
+- `local-dev` may consume up to 50,000 tokens and $1.00 per UTC day.
+- `service-a` has a 100,000-token budget with no gateway cost ceiling.
+- `service-b` has a $5.00 cost budget with no gateway token ceiling.
+
+At least one dimension must be enabled for every configured client.
 
 ### Provider-specific variables
 
@@ -124,7 +127,7 @@ This lets the global allowlist act as a hard deployment ceiling while individual
 | `OPENROUTER_API_KEY` | Required when `SAG_PROVIDER=openrouter`. |
 | `OPENROUTER_BASE_URL` | Optional OpenRouter base URL override. Defaults to `https://openrouter.ai/api/v1`. |
 
-`.env` is ignored by Git. Do not commit gateway client keys or upstream provider credentials.
+`.env` and `.client.env` are ignored by Git. Do not commit gateway client keys or upstream provider credentials.
 
 ## Gateway Client API Keys
 
@@ -134,9 +137,7 @@ Gateway client credentials have this structure:
 sag_<key_id>_<high-entropy-secret>
 ```
 
-The server stores a SHA-256 digest of the complete high-entropy key rather than the raw credential.
-
-Generate a key for a client identity:
+Generate one with:
 
 ```bash
 python -m app.api_keys local-dev
@@ -150,13 +151,13 @@ API key: sag_<key-id>_<secret>
 Server record: local-dev:<key-id>:<sha256>
 ```
 
-Put the server record in `.env`:
+Put only the server record in `.env`:
 
 ```dotenv
 SAG_CLIENTS=paste-server-record-here
 ```
 
-Store the raw key separately for the client:
+Keep the raw client key separately:
 
 ```bash
 cp .client.env.example .client.env
@@ -166,8 +167,6 @@ cp .client.env.example .client.env
 SAG_CLIENT_API_KEY=paste-raw-generated-key-here
 ```
 
-Both `.env` and `.client.env` are ignored by Git.
-
 ## Per-Client Rate Limiting
 
 `SAG_CLIENT_RATE_LIMITS` defines a fixed requests-per-minute limit for each authenticated client:
@@ -176,7 +175,7 @@ Both `.env` and `.client.env` are ignored by Git.
 SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
 ```
 
-The limiter runs after authentication and before model/provider work. Therefore every authenticated chat attempt consumes client capacity, including requests later denied by model policy.
+The limiter runs after authentication and before model/provider work. Every authenticated chat attempt consumes client capacity, including requests later denied by model policy.
 
 Successful responses include:
 
@@ -185,40 +184,80 @@ X-RateLimit-Limit: 10
 X-RateLimit-Remaining: 9
 ```
 
-When the client exhausts the current window, the gateway returns:
+An exhausted rate window returns `429 Too Many Requests` with `Retry-After`.
+
+The current rate limiter is intentionally process-local and in memory. Redis-backed distributed enforcement is planned before multi-worker or multi-replica deployment.
+
+## Per-Client Daily Usage Budgets
+
+`SAG_CLIENT_DAILY_BUDGETS` limits cumulative provider-reported usage for each UTC day:
+
+```dotenv
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
+```
+
+The gateway checks accumulated usage before forwarding. Exact usage is only known after a provider completes a request, so the request that crosses the remaining budget is returned and accounted. Subsequent requests are blocked with:
 
 ```text
-HTTP/1.1 429 Too Many Requests
-Retry-After: 42
-X-RateLimit-Limit: 10
-X-RateLimit-Remaining: 0
+HTTP/1.1 403 Forbidden
+X-Usage-Budget-Reset: <next-UTC-midnight>
 ```
-
-with:
 
 ```json
-{"detail":"Rate limit exceeded."}
+{"detail":"Usage budget exceeded."}
 ```
 
-Missing, malformed, or client-incomplete rate-limit policy fails closed with `503`.
+Successful responses expose cumulative daily accounting:
 
-### Current implementation boundary
+```text
+X-Usage-Tokens-Used: 123
+X-Usage-Tokens-Remaining: 49877
+X-Usage-Cost-USD: 0.00042
+X-Usage-Cost-Remaining-USD: 0.99958
+X-Usage-Budget-Reset: 2026-09-10T00:00:00+00:00
+```
 
-The rate limiter is intentionally process-local and in memory. It is correct for the current single-process local development setup, but each Uvicorn worker or deployed replica would otherwise maintain an independent counter.
+The usage ledger is currently process-local and in memory, so restarting the process resets it. Persistent accounting is required before these budgets are production-grade or shared across replicas.
 
-Distributed rate enforcement will move behind the same policy boundary to Redis before multi-worker or multi-replica deployment.
+### Provider accounting behavior
+
+The normalized gateway response supports:
+
+```json
+{
+  "usage": {
+    "prompt_tokens": 7,
+    "completion_tokens": 5,
+    "total_tokens": 12,
+    "cost": 0.00042
+  }
+}
+```
+
+OpenRouter is configured to request its usage accounting, which includes token counts and actual request cost. Free models normally report zero cost while still consuming tokens.
+
+Direct OpenAI Chat Completions provides token usage but not a provider-reported dollar-cost field. Therefore direct OpenAI can currently use a token-only budget such as:
+
+```dotenv
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
+```
+
+Provider-independent cost enforcement will require a trusted pricing layer that maps resolved models and usage to current prices.
+
+If a configured budget depends on accounting data that the provider does not return, the gateway fails closed with a sanitized `502` instead of silently bypassing the budget.
 
 ## Providers
 
 ### Mock provider
 
-The mock provider is deterministic and non-production. It performs no external network request.
+The mock provider is deterministic and non-production. It performs no external network request and reports deterministic usage for tests.
 
 ```dotenv
 SAG_PROVIDER=mock
 SAG_ALLOWED_MODELS=mock-model
 SAG_CLIENT_ALLOWED_MODELS=local-dev:mock-model
 SAG_CLIENT_RATE_LIMITS=local-dev:60
+SAG_CLIENT_DAILY_BUDGETS=local-dev:10000:10.00
 ```
 
 ### OpenAI provider
@@ -228,6 +267,7 @@ SAG_PROVIDER=openai
 SAG_ALLOWED_MODELS=your-model-name
 SAG_CLIENT_ALLOWED_MODELS=local-dev:your-model-name
 SAG_CLIENT_RATE_LIMITS=local-dev:30
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
 OPENAI_API_KEY=your-provider-key
 OPENAI_BASE_URL=
 ```
@@ -243,68 +283,58 @@ SAG_PROVIDER=openrouter
 SAG_ALLOWED_MODELS=openrouter/free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 SAG_CLIENT_RATE_LIMITS=local-dev:10
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
 ```
 
-`OPENROUTER_BASE_URL` can normally remain empty. `openrouter/free` is a routing alias, so OpenRouter may resolve it to a different concrete free model on each request. The gateway records both the requested alias and the model reported by the upstream response.
+`OPENROUTER_BASE_URL` can normally remain empty. `openrouter/free` is a routing alias, so OpenRouter may resolve it to a different concrete free model on each request. The gateway records both the requested alias and resolved model.
 
 ## Security Behavior
 
 Before a chat-completion request reaches a provider, the gateway requires:
 
 1. a valid structured gateway API key;
-2. a matching hashed client-key record in `SAG_CLIENTS`;
+2. a matching hashed client-key record;
 3. configured per-client rate policy with available capacity;
-4. a requested model present in the global allowlist; and
-5. a matching model grant for the authenticated client.
+4. a requested model present in the global allowlist;
+5. a matching per-client model grant; and
+6. configured daily usage policy with remaining accumulated capacity.
 
 The gateway fails closed:
 
-- missing or invalid client registry returns `503`
-- missing or invalid client credentials return `401`
-- missing or invalid per-client rate policy returns `503`
-- exceeded rate limit returns `429`
-- missing global model policy returns `503`
-- missing or invalid per-client model policy returns `503`
-- models denied by either authorization layer return `403`
-- known upstream provider failures are converted to a generic `502`
-
-The same generic `403` response is used for global and client-level model denials so the API does not disclose internal policy structure.
+- invalid or missing client registry: `503`
+- missing or invalid client credentials: `401`
+- missing or invalid rate policy: `503`
+- exceeded request rate: `429`
+- missing model policy: `503`
+- denied model: `403`
+- missing or invalid usage-budget policy: `503`
+- exhausted daily usage budget: `403`
+- required provider accounting unavailable: `502`
+- known upstream provider failures: generic `502`
 
 ## Request Correlation and Audit Logging
 
 Each request receives an `X-Request-ID`. A valid caller-supplied value is preserved; otherwise the gateway generates one.
 
-Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger. The audit logger writes one JSON record per line to application stderr, so the records appear directly in the terminal running Uvicorn alongside its normal access logs.
+Security-relevant decisions are emitted as one-line JSON records to application stderr, so they appear directly in the terminal running Uvicorn. The audit layer includes safe metadata such as `client_id`, `key_id`, model names, rate-limit state, cumulative token usage, cumulative cost, and budget reset time.
 
-A successful rate-limit decision can include:
-
-```json
-{
-  "event": "rate_limit",
-  "outcome": "allow",
-  "client_id": "local-dev",
-  "key_id": "abcd1234",
-  "limit_rpm": 10,
-  "remaining": 9,
-  "request_id": "req_..."
-}
-```
-
-A successful completion event can include:
+A usage accounting event can look like:
 
 ```json
 {
-  "event": "chat_completion",
-  "outcome": "success",
+  "event": "usage_budget",
+  "outcome": "recorded",
   "client_id": "local-dev",
-  "key_id": "abcd1234",
   "provider": "openrouter",
-  "requested_model": "openrouter/free",
-  "resolved_model": "provider/model:free",
-  "request_id": "req_...",
-  "latency_ms": 123.456
+  "request_tokens": 12,
+  "request_cost_usd": 0.00042,
+  "tokens_used_daily": 125,
+  "tokens_remaining_daily": 49875,
+  "cost_used_daily_usd": 0.00042,
+  "cost_remaining_daily_usd": 0.99958,
+  "request_id": "req_..."
 }
 ```
 
@@ -317,7 +347,7 @@ The audit layer intentionally does not log raw gateway API keys, prompt/message 
 - Python 3.13+
 - Git
 
-### Clone and install
+### Install
 
 ```bash
 git clone git@github.com:joshuabisdorf/Secure-AI-Gateway.git
@@ -328,16 +358,9 @@ python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
 
-### Configure the server
+### Current OpenRouter development configuration
 
-```bash
-cp .env.example .env
-python -m app.api_keys local-dev
-```
-
-Copy the generated server record into `SAG_CLIENTS`, configure provider credentials, set the global allowlist, grant the desired model to `local-dev`, and set a client rate limit.
-
-For the current OpenRouter development setup:
+After generating a `local-dev` client record, a typical `.env` is:
 
 ```dotenv
 SAG_PROVIDER=openrouter
@@ -345,6 +368,7 @@ SAG_CLIENTS=your-existing-server-record
 SAG_ALLOWED_MODELS=openrouter/free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 SAG_CLIENT_RATE_LIMITS=local-dev:10
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
 OPENROUTER_API_KEY=your-existing-openrouter-key
 OPENROUTER_BASE_URL=
 ```
@@ -355,13 +379,7 @@ Start the gateway:
 uvicorn app.main:app --reload --env-file .env
 ```
 
-### Configure the local client
-
-```bash
-cp .client.env.example .client.env
-```
-
-Put the generated raw key in `SAG_CLIENT_API_KEY`, then load it:
+Load the client key in another terminal:
 
 ```bash
 set -a
@@ -369,15 +387,7 @@ source .client.env
 set +a
 ```
 
-### Health check
-
-```bash
-curl -i http://127.0.0.1:8000/health
-```
-
-### Chat request
-
-For OpenRouter free routing:
+Then call:
 
 ```bash
 curl -i \
@@ -387,7 +397,7 @@ curl -i \
   -d '{
     "model": "openrouter/free",
     "messages": [
-      {"role": "user", "content": "Reply with exactly: Secure gateway works"}
+      {"role": "user", "content": "Reply with exactly: Usage accounting works"}
     ]
   }'
 ```
@@ -402,7 +412,7 @@ Run:
 pytest -q
 ```
 
-The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport. Rate-limit state is reset between tests so the suite is deterministic and order-independent.
+The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport. Process-local rate-limit and usage-budget state is reset between tests.
 
 ## Repository Layout
 
@@ -415,6 +425,7 @@ Secure-AI-Gateway/
 │   ├── main.py
 │   ├── models.py
 │   ├── rate_limit.py
+│   ├── usage_budget.py
 │   ├── policies/
 │   │   └── model_access.py
 │   └── providers/
@@ -424,7 +435,8 @@ Secure-AI-Gateway/
 │       ├── openai.py
 │       └── openrouter.py
 ├── tests/
-│   └── test_rate_limit.py
+│   ├── test_rate_limit.py
+│   └── test_usage_budget.py
 ├── .client.env.example
 ├── .env.example
 ├── .gitignore
@@ -464,11 +476,12 @@ Project functions use an RME-style docstring where appropriate:
 - [x] deployment-wide model allowlist
 - [x] per-client model allowlists
 - [x] per-client rate limiting
+- [x] daily token and cost budgets
 - [x] structured audit logging
 - [x] request correlation
 - [ ] persistent client/key registry
 - [ ] key revocation and rotation workflow
-- [ ] token and cost budgets
+- [ ] persistent/distributed usage accounting
 
 ### Phase 3 — LLM security controls
 
