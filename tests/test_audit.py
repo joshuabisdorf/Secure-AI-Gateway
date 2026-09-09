@@ -60,6 +60,10 @@ def test_audit_log_attributes_client_without_secrets(
         - None. Assertions determine whether auditing is safe and complete.
     """
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
+    monkeypatch.setenv(
+        "SAG_CLIENT_ALLOWED_MODELS",
+        "test-client:mock-model",
+    )
     caplog.set_level(logging.INFO, logger="secure_ai_gateway.audit")
 
     client = TestClient(app)
