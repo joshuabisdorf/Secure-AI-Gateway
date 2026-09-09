@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ChatMessage(BaseModel):
@@ -23,10 +23,10 @@ class ChatChoice(BaseModel):
 
 
 class ChatUsage(BaseModel):
-    prompt_tokens: int
-    completion_tokens: int
-    total_tokens: int
-    cost: float | None = None
+    prompt_tokens: int = Field(ge=0)
+    completion_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    cost: float | None = Field(default=None, ge=0)
 
 
 class ChatCompletionResponse(BaseModel):
