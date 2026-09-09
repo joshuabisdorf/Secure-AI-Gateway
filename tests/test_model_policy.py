@@ -3,33 +3,33 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_chat_rejects_disallowed_model(monkeypatch) -> None:
+def test_chat_rejects_disallowed_model(monkeypatch, gateway_api_key) -> None:
     """
     RME
 
     Requires:
-        - Gateway authentication and model policy are configured.
+        - Gateway client authentication and model policy are configured.
 
     Modifies:
-        - Temporarily configures SAG_API_KEY and SAG_ALLOWED_MODELS.
+        - Temporarily configures SAG_ALLOWED_MODELS.
 
     Effects:
         - Sends an authenticated request for a model outside the allowlist.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.
+        - gateway_api_key: Raw API key for the configured test client.
 
     Outputs:
         - None. Assertions determine whether model access is denied correctly.
     """
-    monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
-    monkeypatch.setenv("SAG_ALLOWED_MODELS", "fake-model")
+    monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
 
     client = TestClient(app)
 
     response = client.post(
         "/v1/chat/completions",
-        headers={"Authorization": "Bearer sag_test_key"},
+        headers={"Authorization": f"Bearer {gateway_api_key}"},
         json={
             "model": "restricted-model",
             "messages": [{"role": "user", "content": "Hello"}],
@@ -40,15 +40,14 @@ def test_chat_rejects_disallowed_model(monkeypatch) -> None:
     assert response.json() == {"detail": "Requested model is not allowed."}
 
 
-def test_chat_fails_closed_without_model_policy(monkeypatch) -> None:
+def test_chat_fails_closed_without_model_policy(monkeypatch, gateway_api_key) -> None:
     """
     RME
 
     Requires:
-        - Gateway authentication is configured.
+        - Gateway client authentication is configured.
 
     Modifies:
-        - Temporarily configures SAG_API_KEY.
         - Ensures SAG_ALLOWED_MODELS is absent for this test process.
 
     Effects:
@@ -56,20 +55,20 @@ def test_chat_fails_closed_without_model_policy(monkeypatch) -> None:
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.
+        - gateway_api_key: Raw API key for the configured test client.
 
     Outputs:
         - None. Assertions determine whether missing policy fails closed.
     """
-    monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
     monkeypatch.delenv("SAG_ALLOWED_MODELS", raising=False)
 
     client = TestClient(app)
 
     response = client.post(
         "/v1/chat/completions",
-        headers={"Authorization": "Bearer sag_test_key"},
+        headers={"Authorization": f"Bearer {gateway_api_key}"},
         json={
-            "model": "fake-model",
+            "model": "mock-model",
             "messages": [{"role": "user", "content": "Hello"}],
         },
     )
