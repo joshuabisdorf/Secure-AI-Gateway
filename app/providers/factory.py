@@ -3,6 +3,7 @@ import os
 from app.providers.base import Provider, ProviderConfigurationError
 from app.providers.mock import MockProvider
 from app.providers.openai import OpenAIProvider
+from app.providers.openrouter import OpenRouterProvider
 
 
 def build_provider() -> Provider:
@@ -32,5 +33,7 @@ def build_provider() -> Provider:
         return MockProvider()
     if provider_name == "openai":
         return OpenAIProvider()
+    if provider_name == "openrouter":
+        return OpenRouterProvider()
 
     raise ProviderConfigurationError("unsupported_provider")
