@@ -21,6 +21,7 @@ Currently implemented:
 - bearer API-key authentication
 - fail-closed model allowlist enforcement
 - structured JSON audit logging
+- requested-versus-resolved model audit attribution
 - request correlation through `X-Request-ID`
 - request latency measurement
 - sanitized upstream provider failures
@@ -163,6 +164,8 @@ curl -i \
   }'
 ```
 
+Router aliases can resolve to a different concrete upstream model. The gateway therefore audits both the model requested by the client and the model reported by the provider response.
+
 ## Security Behavior
 
 Before a chat-completion request reaches a provider, the gateway requires:
@@ -193,9 +196,11 @@ Example events:
 
 ```json
 {"event":"authentication","outcome":"allow","request_id":"req_...","timestamp":"..."}
-{"event":"model_policy","model":"model-name","outcome":"allow","request_id":"req_...","timestamp":"..."}
-{"event":"chat_completion","latency_ms":1.234,"model":"model-name","outcome":"success","provider":"openrouter","request_id":"req_...","timestamp":"..."}
+{"event":"model_policy","outcome":"allow","request_id":"req_...","requested_model":"openrouter/free","timestamp":"..."}
+{"event":"chat_completion","latency_ms":123.456,"outcome":"success","provider":"openrouter","request_id":"req_...","requested_model":"openrouter/free","resolved_model":"provider/model:free","timestamp":"..."}
 ```
+
+`requested_model` is the model or router alias evaluated by gateway policy. `resolved_model` is the concrete model name reported by the successful upstream response. They may be identical for direct model requests and different when a provider performs routing.
 
 The audit layer intentionally does not log:
 
