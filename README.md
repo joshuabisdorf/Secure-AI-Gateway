@@ -1,376 +1,331 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and large language model providers or local model backends.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends.
 
-It provides a centralized enforcement point for client authentication, model authorization, request throttling, usage budgets, provider routing, audit logging, request correlation, and future controls such as PII handling, prompt-injection detection, and tool authorization.
+It centralizes client authentication, model authorization, rate limiting, token/cost budgets, provider routing, audit logging, and request correlation before a request reaches an upstream model.
 
-## Project Status
+## Current capabilities
 
-Early development.
+Implemented:
 
-Currently implemented:
-
-- FastAPI application
-- `/health` endpoint
-- OpenAI-style `/v1/chat/completions` endpoint
+- FastAPI `/health` and OpenAI-style `/v1/chat/completions`
 - deterministic non-network mock provider
-- OpenAI upstream provider
-- OpenRouter upstream provider
-- per-client identities and structured gateway API keys
-- hashed gateway API-key verification
+- OpenAI and OpenRouter upstream providers
+- structured high-entropy gateway API keys
+- SHA-256 API-key verification without storing raw gateway keys
+- PostgreSQL-backed persistent client/key registry
 - deployment-wide and per-client model allowlists
 - per-client requests-per-minute rate limiting
-- per-client daily token and cost budgets
-- provider usage normalization
-- structured JSON audit logging with client attribution
-- request correlation through `X-Request-ID`
+- per-client UTC-day token/cost budgets
+- OpenRouter token/cost accounting
+- structured one-line JSON audit events with client attribution
+- `X-Request-ID` request correlation
 - requested-versus-resolved model attribution
-- sanitized upstream provider failures
-- automated tests with `pytest`
+- sanitized provider failures
+- deterministic `pytest` suite that does not call real providers
 
-The next infrastructure milestone is persistent policy and usage state so client records, revocation, rate limits, and budgets can survive process restarts and scale across replicas.
+Rate-limit counters and daily usage totals are still process-local. Redis-backed rate limiting and persistent usage accounting remain future infrastructure work.
 
-## Architecture
+## Request path
 
 ```text
-Application / Client
-    |
-    | sag_<key_id>_<secret>
-    v
+Client
+  |
+  | sag_<key_id>_<secret>
+  v
 Secure AI Gateway
-    |
-    +-- Client identity             [implemented]
-    +-- Hashed API-key verification [implemented]
-    +-- Per-client rate limiting    [implemented]
-    +-- Global model allowlist      [implemented]
-    +-- Per-client model policy     [implemented]
-    +-- Daily token/cost budgets    [implemented]
-    +-- Audit logging               [implemented]
-    +-- Request correlation         [implemented]
-    +-- Provider routing            [implemented]
-    +-- Persistent policy state     [next]
-    +-- PII detection/redaction     [planned]
-    +-- Prompt-injection detection  [planned]
-    +-- Tool permissions            [planned]
-    |
-    v
-Configured model provider
+  |
+  +-- PostgreSQL client/key lookup
+  +-- constant-time key-hash verification
+  +-- per-client rate limit
+  +-- global model allowlist
+  +-- per-client model allowlist
+  +-- daily token/cost budget
+  +-- structured audit logging
+  +-- provider routing
+  |
+  v
+OpenRouter / OpenAI / other provider
 ```
 
-Applications authenticate to the gateway instead of receiving direct access to upstream provider credentials.
+The upstream provider credential is held only by the gateway. Clients receive gateway credentials instead.
 
-## Configuration
+## Local configuration
 
-For local development:
+Copy the template:
 
 ```bash
 cp .env.example .env
 ```
 
-The server `.env` contains provider credentials, hashed gateway-client records, authorization policy, rate limits, and usage budgets. Raw gateway client keys stay outside the server configuration.
-
-### Gateway variables
-
-| Variable | Purpose |
-| --- | --- |
-| `SAG_PROVIDER` | Provider backend: `mock`, `openai`, or `openrouter`. |
-| `SAG_CLIENTS` | Comma-separated hashed gateway client-key registry. |
-| `SAG_ALLOWED_MODELS` | Deployment-wide model ceiling. |
-| `SAG_CLIENT_ALLOWED_MODELS` | Per-client exact model grants. |
-| `SAG_CLIENT_RATE_LIMITS` | Per-client protected chat requests allowed per minute. |
-| `SAG_CLIENT_DAILY_BUDGETS` | Per-client UTC-day token and USD budgets. |
-
-Client records use:
-
-```text
-client_id:key_id:sha256[,client_id:key_id:sha256...]
-```
-
-Model grants use:
-
-```text
-client_id:model[,client_id:model...]
-```
-
-Rate limits use:
-
-```text
-client_id:requests_per_minute[,client_id:requests_per_minute...]
-```
-
-Daily usage budgets use:
-
-```text
-client_id:daily_tokens:daily_cost_usd[,client_id:daily_tokens:daily_cost_usd...]
-```
-
-Use `-` to disable one budget dimension:
+A typical OpenRouter development configuration is:
 
 ```dotenv
-SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00,service-a:100000:-,service-b:-:5.00
+SAG_PROVIDER=openrouter
+SAG_CLIENT_REGISTRY_BACKEND=postgres
+
+POSTGRES_PASSWORD=sag_dev_password
+DATABASE_URL=postgresql://sag:sag_dev_password@127.0.0.1:5432/secure_ai_gateway
+
+SAG_ALLOWED_MODELS=openrouter/free
+SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
+SAG_CLIENT_RATE_LIMITS=local-dev:10
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
+
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_BASE_URL=
 ```
 
-This means:
+Use `-` to disable one usage-budget dimension. For example:
 
-- `local-dev` may consume up to 50,000 tokens and $1.00 per UTC day.
-- `service-a` has a 100,000-token budget with no gateway cost ceiling.
-- `service-b` has a $5.00 cost budget with no gateway token ceiling.
+```dotenv
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
+```
 
-At least one dimension must be enabled for every configured client.
+means 50,000 tokens per UTC day with no gateway dollar-cost ceiling.
 
-### Provider-specific variables
+`.env` and `.client.env` are ignored by Git.
 
-| Variable | Purpose |
-| --- | --- |
-| `OPENAI_API_KEY` | Required when `SAG_PROVIDER=openai`. |
-| `OPENAI_BASE_URL` | Optional OpenAI API base URL override. |
-| `OPENROUTER_API_KEY` | Required when `SAG_PROVIDER=openrouter`. |
-| `OPENROUTER_BASE_URL` | Optional OpenRouter base URL override. Defaults to `https://openrouter.ai/api/v1`. |
+## PostgreSQL client registry
 
-`.env` and `.client.env` are ignored by Git. Do not commit gateway client keys or upstream provider credentials.
+Runtime authentication defaults to PostgreSQL. The database stores only client identity, public key ID, SHA-256 key digest, activation state, and timestamps. It never stores the raw gateway key.
 
-## Gateway Client API Keys
-
-Gateway client credentials have this structure:
+The schema separates clients from API keys:
 
 ```text
-sag_<key_id>_<high-entropy-secret>
+gateway_clients
+  client_id
+  is_active
+  created_at
+  updated_at
+
+        1
+        |
+        | many
+        v
+
+gateway_api_keys
+  key_id
+  client_id
+  api_key_sha256
+  is_active
+  created_at
+  revoked_at
 ```
 
-Generate one with:
+That layout supports multiple keys per client and the upcoming revocation/rotation workflow.
+
+### Start PostgreSQL
+
+The repository includes `compose.yaml` with PostgreSQL bound to local loopback only:
 
 ```bash
-python -m app.api_keys local-dev
+docker compose up -d postgres
 ```
 
-The command prints:
-
-```text
-Client ID: local-dev
-API key: sag_<key-id>_<secret>
-Server record: local-dev:<key-id>:<sha256>
-```
-
-Put only the server record in `.env`:
-
-```dotenv
-SAG_CLIENTS=paste-server-record-here
-```
-
-Keep the raw client key separately:
+Check it:
 
 ```bash
-cp .client.env.example .client.env
+docker compose ps
 ```
+
+### Initialize the schema
+
+Load your server environment into the shell:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+Then run:
+
+```bash
+python -m app.clients init-db
+```
+
+Expected:
+
+```text
+Client registry schema initialized.
+```
+
+### Migrate an existing `SAG_CLIENTS` key without changing the raw client key
+
+If upgrading from the earlier environment-backed client registry, temporarily keep your existing line in `.env`:
 
 ```dotenv
-SAG_CLIENT_API_KEY=paste-raw-generated-key-here
+SAG_CLIENTS=local-dev:<key-id>:<sha256>
 ```
 
-## Per-Client Rate Limiting
+Load `.env`, then import it:
 
-`SAG_CLIENT_RATE_LIMITS` defines a fixed requests-per-minute limit for each authenticated client:
+```bash
+set -a
+source .env
+set +a
+python -m app.clients import-env
+```
+
+Expected:
+
+```text
+Imported 1 client key record(s).
+```
+
+Verify only non-secret metadata is stored:
+
+```bash
+python -m app.clients list
+```
+
+Example:
+
+```text
+client_id=local-dev key_id=abcd1234 client_active=true key_active=true
+```
+
+After that succeeds, remove `SAG_CLIENTS` from `.env`. The raw key in `.client.env` does not change.
+
+### Create a new database-backed client key
+
+For a new client:
+
+```bash
+python -m app.clients create service-a
+```
+
+The command prints the raw key once. PostgreSQL stores only its SHA-256 digest.
+
+Keep the raw key on the client side, for example:
+
+```dotenv
+SAG_CLIENT_API_KEY=sag_<key-id>_<secret>
+```
+
+## Authentication behavior
+
+For each protected request the gateway:
+
+1. validates the structured bearer-key format;
+2. extracts the public `key_id`;
+3. queries PostgreSQL for an active key belonging to an active client;
+4. hashes the presented complete key;
+5. compares the hash with `hmac.compare_digest`; and
+6. returns a `Principal(client_id, key_id)` to downstream policy checks.
+
+Database failures are sanitized and fail closed with `503`. Unknown, inactive, or incorrect keys return `401`.
+
+The test suite explicitly uses the legacy environment registry backend so tests stay deterministic and do not require Docker/PostgreSQL.
+
+## Per-client model authorization
+
+A requested model must pass both layers:
+
+```text
+SAG_ALLOWED_MODELS
+        |
+        v
+SAG_CLIENT_ALLOWED_MODELS
+        |
+        v
+     provider
+```
+
+Example:
+
+```dotenv
+SAG_ALLOWED_MODELS=openrouter/free,other-model
+SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
+```
+
+`other-model` is globally enabled but unavailable to `local-dev`.
+
+## Per-client rate limiting
+
+Configure fixed requests-per-minute limits:
 
 ```dotenv
 SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
 ```
 
-The limiter runs after authentication and before model/provider work. Every authenticated chat attempt consumes client capacity, including requests later denied by model policy.
-
-Successful responses include:
+Allowed responses include:
 
 ```text
 X-RateLimit-Limit: 10
 X-RateLimit-Remaining: 9
 ```
 
-An exhausted rate window returns `429 Too Many Requests` with `Retry-After`.
+Exhausted clients receive `429 Too Many Requests` with `Retry-After`.
 
-The current rate limiter is intentionally process-local and in memory. Redis-backed distributed enforcement is planned before multi-worker or multi-replica deployment.
+The current limiter is process-local. Redis-backed enforcement is required before multi-worker or multi-replica deployment.
 
-## Per-Client Daily Usage Budgets
+## Daily token and cost budgets
 
-`SAG_CLIENT_DAILY_BUDGETS` limits cumulative provider-reported usage for each UTC day:
-
-```dotenv
-SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
-```
-
-The gateway checks accumulated usage before forwarding. Exact usage is only known after a provider completes a request, so the request that crosses the remaining budget is returned and accounted. Subsequent requests are blocked with:
+Format:
 
 ```text
-HTTP/1.1 403 Forbidden
-X-Usage-Budget-Reset: <next-UTC-midnight>
+client_id:daily_tokens:daily_cost_usd
 ```
 
-```json
-{"detail":"Usage budget exceeded."}
-```
-
-Successful responses expose cumulative daily accounting:
-
-```text
-X-Usage-Tokens-Used: 123
-X-Usage-Tokens-Remaining: 49877
-X-Usage-Cost-USD: 0.00042
-X-Usage-Cost-Remaining-USD: 0.99958
-X-Usage-Budget-Reset: 2026-09-10T00:00:00+00:00
-```
-
-The usage ledger is currently process-local and in memory, so restarting the process resets it. Persistent accounting is required before these budgets are production-grade or shared across replicas.
-
-### Provider accounting behavior
-
-The normalized gateway response supports:
-
-```json
-{
-  "usage": {
-    "prompt_tokens": 7,
-    "completion_tokens": 5,
-    "total_tokens": 12,
-    "cost": 0.00042
-  }
-}
-```
-
-OpenRouter is configured to request its usage accounting, which includes token counts and actual request cost. Free models normally report zero cost while still consuming tokens.
-
-Direct OpenAI Chat Completions provides token usage but not a provider-reported dollar-cost field. Therefore direct OpenAI can currently use a token-only budget such as:
+Examples:
 
 ```dotenv
 SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
-```
-
-Provider-independent cost enforcement will require a trusted pricing layer that maps resolved models and usage to current prices.
-
-If a configured budget depends on accounting data that the provider does not return, the gateway fails closed with a sanitized `502` instead of silently bypassing the budget.
-
-## Providers
-
-### Mock provider
-
-The mock provider is deterministic and non-production. It performs no external network request and reports deterministic usage for tests.
-
-```dotenv
-SAG_PROVIDER=mock
-SAG_ALLOWED_MODELS=mock-model
-SAG_CLIENT_ALLOWED_MODELS=local-dev:mock-model
-SAG_CLIENT_RATE_LIMITS=local-dev:60
-SAG_CLIENT_DAILY_BUDGETS=local-dev:10000:10.00
-```
-
-### OpenAI provider
-
-```dotenv
-SAG_PROVIDER=openai
-SAG_ALLOWED_MODELS=your-model-name
-SAG_CLIENT_ALLOWED_MODELS=local-dev:your-model-name
-SAG_CLIENT_RATE_LIMITS=local-dev:30
-SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
-OPENAI_API_KEY=your-provider-key
-OPENAI_BASE_URL=
-```
-
-Real upstream requests may incur provider charges.
-
-### OpenRouter provider
-
-For free-model experimentation:
-
-```dotenv
-SAG_PROVIDER=openrouter
-SAG_ALLOWED_MODELS=openrouter/free
-SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
-SAG_CLIENT_RATE_LIMITS=local-dev:10
 SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
-OPENROUTER_API_KEY=your-openrouter-key
-OPENROUTER_BASE_URL=
+SAG_CLIENT_DAILY_BUDGETS=service-a:-:5.00
 ```
 
-`OPENROUTER_BASE_URL` can normally remain empty. `openrouter/free` is a routing alias, so OpenRouter may resolve it to a different concrete free model on each request. The gateway records both the requested alias and resolved model.
+OpenRouter supplies provider-reported token counts and request cost when usage accounting is requested. Free models normally report zero cost while still consuming tokens.
 
-## Security Behavior
+The current daily ledger resets at UTC midnight and is process-local. Restarting the gateway resets accumulated usage until persistent usage accounting is implemented.
 
-Before a chat-completion request reaches a provider, the gateway requires:
+## Audit logging
 
-1. a valid structured gateway API key;
-2. a matching hashed client-key record;
-3. configured per-client rate policy with available capacity;
-4. a requested model present in the global allowlist;
-5. a matching per-client model grant; and
-6. configured daily usage policy with remaining accumulated capacity.
+Audit events are emitted as one JSON object per line to application stderr, so they appear in the terminal running Uvicorn.
 
-The gateway fails closed:
-
-- invalid or missing client registry: `503`
-- missing or invalid client credentials: `401`
-- missing or invalid rate policy: `503`
-- exceeded request rate: `429`
-- missing model policy: `503`
-- denied model: `403`
-- missing or invalid usage-budget policy: `503`
-- exhausted daily usage budget: `403`
-- required provider accounting unavailable: `502`
-- known upstream provider failures: generic `502`
-
-## Request Correlation and Audit Logging
-
-Each request receives an `X-Request-ID`. A valid caller-supplied value is preserved; otherwise the gateway generates one.
-
-Security-relevant decisions are emitted as one-line JSON records to application stderr, so they appear directly in the terminal running Uvicorn. The audit layer includes safe metadata such as `client_id`, `key_id`, model names, rate-limit state, cumulative token usage, cumulative cost, and budget reset time.
-
-A usage accounting event can look like:
+They can include safe fields such as:
 
 ```json
 {
-  "event": "usage_budget",
-  "outcome": "recorded",
+  "event": "chat_completion",
+  "outcome": "success",
   "client_id": "local-dev",
+  "key_id": "abcd1234",
   "provider": "openrouter",
-  "request_tokens": 12,
-  "request_cost_usd": 0.00042,
-  "tokens_used_daily": 125,
-  "tokens_remaining_daily": 49875,
-  "cost_used_daily_usd": 0.00042,
-  "cost_remaining_daily_usd": 0.99958,
+  "requested_model": "openrouter/free",
+  "resolved_model": "provider/model:free",
   "request_id": "req_..."
 }
 ```
 
-The audit layer intentionally does not log raw gateway API keys, prompt/message content, upstream provider credentials, or upstream response bodies.
+The audit layer intentionally omits raw gateway keys, prompts/messages, provider credentials, and provider response bodies.
 
-## Local Development
+## Development setup
 
-### Requirements
+Requirements:
 
 - Python 3.13+
+- Docker with Compose
 - Git
 
-### Install
+Install or refresh dependencies after pulling changes:
 
 ```bash
-git clone git@github.com:joshuabisdorf/Secure-AI-Gateway.git
-cd Secure-AI-Gateway
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
 
-### Current OpenRouter development configuration
+Start PostgreSQL:
 
-After generating a `local-dev` client record, a typical `.env` is:
+```bash
+docker compose up -d postgres
+```
 
-```dotenv
-SAG_PROVIDER=openrouter
-SAG_CLIENTS=your-existing-server-record
-SAG_ALLOWED_MODELS=openrouter/free
-SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
-SAG_CLIENT_RATE_LIMITS=local-dev:10
-SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
-OPENROUTER_API_KEY=your-existing-openrouter-key
-OPENROUTER_BASE_URL=
+Run tests:
+
+```bash
+pytest -q
 ```
 
 Start the gateway:
@@ -379,7 +334,7 @@ Start the gateway:
 uvicorn app.main:app --reload --env-file .env
 ```
 
-Load the client key in another terminal:
+In another terminal load the client key:
 
 ```bash
 set -a
@@ -387,7 +342,7 @@ source .client.env
 set +a
 ```
 
-Then call:
+Then test OpenRouter:
 
 ```bash
 curl -i \
@@ -397,24 +352,12 @@ curl -i \
   -d '{
     "model": "openrouter/free",
     "messages": [
-      {"role": "user", "content": "Reply with exactly: Usage accounting works"}
+      {"role": "user", "content": "Reply with exactly: PostgreSQL auth works"}
     ]
   }'
 ```
 
-FastAPI documentation is available at `http://127.0.0.1:8000/docs`.
-
-## Testing
-
-Run:
-
-```bash
-pytest -q
-```
-
-The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport. Process-local rate-limit and usage-budget state is reset between tests.
-
-## Repository Layout
+## Repository layout
 
 ```text
 Secure-AI-Gateway/
@@ -422,98 +365,79 @@ Secure-AI-Gateway/
 │   ├── api_keys.py
 │   ├── audit.py
 │   ├── auth.py
+│   ├── client_registry.py
+│   ├── clients.py
 │   ├── main.py
 │   ├── models.py
 │   ├── rate_limit.py
 │   ├── usage_budget.py
 │   ├── policies/
-│   │   └── model_access.py
 │   └── providers/
-│       ├── base.py
-│       ├── factory.py
-│       ├── mock.py
-│       ├── openai.py
-│       └── openrouter.py
+├── db/
+│   └── migrations/
+│       └── 001_client_registry.sql
 ├── tests/
-│   ├── test_rate_limit.py
-│   └── test_usage_budget.py
 ├── .client.env.example
 ├── .env.example
-├── .gitignore
+├── compose.yaml
 ├── pyproject.toml
 └── README.md
 ```
 
-## Function Documentation Convention
-
-Project functions use an RME-style docstring where appropriate:
-
-- **Requires** — conditions that must be true before the function runs
-- **Modifies** — state or resources changed by the function
-- **Effects** — externally visible actions or side effects
-- **Inputs** — function inputs
-- **Outputs** — returned values or produced outputs
-
 ## Roadmap
 
-### Phase 1 — Gateway foundation
+### Gateway foundation
 
-- [x] FastAPI application
-- [x] health endpoint
-- [x] automated test foundation
-- [x] OpenAI-compatible chat-completions schema
-- [x] provider interface
-- [x] deterministic mock provider
-- [x] OpenAI upstream provider
-- [x] OpenRouter upstream provider
-- [x] provider selection
+- [x] FastAPI gateway
+- [x] OpenAI-compatible chat-completions route
+- [x] provider abstraction
+- [x] mock provider
+- [x] OpenAI provider
+- [x] OpenRouter provider
 
-### Phase 2 — Core security controls
+### Core security controls
 
 - [x] per-client identities
-- [x] structured gateway API keys
+- [x] structured/high-entropy API keys
 - [x] hashed API-key verification
-- [x] deployment-wide model allowlist
-- [x] per-client model allowlists
+- [x] PostgreSQL persistent client/key registry
+- [x] global model allowlist
+- [x] per-client model policy
 - [x] per-client rate limiting
-- [x] daily token and cost budgets
+- [x] daily token/cost budgets
 - [x] structured audit logging
 - [x] request correlation
-- [ ] persistent client/key registry
 - [ ] key revocation and rotation workflow
-- [ ] persistent/distributed usage accounting
+- [ ] persistent usage accounting
+- [ ] Redis-backed distributed rate limiting
 
-### Phase 3 — LLM security controls
+### LLM security controls
 
-- [ ] PII detection and redaction
+- [ ] PII detection/redaction
 - [ ] prompt-injection detection
 - [ ] system-prompt leakage tests
 - [ ] tool authorization
 - [ ] configurable security policies
 
-### Phase 4 — Evaluation
+### Evaluation and infrastructure
 
-- [ ] adversarial prompt dataset
-- [ ] attack detection rate measurement
-- [ ] false-positive rate measurement
-- [ ] latency overhead measurement
-- [ ] cost overhead measurement
-- [ ] provider/model comparisons
-
-### Phase 5 — Infrastructure
-
+- [ ] adversarial prompt dataset and measurable detection metrics
 - [ ] Dockerized gateway
-- [ ] PostgreSQL
-- [ ] Redis-backed distributed rate limiting
 - [ ] GitHub Actions CI
 - [ ] OpenTelemetry / Prometheus
 - [ ] Kubernetes
 - [ ] Terraform
 - [ ] cloud deployment
 
-## Testing Philosophy
+## Function documentation convention
 
-Security features should be measurable rather than assumed. External provider calls remain behind provider interfaces so most tests can run deterministically without network access, provider credentials, or API cost.
+Project functions use RME-style docstrings where appropriate:
+
+- **Requires** — conditions that must hold before execution
+- **Modifies** — state/resources changed
+- **Effects** — externally visible side effects
+- **Inputs** — function inputs
+- **Outputs** — returned or produced outputs
 
 ## License
 
