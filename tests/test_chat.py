@@ -12,7 +12,7 @@ def test_chat_completion(monkeypatch, gateway_api_key) -> None:
         - Gateway client authentication is configured.
 
     Modifies:
-        - Temporarily configures SAG_ALLOWED_MODELS.
+        - Temporarily configures global and per-client model policy.
 
     Effects:
         - Exercises an identified, authenticated, and policy-approved chat request.
@@ -25,6 +25,10 @@ def test_chat_completion(monkeypatch, gateway_api_key) -> None:
         - None. Assertions determine whether the test passes.
     """
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
+    monkeypatch.setenv(
+        "SAG_CLIENT_ALLOWED_MODELS",
+        "test-client:mock-model",
+    )
 
     client = TestClient(app)
 
