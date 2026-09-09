@@ -32,29 +32,33 @@ def _audit_events(caplog) -> list[dict[str, object]]:
     ]
 
 
-def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> None:
+def test_audit_log_attributes_client_without_secrets(
+    monkeypatch,
+    caplog,
+    gateway_api_key,
+) -> None:
     """
     RME
 
     Requires:
-        - Gateway authentication and model policy are configured.
+        - Gateway client authentication and model policy are configured.
 
     Modifies:
         - Temporarily configures gateway environment variables and log capture.
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
-        - Verifies requested and resolved model identities are recorded.
+        - Verifies client identity and requested/resolved model identities are recorded.
         - Verifies prompt content and bearer credentials are not logged.
 
     Inputs:
         - monkeypatch: pytest environment fixture.
         - caplog: pytest log-capture fixture.
+        - gateway_api_key: Raw API key for the configured test client.
 
     Outputs:
         - None. Assertions determine whether auditing is safe and complete.
     """
-    monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     caplog.set_level(logging.INFO, logger="secure_ai_gateway.audit")
 
@@ -63,7 +67,7 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
 
     response = client.post(
         "/v1/chat/completions",
-        headers={"Authorization": "Bearer sag_test_key"},
+        headers={"Authorization": f"Bearer {gateway_api_key}"},
         json={
             "model": "mock-model",
             "messages": [{"role": "user", "content": secret_prompt}],
@@ -74,13 +78,17 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
     assert response.headers["X-Request-ID"].startswith("req_")
 
     events = _audit_events(caplog)
-    assert any(
-        event["event"] == "authentication" and event["outcome"] == "allow"
-        for event in events
+    authentication_event = next(
+        event for event in events if event["event"] == "authentication"
     )
+    assert authentication_event["outcome"] == "allow"
+    assert authentication_event["client_id"] == "test-client"
+    assert authentication_event["key_id"] == "testkey"
 
     policy_event = next(event for event in events if event["event"] == "model_policy")
     assert policy_event["outcome"] == "allow"
+    assert policy_event["client_id"] == "test-client"
+    assert policy_event["key_id"] == "testkey"
     assert policy_event["requested_model"] == "mock-model"
     assert "resolved_model" not in policy_event
 
@@ -88,6 +96,8 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
         event for event in events if event["event"] == "chat_completion"
     )
     assert completion_event["outcome"] == "success"
+    assert completion_event["client_id"] == "test-client"
+    assert completion_event["key_id"] == "testkey"
     assert completion_event["requested_model"] == "mock-model"
     assert completion_event["resolved_model"] == "mock-model"
     assert completion_event["request_id"] == response.headers["X-Request-ID"]
@@ -95,7 +105,7 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
 
     serialized_events = "\n".join(record.message for record in caplog.records)
     assert secret_prompt not in serialized_events
-    assert "sag_test_key" not in serialized_events
+    assert gateway_api_key not in serialized_events
 
 
 def test_request_id_header_is_preserved() -> None:
