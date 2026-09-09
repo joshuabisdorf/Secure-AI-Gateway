@@ -13,6 +13,7 @@ def emit_audit_event(
     event: str,
     outcome: str,
     model: str | None = None,
+    provider: str | None = None,
     reason: str | None = None,
     latency_ms: float | None = None,
 ) -> None:
@@ -34,6 +35,7 @@ def emit_audit_event(
         - event: Audit event category.
         - outcome: Decision or result for the event.
         - model: Optional requested model name.
+        - provider: Optional upstream provider name.
         - reason: Optional non-secret decision reason.
         - latency_ms: Optional elapsed request latency in milliseconds.
 
@@ -49,6 +51,8 @@ def emit_audit_event(
 
     if model is not None:
         payload["model"] = model
+    if provider is not None:
+        payload["provider"] = provider
     if reason is not None:
         payload["reason"] = reason
     if latency_ms is not None:
