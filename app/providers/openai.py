@@ -17,6 +17,7 @@ class OpenAIProvider(Provider):
         base_url: str | None = None,
         timeout_seconds: float = 30.0,
         transport: httpx.AsyncBaseTransport | None = None,
+        include_usage: bool = False,
     ) -> None:
         """
         RME
@@ -30,12 +31,14 @@ class OpenAIProvider(Provider):
 
         Effects:
             - Fails closed when no upstream API key is configured.
+            - Optionally requests extended usage accounting from compatible providers.
 
         Inputs:
             - api_key: Optional explicit upstream API key.
             - base_url: Optional upstream API root.
             - timeout_seconds: Maximum duration of an upstream request.
             - transport: Optional httpx transport used for deterministic testing.
+            - include_usage: Whether to request provider-specific extended usage data.
 
         Outputs:
             - A configured OpenAI provider instance.
@@ -52,6 +55,7 @@ class OpenAIProvider(Provider):
         ).rstrip("/")
         self._timeout_seconds = timeout_seconds
         self._transport = transport
+        self._include_usage = include_usage
 
     async def chat_completion(
         self,
@@ -78,11 +82,14 @@ class OpenAIProvider(Provider):
         Outputs:
             - A normalized chat-completion response.
         """
-        payload = {
+        payload: dict[str, object] = {
             "model": request.model,
             "messages": [message.model_dump() for message in request.messages],
             "stream": False,
         }
+        if self._include_usage:
+            payload["usage"] = {"include": True}
+
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
