@@ -22,8 +22,16 @@ class ChatChoice(BaseModel):
     finish_reason: str
 
 
+class ChatUsage(BaseModel):
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    cost: float | None = None
+
+
 class ChatCompletionResponse(BaseModel):
     id: str
     object: str = "chat.completion"
     model: str
     choices: list[ChatChoice]
+    usage: ChatUsage | None = None
