@@ -41,14 +41,14 @@ def test_audit_log_attributes_client_without_secrets(
     RME
 
     Requires:
-        - Gateway client authentication and model policy are configured.
+        - Gateway client authentication, rate-limit policy, and model policy are configured.
 
     Modifies:
         - Temporarily configures gateway environment variables and log capture.
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
-        - Verifies client identity and requested/resolved model identities are recorded.
+        - Verifies client identity, rate-limit state, and model identities are recorded.
         - Verifies prompt content and bearer credentials are not logged.
 
     Inputs:
@@ -59,6 +59,7 @@ def test_audit_log_attributes_client_without_secrets(
     Outputs:
         - None. Assertions determine whether auditing is safe and complete.
     """
+    monkeypatch.setenv("SAG_CLIENT_RATE_LIMITS", "test-client:10")
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     monkeypatch.setenv(
         "SAG_CLIENT_ALLOWED_MODELS",
@@ -88,6 +89,13 @@ def test_audit_log_attributes_client_without_secrets(
     assert authentication_event["outcome"] == "allow"
     assert authentication_event["client_id"] == "test-client"
     assert authentication_event["key_id"] == "testkey"
+
+    rate_limit_event = next(event for event in events if event["event"] == "rate_limit")
+    assert rate_limit_event["outcome"] == "allow"
+    assert rate_limit_event["client_id"] == "test-client"
+    assert rate_limit_event["key_id"] == "testkey"
+    assert rate_limit_event["limit_rpm"] == 10
+    assert rate_limit_event["remaining"] == 9
 
     policy_event = next(event for event in events if event["event"] == "model_policy")
     assert policy_event["outcome"] == "allow"
