@@ -3,7 +3,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 
 
-def test_chat_completion() -> None:
+def test_chat_completion(monkeypatch) -> None:
     """
     RME
 
@@ -11,21 +11,26 @@ def test_chat_completion() -> None:
         - The FastAPI application and fake provider can be imported.
 
     Modifies:
-        - Nothing.
+        - Temporarily configures SAG_API_KEY for this test process.
 
     Effects:
-        - Exercises the chat-completion API without an external LLM call.
+        - Exercises an authenticated chat-completion request.
 
     Inputs:
-        - None.
+        - monkeypatch: pytest fixture used to configure the test environment.
 
     Outputs:
         - None. Assertions determine whether the test passes.
     """
+    monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
+
     client = TestClient(app)
 
     response = client.post(
         "/v1/chat/completions",
+        headers={
+            "Authorization": "Bearer sag_test_key",
+        },
         json={
             "model": "fake-model",
             "messages": [

@@ -1,5 +1,6 @@
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 
+from app.auth import authenticate_api_key
 from app.models import ChatCompletionRequest, ChatCompletionResponse
 from app.providers.fake import FakeProvider
 
@@ -37,21 +38,25 @@ def health() -> dict[str, str]:
 @app.post("/v1/chat/completions", response_model=ChatCompletionResponse)
 async def chat_completion(
     request: ChatCompletionRequest,
+    _: str = Depends(authenticate_api_key),
 ) -> ChatCompletionResponse:
     """
     RME
 
     Requires:
         - request satisfies the gateway chat-completion schema.
+        - The caller provides a valid gateway API key.
 
     Modifies:
         - Provider-specific state, if any.
 
     Effects:
+        - Authenticates the caller.
         - Sends the normalized request to the configured provider.
 
     Inputs:
         - request: Requested model and chat messages.
+        - _: Authenticated gateway credential supplied by dependency injection.
 
     Outputs:
         - An OpenAI-style chat-completion response.
