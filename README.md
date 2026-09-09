@@ -1,19 +1,21 @@
 # Secure AI Gateway
 
-A security-focused gateway that sits between applications and large language model providers or local models.
+Secure AI Gateway is a security-focused proxy that sits between applications and large language model providers or local model backends.
 
-The project provides a centralized enforcement point for authentication, authorization, usage controls, data protection, model access, tool permissions, and security telemetry before requests reach an LLM provider.
+It provides a centralized enforcement point for authentication, model access policy, provider routing, audit logging, request correlation, and future controls such as rate limits, usage budgets, PII handling, prompt-injection detection, and tool authorization.
 
 ## Project Status
 
 Early development.
 
-The current codebase provides:
+Currently implemented:
 
-- FastAPI application foundation
+- FastAPI application
 - `/health` endpoint
 - OpenAI-style `/v1/chat/completions` endpoint
-- provider abstraction with deterministic fake and OpenAI upstream providers
+- provider abstraction
+- deterministic non-network mock provider
+- OpenAI upstream provider
 - environment-driven provider selection
 - bearer API-key authentication
 - fail-closed model allowlist enforcement
@@ -22,16 +24,15 @@ The current codebase provides:
 - request latency measurement
 - sanitized upstream provider failures
 - automated tests with `pytest`
-- isolated Python project configuration
 
-The next milestone is stronger caller identity and policy controls, followed by rate limiting and usage budgets.
+The next major milestone is stronger caller identity and policy controls, followed by rate limiting and usage budgets.
 
 ## Architecture
 
 ```text
 Application
     |
-    | Bearer gateway API key
+    | Gateway bearer API key
     v
 Secure AI Gateway
     |
@@ -39,7 +40,7 @@ Secure AI Gateway
     +-- Model allowlist             [implemented]
     +-- Audit logging               [implemented]
     +-- Request correlation         [implemented]
-    +-- Provider routing            [fake + OpenAI]
+    +-- Provider routing            [implemented]
     +-- Rate limiting               [planned]
     +-- Token and cost budgets      [planned]
     +-- PII detection/redaction     [planned]
@@ -48,174 +49,143 @@ Secure AI Gateway
     +-- Policy engine               [planned]
     |
     v
-OpenAI / future providers / local models
+Configured model provider
 ```
 
-Applications authenticate to the gateway rather than receiving direct access to upstream provider credentials.
+Applications authenticate to the gateway instead of receiving direct access to upstream provider credentials.
 
-## Current Security Behavior
+## Configuration
 
-The chat-completions endpoint requires two independent conditions before a request reaches the provider:
+Configuration is supplied through environment variables. For local development, copy the committed template and keep the real `.env` file private:
 
-1. The caller must provide the configured `SAG_API_KEY` as a bearer token.
-2. The requested model must appear in `SAG_ALLOWED_MODELS`.
+```bash
+cp .env.example .env
+```
 
-The model policy fails closed. If no usable allowlist is configured, authenticated requests return `503` rather than being forwarded without policy enforcement. Requests for models outside the allowlist return `403`.
+Then edit `.env` for the environment you are running.
 
-Each request also receives a correlation identifier. A valid caller-supplied `X-Request-ID` is preserved; otherwise the gateway generates an identifier such as:
+### Gateway variables
+
+| Variable | Purpose |
+| --- | --- |
+| `SAG_PROVIDER` | Selects the provider backend. Currently `mock` or `openai`. |
+| `SAG_API_KEY` | Bearer credential required by clients calling the gateway. |
+| `SAG_ALLOWED_MODELS` | Comma-separated list of model names allowed by gateway policy. |
+
+### Provider-specific variables
+
+The OpenAI provider uses:
+
+| Variable | Purpose |
+| --- | --- |
+| `OPENAI_API_KEY` | Upstream provider credential. Required when `SAG_PROVIDER=openai`. |
+| `OPENAI_BASE_URL` | Optional OpenAI-compatible base URL override. |
+
+`.env` is ignored by Git. Do not commit real gateway keys or upstream provider credentials.
+
+## Providers
+
+### Mock provider
+
+The **mock provider** is a deterministic, non-production provider used for local development and automated tests. It performs no external network request and does not require an upstream API key.
+
+Example `.env` configuration:
+
+```dotenv
+SAG_PROVIDER=mock
+SAG_API_KEY=<gateway-api-key>
+SAG_ALLOWED_MODELS=mock-model
+```
+
+The mock provider is intentionally distinguishable from a real provider so tests cannot be mistaken for successful upstream model calls.
+
+### OpenAI provider
+
+The OpenAI provider forwards approved requests to an OpenAI-compatible upstream API.
+
+Example `.env` configuration:
+
+```dotenv
+SAG_PROVIDER=openai
+SAG_API_KEY=<gateway-api-key>
+SAG_ALLOWED_MODELS=<allowed-model-name>
+OPENAI_API_KEY=<provider-api-key>
+```
+
+`OPENAI_BASE_URL` is optional and defaults to the standard OpenAI API base URL. It can also be used with compatible endpoints:
+
+```dotenv
+OPENAI_BASE_URL=<provider-base-url>
+```
+
+Real upstream requests can incur provider charges. Automated tests use the mock provider or mocked HTTP transport and do not require real upstream credentials.
+
+## Security Behavior
+
+Before a chat-completion request reaches a provider, the gateway requires:
+
+1. A valid gateway bearer API key.
+2. A requested model that appears in `SAG_ALLOWED_MODELS`.
+
+The model policy fails closed:
+
+- missing or unusable model policy returns `503`
+- disallowed model requests return `403`
+- missing or invalid gateway credentials return `401`
+- known upstream provider failures are converted to a generic `502`
+
+Provider credentials and provider response bodies are not returned in gateway errors.
+
+## Request Correlation
+
+Each request receives a correlation identifier.
+
+A valid caller-supplied `X-Request-ID` is preserved. Otherwise, the gateway generates one:
 
 ```text
 req_4f7d8e0bd18e4fcbb56ef2577b141e03
 ```
 
-The identifier is returned in the `X-Request-ID` response header and attached to audit records.
-
-Known upstream provider errors are converted to a generic `502` response. Provider response bodies and provider credentials are not returned to the caller or written to audit logs.
-
-Do not commit real API keys. `.env` is ignored by Git; `.env.example` documents supported variables without containing secrets.
-
-## Providers
-
-### Fake provider
-
-The fake provider is the default and is used for local development and deterministic tests.
-
-```bash
-export SAG_PROVIDER="fake"
-export SAG_API_KEY="sag_dev_change_me"
-export SAG_ALLOWED_MODELS="fake-model"
-```
-
-### OpenAI provider
-
-To forward approved gateway requests to OpenAI, configure the provider **before starting Uvicorn**:
-
-```bash
-export SAG_PROVIDER="openai"
-export SAG_API_KEY="sag_dev_change_me"
-export OPENAI_API_KEY="your-provider-key"
-export SAG_ALLOWED_MODELS="your-allowed-openai-model"
-
-uvicorn app.main:app --reload
-```
-
-`OPENAI_BASE_URL` defaults to:
-
-```text
-https://api.openai.com/v1
-```
-
-It can be overridden for development or an OpenAI-compatible upstream endpoint:
-
-```bash
-export OPENAI_BASE_URL="https://api.example.test/v1"
-```
-
-Real upstream requests can incur provider charges. Tests use `httpx.MockTransport` and never require a real OpenAI key or network request.
+The identifier is returned in the `X-Request-ID` response header and included in audit records.
 
 ## Audit Logging
 
 Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger.
 
-Examples:
+Example events:
 
 ```json
 {"event":"authentication","outcome":"allow","request_id":"req_...","timestamp":"..."}
-{"event":"model_policy","model":"fake-model","outcome":"allow","request_id":"req_...","timestamp":"..."}
-{"event":"chat_completion","latency_ms":1.234,"model":"fake-model","outcome":"success","provider":"fake","request_id":"req_...","timestamp":"..."}
+{"event":"model_policy","model":"model-name","outcome":"allow","request_id":"req_...","timestamp":"..."}
+{"event":"chat_completion","latency_ms":1.234,"model":"model-name","outcome":"success","provider":"mock","request_id":"req_...","timestamp":"..."}
 ```
 
-The audit layer intentionally does **not** log:
+The audit layer intentionally does not log:
 
 - prompt or message content
 - gateway bearer API keys
 - upstream provider credentials
 - upstream provider response bodies
 
-Authentication failures record non-secret reasons such as `missing_key`, `invalid_key`, or `not_configured`. Provider failures use non-secret reason codes such as `upstream_timeout`, `upstream_network_error`, or `upstream_http_429`.
-
-## Planned Security Controls
-
-- per-user API keys and identities
-- hashed API-key storage
-- per-user rate limits
-- per-request and per-user token/cost budgets
-- persistent and queryable audit storage
-- PII detection and configurable redaction/blocking
-- prompt-injection detection
-- system-prompt leakage testing
-- configurable security policies
-- explicit tool authorization
-- least-privilege enforcement for agent actions
-- adversarial security testing
-
-A future user policy may look like:
-
-```yaml
-user: alice
-allowed_tools:
-  - weather
-  - search
-
-denied_tools:
-  - shell
-  - filesystem
-
-max_cost_per_request: 0.10
-```
-
-LLM output is treated as untrusted input. A model may request an action, but authorization is enforced by code outside the model.
-
-## Technology Stack
-
-Current:
-
-- Python 3.13+
-- FastAPI
-- Pydantic
-- httpx
-- Uvicorn
-- pytest
-
-Planned:
-
-- PostgreSQL
-- Redis
-- Docker / Docker Compose
-- Kubernetes
-- Terraform
-- OpenTelemetry
-- Prometheus
-- GitHub Actions
-- TypeScript dashboard
-- AWS, GCP, or Azure deployment
+Authentication failures record non-secret reason codes such as `missing_key`, `invalid_key`, or `not_configured`. Provider failures use sanitized reason codes such as `upstream_timeout`, `upstream_network_error`, or `upstream_http_429`.
 
 ## Repository Layout
 
 ```text
 Secure-AI-Gateway/
 ├── app/
-│   ├── __init__.py
 │   ├── audit.py
 │   ├── auth.py
 │   ├── main.py
 │   ├── models.py
 │   ├── policies/
-│   │   ├── __init__.py
 │   │   └── model_access.py
 │   └── providers/
-│       ├── __init__.py
 │       ├── base.py
 │       ├── factory.py
-│       ├── fake.py
+│       ├── mock.py
 │       └── openai.py
 ├── tests/
-│   ├── test_audit.py
-│   ├── test_auth.py
-│   ├── test_chat.py
-│   ├── test_health.py
-│   ├── test_model_policy.py
-│   └── test_openai_provider.py
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
@@ -231,48 +201,38 @@ Secure-AI-Gateway/
 
 Docker is installed for future milestones but is not required to run the current application.
 
-### Clone the repository
+### Clone and install
 
 ```bash
 git clone git@github.com:joshuabisdorf/Secure-AI-Gateway.git
 cd Secure-AI-Gateway
-```
-
-### Create a virtual environment
-
-```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-### Install dependencies
-
-```bash
 python -m pip install --upgrade pip
 python -m pip install -e '.[dev]'
 ```
 
-### Configure development security policy
+### Configure the environment
 
 ```bash
-export SAG_PROVIDER="fake"
-export SAG_API_KEY="sag_dev_change_me"
-export SAG_ALLOWED_MODELS="fake-model"
+cp .env.example .env
 ```
 
-### Run the tests
+Edit `.env`, then start the gateway with:
+
+```bash
+uvicorn app.main:app --reload --env-file .env
+```
+
+### Run tests
 
 ```bash
 pytest -q
 ```
 
-### Run the gateway
+The test suite forces the mock provider so local environment settings cannot accidentally cause billable provider calls during normal tests.
 
-```bash
-uvicorn app.main:app --reload
-```
-
-Health check:
+### Health check
 
 ```bash
 curl -i http://127.0.0.1:8000/health
@@ -284,18 +244,20 @@ Expected body:
 {"status":"ok"}
 ```
 
-The response also contains an `X-Request-ID` header.
+### Chat request
 
-Authenticated chat request:
+Use a model name that exactly matches one of the entries configured in `SAG_ALLOWED_MODELS`:
 
 ```bash
 curl -i \
   -X POST http://127.0.0.1:8000/v1/chat/completions \
-  -H "Authorization: Bearer $SAG_API_KEY" \
+  -H "Authorization: Bearer <gateway-api-key>" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "fake-model",
-    "messages": [{"role": "user", "content": "hello"}]
+    "model": "<allowed-model-name>",
+    "messages": [
+      {"role": "user", "content": "hello"}
+    ]
   }'
 ```
 
@@ -305,35 +267,32 @@ FastAPI documentation is available at:
 http://127.0.0.1:8000/docs
 ```
 
-## Development Across LMDE and WSL2
+## Development Across Environments
 
-The project uses separate Linux working copies on LMDE and Ubuntu under WSL2.
+The project can be developed from separate Linux working copies, including native Linux and WSL2. GitHub is the synchronization point for source code.
 
-```text
-             GitHub
-            /      \
-           /        \
-        LMDE        WSL2 Ubuntu
-          |             |
-      local .venv   local .venv
-      Docker Engine Docker Desktop
-```
+Do not share environment-specific state between working copies:
 
-GitHub is the synchronization point for source code. Virtual environments, `.env` files, secrets, local databases, and Docker containers are not shared between environments.
+- `.venv`
+- `.env`
+- secrets
+- local databases
+- Docker containers and volumes
 
-Before starting work:
+Typical workflow:
 
 ```bash
 git pull
 source .venv/bin/activate
+pytest -q
 ```
 
-After completing a tested local change:
+After local changes:
 
 ```bash
 pytest -q
 git status
-git add .
+git add <files>
 git commit -m "Describe the change"
 git push
 ```
@@ -357,7 +316,7 @@ Project functions use an RME-style docstring where appropriate:
 - [x] automated test foundation
 - [x] OpenAI-compatible chat-completions schema
 - [x] provider interface
-- [x] fake provider
+- [x] deterministic mock provider
 - [x] OpenAI upstream provider
 - [x] provider selection
 
@@ -405,7 +364,7 @@ Project functions use an RME-style docstring where appropriate:
 
 Security features should be measurable rather than assumed.
 
-The project will include both benign and adversarial inputs so controls can be evaluated using metrics such as:
+The project will include benign and adversarial inputs so controls can be evaluated with metrics such as:
 
 ```text
 Detection Rate      = TP / (TP + FN)
@@ -414,7 +373,7 @@ Precision           = TP / (TP + FP)
 Latency Overhead    = gateway latency - direct provider latency
 ```
 
-External provider calls are isolated behind provider interfaces so most tests can run deterministically without internet access, provider credentials, or API cost.
+External provider calls remain behind provider interfaces so most tests can run deterministically without network access, provider credentials, or API cost.
 
 ## License
 
