@@ -22,7 +22,7 @@ def test_openrouter_provider_forwards_request() -> None:
 
     Effects:
         - Verifies OpenRouter requests use the expected endpoint and bearer key.
-        - Verifies an OpenAI-compatible response is normalized by the gateway.
+        - Verifies token and cost usage accounting is requested and normalized.
 
     Inputs:
         - None.
@@ -39,6 +39,7 @@ def test_openrouter_provider_forwards_request() -> None:
             "model": "openrouter/free",
             "messages": [{"role": "user", "content": "Hello"}],
             "stream": False,
+            "usage": {"include": True},
         }
 
         return httpx.Response(
@@ -46,7 +47,7 @@ def test_openrouter_provider_forwards_request() -> None:
             json={
                 "id": "chatcmpl-openrouter-test",
                 "object": "chat.completion",
-                "model": "openrouter/free",
+                "model": "resolved/model:free",
                 "choices": [
                     {
                         "index": 0,
@@ -57,6 +58,12 @@ def test_openrouter_provider_forwards_request() -> None:
                         "finish_reason": "stop",
                     }
                 ],
+                "usage": {
+                    "prompt_tokens": 7,
+                    "completion_tokens": 5,
+                    "total_tokens": 12,
+                    "cost": 0.00042,
+                },
             },
         )
 
@@ -76,7 +83,11 @@ def test_openrouter_provider_forwards_request() -> None:
     )
 
     assert result.id == "chatcmpl-openrouter-test"
+    assert result.model == "resolved/model:free"
     assert result.choices[0].message.content == "Hello from OpenRouter"
+    assert result.usage is not None
+    assert result.usage.total_tokens == 12
+    assert result.usage.cost == pytest.approx(0.00042)
 
 
 def test_openrouter_provider_fails_closed_without_api_key(monkeypatch) -> None:
