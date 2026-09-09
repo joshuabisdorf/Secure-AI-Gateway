@@ -1,5 +1,6 @@
 import re
 from collections.abc import Awaitable, Callable
+from decimal import Decimal
 from time import perf_counter
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from app.policies.model_access import enforce_model_allowed
 from app.providers.base import ProviderError
 from app.providers.factory import build_provider
 from app.rate_limit import InMemoryRateLimiter, get_client_rate_limit
+from app.usage_budget import InMemoryUsageLedger, get_client_usage_budget
 
 app = FastAPI(
     title="Secure AI Gateway",
@@ -21,6 +23,7 @@ app = FastAPI(
 
 provider = build_provider()
 rate_limiter = InMemoryRateLimiter()
+usage_ledger = InMemoryUsageLedger()
 _request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
@@ -121,34 +124,34 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid gateway API key mapped to a client identity.
-        - Rate-limit policy is configured for the authenticated client.
+        - Rate-limit and daily usage-budget policy are configured for the client.
         - The requested model is allowed globally and for the authenticated client.
 
     Modifies:
         - Process-local per-client rate-limit state.
+        - Process-local per-client daily usage totals.
         - Provider-specific state, if any.
         - The audit logging stream.
-        - Rate-limit headers on successful responses.
+        - Rate-limit and usage-budget headers on successful responses.
 
     Effects:
         - Authenticates and identifies the caller.
-        - Applies and records per-client request-rate limits before model/provider work.
-        - Returns 429 with Retry-After when the client exceeds its configured rate.
+        - Applies per-client request-rate limits before model/provider work.
         - Enforces deployment-wide and per-client model allowlists.
-        - Records the resulting policy decision with client attribution.
+        - Blocks forwarding when a previously accumulated daily usage budget is exhausted.
         - Sends the normalized request to the configured provider when allowed.
-        - Records requested and resolved model identities on successful completion.
-        - Records completion outcome and request latency without prompt content.
-        - Converts known upstream provider failures to a generic 502 response.
+        - Records provider-reported token and cost usage after successful completion.
+        - Returns the request that crosses a budget, then blocks subsequent requests.
+        - Records security decisions and completion outcome without prompt content.
 
     Inputs:
         - request: Requested model and chat messages.
         - http_request: HTTP request containing request ID and timing context.
-        - outgoing_response: FastAPI response used to expose rate-limit headers.
+        - outgoing_response: FastAPI response used to expose policy headers.
         - principal: Authenticated client identity supplied by dependency injection.
 
     Outputs:
-        - An OpenAI-style chat-completion response.
+        - An OpenAI-style chat-completion response with optional usage data.
     """
     request_id = http_request.state.request_id
 
@@ -225,6 +228,50 @@ async def chat_completion(
     )
 
     try:
+        usage_budget = get_client_usage_budget(principal.client_id)
+    except HTTPException as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="usage_budget",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=str(exc.detail),
+        )
+        raise
+
+    budget_decision = usage_ledger.check(principal.client_id, usage_budget)
+    if not budget_decision.allowed:
+        emit_audit_event(
+            request_id=request_id,
+            event="usage_budget",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=budget_decision.reason,
+            token_limit_daily=budget_decision.token_limit_daily,
+            tokens_used_daily=budget_decision.tokens_used_daily,
+            tokens_remaining_daily=budget_decision.tokens_remaining_daily,
+            cost_limit_daily_usd=(
+                float(budget_decision.cost_limit_daily_usd)
+                if budget_decision.cost_limit_daily_usd is not None
+                else None
+            ),
+            cost_used_daily_usd=float(budget_decision.cost_used_daily_usd),
+            cost_remaining_daily_usd=(
+                float(budget_decision.cost_remaining_daily_usd)
+                if budget_decision.cost_remaining_daily_usd is not None
+                else None
+            ),
+            budget_reset_at=budget_decision.reset_at.isoformat(),
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Usage budget exceeded.",
+            headers={"X-Usage-Budget-Reset": budget_decision.reset_at.isoformat()},
+        )
+
+    try:
         provider_response = await provider.chat_completion(request)
     except ProviderError as exc:
         latency_ms = (perf_counter() - http_request.state.started_at) * 1000
@@ -257,6 +304,73 @@ async def chat_completion(
             latency_ms=latency_ms,
         )
         raise
+
+    usage = provider_response.usage
+    missing_required_cost = (
+        usage_budget.cost_limit_daily_usd is not None
+        and (usage is None or usage.cost is None)
+    )
+    if usage is None or missing_required_cost:
+        emit_audit_event(
+            request_id=request_id,
+            event="usage_budget",
+            outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            provider=provider.name,
+            reason="missing_usage_data",
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Upstream provider usage data is unavailable.",
+        )
+
+    request_cost = Decimal(str(usage.cost)) if usage.cost is not None else Decimal("0")
+    updated_budget = usage_ledger.record(
+        principal.client_id,
+        usage_budget,
+        total_tokens=usage.total_tokens,
+        cost_usd=request_cost,
+    )
+
+    outgoing_response.headers["X-Usage-Budget-Reset"] = updated_budget.reset_at.isoformat()
+    outgoing_response.headers["X-Usage-Tokens-Used"] = str(updated_budget.tokens_used_daily)
+    if updated_budget.tokens_remaining_daily is not None:
+        outgoing_response.headers["X-Usage-Tokens-Remaining"] = str(
+            updated_budget.tokens_remaining_daily
+        )
+    outgoing_response.headers["X-Usage-Cost-USD"] = str(updated_budget.cost_used_daily_usd)
+    if updated_budget.cost_remaining_daily_usd is not None:
+        outgoing_response.headers["X-Usage-Cost-Remaining-USD"] = str(
+            updated_budget.cost_remaining_daily_usd
+        )
+
+    emit_audit_event(
+        request_id=request_id,
+        event="usage_budget",
+        outcome="recorded",
+        client_id=principal.client_id,
+        key_id=principal.key_id,
+        provider=provider.name,
+        reason=updated_budget.reason,
+        request_tokens=usage.total_tokens,
+        request_cost_usd=usage.cost,
+        token_limit_daily=updated_budget.token_limit_daily,
+        tokens_used_daily=updated_budget.tokens_used_daily,
+        tokens_remaining_daily=updated_budget.tokens_remaining_daily,
+        cost_limit_daily_usd=(
+            float(updated_budget.cost_limit_daily_usd)
+            if updated_budget.cost_limit_daily_usd is not None
+            else None
+        ),
+        cost_used_daily_usd=float(updated_budget.cost_used_daily_usd),
+        cost_remaining_daily_usd=(
+            float(updated_budget.cost_remaining_daily_usd)
+            if updated_budget.cost_remaining_daily_usd is not None
+            else None
+        ),
+        budget_reset_at=updated_budget.reset_at.isoformat(),
+    )
 
     latency_ms = (perf_counter() - http_request.state.started_at) * 1000
     emit_audit_event(
