@@ -1,8 +1,8 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy that sits between applications and large language model providers or local model backends.
+Secure AI Gateway is a security-focused proxy between applications and large language model providers or local model backends.
 
-It provides a centralized enforcement point for client authentication, model access policy, provider routing, audit logging, request correlation, and future controls such as rate limits, usage budgets, PII handling, prompt-injection detection, and tool authorization.
+It provides a centralized enforcement point for client authentication, model authorization, provider routing, audit logging, request correlation, and future controls such as rate limits, usage budgets, PII handling, prompt-injection detection, and tool authorization.
 
 ## Project Status
 
@@ -17,20 +17,19 @@ Currently implemented:
 - deterministic non-network mock provider
 - OpenAI upstream provider
 - OpenRouter upstream provider
-- environment-driven provider selection
 - per-client gateway identities
 - structured high-entropy gateway API keys
 - hashed gateway API-key verification
-- fail-closed model allowlist enforcement
-- structured JSON audit logging
-- client attribution in audit events
+- deployment-wide model allowlist
+- per-client model allowlists
+- structured JSON audit logging with client attribution
 - request correlation through `X-Request-ID`
 - requested-versus-resolved model audit attribution
 - request latency measurement
 - sanitized upstream provider failures
 - automated tests with `pytest`
 
-The next major milestone is per-client model policy, followed by rate limiting and usage budgets.
+The next major milestone is per-client rate limiting, followed by token and cost budgets.
 
 ## Architecture
 
@@ -43,13 +42,12 @@ Secure AI Gateway
     |
     +-- Client identity             [implemented]
     +-- Hashed API-key verification [implemented]
-    +-- Authentication              [implemented]
-    +-- Model allowlist             [implemented, global]
+    +-- Global model allowlist      [implemented]
+    +-- Per-client model policy     [implemented]
     +-- Audit logging               [implemented]
     +-- Request correlation         [implemented]
     +-- Provider routing            [implemented]
-    +-- Per-client policy           [next]
-    +-- Rate limiting               [planned]
+    +-- Per-client rate limiting    [next]
     +-- Token and cost budgets      [planned]
     +-- PII detection/redaction     [planned]
     +-- Prompt-injection detection  [planned]
@@ -63,29 +61,48 @@ Applications authenticate to the gateway instead of receiving direct access to u
 
 ## Configuration
 
-Server configuration is supplied through environment variables. For local development:
+For local development:
 
 ```bash
 cp .env.example .env
 ```
 
-The server `.env` contains provider credentials and **hashed** gateway-client records. It does not need to contain raw gateway client keys.
+The server `.env` contains provider credentials, hashed gateway-client records, and authorization policy. It does not need to contain raw gateway client keys.
 
 ### Gateway variables
 
 | Variable | Purpose |
 | --- | --- |
-| `SAG_PROVIDER` | Selects the provider backend: `mock`, `openai`, or `openrouter`. |
+| `SAG_PROVIDER` | Provider backend: `mock`, `openai`, or `openrouter`. |
 | `SAG_CLIENTS` | Comma-separated hashed gateway client-key registry. |
-| `SAG_ALLOWED_MODELS` | Comma-separated exact model names allowed by gateway policy. |
+| `SAG_ALLOWED_MODELS` | Deployment-wide model ceiling. |
+| `SAG_CLIENT_ALLOWED_MODELS` | Per-client model grants. |
 
-`SAG_CLIENTS` records use this format:
+`SAG_CLIENTS` records use:
 
 ```text
 client_id:key_id:sha256[,client_id:key_id:sha256...]
 ```
 
-The raw API key is never stored in `SAG_CLIENTS`.
+Per-client model grants use:
+
+```text
+client_id:model[,client_id:model...]
+```
+
+Repeat a client ID to grant multiple models:
+
+```dotenv
+SAG_ALLOWED_MODELS=openrouter/free,nvidia/model:free
+SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free,service-a:nvidia/model:free
+```
+
+A request is forwarded only when the requested model passes **both** policy layers:
+
+1. the model is globally enabled in `SAG_ALLOWED_MODELS`; and
+2. the authenticated `client_id` has that exact model in `SAG_CLIENT_ALLOWED_MODELS`.
+
+This lets the global allowlist act as a hard deployment ceiling while individual clients receive narrower permissions.
 
 ### Provider-specific variables
 
@@ -106,9 +123,7 @@ Gateway client credentials have this structure:
 sag_<key_id>_<high-entropy-secret>
 ```
 
-The `key_id` is public metadata used to locate a client record. The secret portion is randomly generated. The server stores a SHA-256 digest of the complete high-entropy key rather than the raw credential.
-
-### Generate a client key
+The server stores a SHA-256 digest of the complete high-entropy key rather than the raw credential.
 
 Generate a key for a client identity:
 
@@ -116,7 +131,7 @@ Generate a key for a client identity:
 python -m app.api_keys local-dev
 ```
 
-The command prints three values:
+The command prints:
 
 ```text
 Client ID: local-dev
@@ -124,77 +139,42 @@ API key: sag_<key-id>_<secret>
 Server record: local-dev:<key-id>:<sha256>
 ```
 
-The raw API key is shown so it can be delivered to the client. The server record contains only the one-way digest.
-
-### Configure the server record
-
-Copy the complete `Server record` value into `.env`:
+Put the server record in `.env`:
 
 ```dotenv
 SAG_CLIENTS=paste-server-record-here
 ```
 
-For multiple clients, join records with commas:
-
-```dotenv
-SAG_CLIENTS=client-a:keya:hasha,client-b:keyb:hashb
-```
-
-Each `key_id` must be unique.
-
-### Store the local client key separately
-
-For local curl or SDK testing:
+Store the raw key separately for the client:
 
 ```bash
 cp .client.env.example .client.env
 ```
 
-Put the raw generated key in `.client.env`:
-
 ```dotenv
 SAG_CLIENT_API_KEY=paste-raw-generated-key-here
 ```
 
-`.client.env` is ignored by Git. This separation mirrors the real trust boundary: the gateway server keeps the hash; the client keeps the raw credential.
-
-## Migration from `SAG_API_KEY`
-
-The earlier single shared `SAG_API_KEY` configuration has been replaced by per-client identities.
-
-Old server configuration:
-
-```dotenv
-SAG_API_KEY=shared-secret
-```
-
-New workflow:
-
-1. Generate a client key with `python -m app.api_keys local-dev`.
-2. Put the generated **Server record** in `SAG_CLIENTS` inside `.env`.
-3. Put the generated raw **API key** in `.client.env` as `SAG_CLIENT_API_KEY`.
-4. Restart the gateway.
-
-This makes authentication attributable to a stable `client_id` and prevents the server-side client registry from storing raw gateway bearer secrets.
+Both `.env` and `.client.env` are ignored by Git.
 
 ## Providers
 
 ### Mock provider
 
-The **mock provider** is deterministic and non-production. It performs no external network request and is used for local development and automated tests.
+The mock provider is deterministic and non-production. It performs no external network request.
 
 ```dotenv
 SAG_PROVIDER=mock
 SAG_ALLOWED_MODELS=mock-model
+SAG_CLIENT_ALLOWED_MODELS=local-dev:mock-model
 ```
 
 ### OpenAI provider
 
-The OpenAI provider forwards approved requests to the OpenAI API.
-
 ```dotenv
 SAG_PROVIDER=openai
 SAG_ALLOWED_MODELS=your-model-name
+SAG_CLIENT_ALLOWED_MODELS=local-dev:your-model-name
 OPENAI_API_KEY=your-provider-key
 OPENAI_BASE_URL=
 ```
@@ -203,54 +183,43 @@ Real upstream requests may incur provider charges.
 
 ### OpenRouter provider
 
-The OpenRouter provider forwards approved requests through OpenRouter's OpenAI-compatible chat-completions API.
-
 For free-model experimentation:
 
 ```dotenv
 SAG_PROVIDER=openrouter
 SAG_ALLOWED_MODELS=openrouter/free
+SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
 ```
 
-`OPENROUTER_BASE_URL` can normally remain empty; the gateway defaults it to:
-
-```text
-https://openrouter.ai/api/v1
-```
-
-`openrouter/free` is a routing alias. OpenRouter may resolve it to a different concrete free model on each request. The gateway records both the requested alias and the model reported by the upstream response.
+`OPENROUTER_BASE_URL` can normally remain empty. `openrouter/free` is a routing alias, so OpenRouter may resolve it to a different concrete free model on each request. The gateway records both the requested alias and the model reported by the upstream response.
 
 ## Security Behavior
 
 Before a chat-completion request reaches a provider, the gateway requires:
 
-1. A valid structured gateway API key.
-2. A matching hashed client-key record in `SAG_CLIENTS`.
-3. A requested model that appears in `SAG_ALLOWED_MODELS`.
+1. a valid structured gateway API key;
+2. a matching hashed client-key record in `SAG_CLIENTS`;
+3. a requested model present in the global allowlist; and
+4. a matching model grant for the authenticated client.
 
 The gateway fails closed:
 
 - missing or invalid client registry returns `503`
 - missing or invalid client credentials return `401`
-- missing model policy returns `503`
-- disallowed model requests return `403`
+- missing global model policy returns `503`
+- missing or invalid per-client model policy returns `503`
+- models denied by either authorization layer return `403`
 - known upstream provider failures are converted to a generic `502`
 
-The current model allowlist is global. Per-client model policy is the next security milestone.
+The same generic `403` response is used for global and client-level model denials so the API does not disclose internal policy structure.
 
-## Request Correlation
+## Request Correlation and Audit Logging
 
-Each request receives a correlation identifier. A valid caller-supplied `X-Request-ID` is preserved; otherwise the gateway generates one.
+Each request receives an `X-Request-ID`. A valid caller-supplied value is preserved; otherwise the gateway generates one.
 
-The identifier is returned in the `X-Request-ID` response header and included in audit records.
-
-## Audit Logging
-
-Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger.
-
-Successful authenticated events can include:
+Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger. Successful completion events can include:
 
 ```json
 {
@@ -266,14 +235,7 @@ Successful authenticated events can include:
 }
 ```
 
-The audit layer intentionally does not log:
-
-- raw gateway API keys
-- prompt or message content
-- upstream provider credentials
-- upstream provider response bodies
-
-Authentication failures record sanitized reason codes rather than credentials. Successful authentication records `client_id` and the non-secret `key_id`, allowing later rate limits, budgets, and policies to be attributed to a specific client.
+The audit layer intentionally does not log raw gateway API keys, prompt/message content, upstream provider credentials, or upstream response bodies.
 
 ## Local Development
 
@@ -300,7 +262,9 @@ cp .env.example .env
 python -m app.api_keys local-dev
 ```
 
-Copy the generated server record into `SAG_CLIENTS`, configure the provider and model allowlist, then start:
+Copy the generated server record into `SAG_CLIENTS`, configure provider credentials, set the global allowlist, and grant the desired model to `local-dev` in `SAG_CLIENT_ALLOWED_MODELS`.
+
+Start the gateway:
 
 ```bash
 uvicorn app.main:app --reload --env-file .env
@@ -312,7 +276,7 @@ uvicorn app.main:app --reload --env-file .env
 cp .client.env.example .client.env
 ```
 
-Put the generated raw key in `SAG_CLIENT_API_KEY`, then load it in the client terminal:
+Put the generated raw key in `SAG_CLIENT_API_KEY`, then load it:
 
 ```bash
 set -a
@@ -328,7 +292,7 @@ curl -i http://127.0.0.1:8000/health
 
 ### Chat request
 
-For an OpenRouter free-model configuration:
+For OpenRouter free routing:
 
 ```bash
 curl -i \
@@ -343,11 +307,7 @@ curl -i \
   }'
 ```
 
-FastAPI documentation is available at:
-
-```text
-http://127.0.0.1:8000/docs
-```
+FastAPI documentation is available at `http://127.0.0.1:8000/docs`.
 
 ## Testing
 
@@ -357,7 +317,7 @@ Run:
 pytest -q
 ```
 
-The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport. Authentication tests use a deterministic raw test key whose SHA-256 digest is stored in the test client registry.
+The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport.
 
 ## Repository Layout
 
@@ -378,41 +338,11 @@ Secure-AI-Gateway/
 │       ├── openai.py
 │       └── openrouter.py
 ├── tests/
-│   ├── conftest.py
-│   ├── test_api_keys.py
-│   ├── test_audit.py
-│   ├── test_auth.py
-│   ├── test_chat.py
-│   ├── test_health.py
-│   ├── test_model_policy.py
-│   ├── test_openai_provider.py
-│   └── test_openrouter_provider.py
 ├── .client.env.example
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
 └── README.md
-```
-
-## Development Across Environments
-
-The project can be developed from separate Linux working copies, including native Linux and WSL2. GitHub is the synchronization point for source code.
-
-Do not share environment-specific state between working copies:
-
-- `.venv`
-- `.env`
-- `.client.env`
-- secrets
-- local databases
-- Docker containers and volumes
-
-Typical workflow:
-
-```bash
-git pull
-source .venv/bin/activate
-pytest -q
 ```
 
 ## Function Documentation Convention
@@ -444,13 +374,13 @@ Project functions use an RME-style docstring where appropriate:
 - [x] per-client identities
 - [x] structured gateway API keys
 - [x] hashed API-key verification
-- [x] model allowlist enforcement
+- [x] deployment-wide model allowlist
+- [x] per-client model allowlists
 - [x] structured audit logging
 - [x] request correlation
-- [ ] per-client model policy
 - [ ] persistent client/key registry
 - [ ] key revocation and rotation workflow
-- [ ] rate limiting
+- [ ] per-client rate limiting
 - [ ] token and cost budgets
 
 ### Phase 3 — LLM security controls
