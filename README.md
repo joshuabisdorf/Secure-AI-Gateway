@@ -2,7 +2,7 @@
 
 Secure AI Gateway is a security-focused proxy between applications and large language model providers or local model backends.
 
-It provides a centralized enforcement point for client authentication, model authorization, provider routing, audit logging, request correlation, and future controls such as rate limits, usage budgets, PII handling, prompt-injection detection, and tool authorization.
+It provides a centralized enforcement point for client authentication, model authorization, request throttling, provider routing, audit logging, request correlation, and future controls such as usage budgets, PII handling, prompt-injection detection, and tool authorization.
 
 ## Project Status
 
@@ -22,6 +22,9 @@ Currently implemented:
 - hashed gateway API-key verification
 - deployment-wide model allowlist
 - per-client model allowlists
+- per-client requests-per-minute rate limiting
+- `429` responses with `Retry-After`
+- rate-limit response headers
 - structured JSON audit logging with client attribution
 - request correlation through `X-Request-ID`
 - requested-versus-resolved model audit attribution
@@ -29,7 +32,7 @@ Currently implemented:
 - sanitized upstream provider failures
 - automated tests with `pytest`
 
-The next major milestone is per-client rate limiting, followed by token and cost budgets.
+The next major milestone is token and cost budgets.
 
 ## Architecture
 
@@ -42,13 +45,13 @@ Secure AI Gateway
     |
     +-- Client identity             [implemented]
     +-- Hashed API-key verification [implemented]
+    +-- Per-client rate limiting    [implemented]
     +-- Global model allowlist      [implemented]
     +-- Per-client model policy     [implemented]
     +-- Audit logging               [implemented]
     +-- Request correlation         [implemented]
     +-- Provider routing            [implemented]
-    +-- Per-client rate limiting    [next]
-    +-- Token and cost budgets      [planned]
+    +-- Token and cost budgets      [next]
     +-- PII detection/redaction     [planned]
     +-- Prompt-injection detection  [planned]
     +-- Tool permissions            [planned]
@@ -67,7 +70,7 @@ For local development:
 cp .env.example .env
 ```
 
-The server `.env` contains provider credentials, hashed gateway-client records, and authorization policy. It does not need to contain raw gateway client keys.
+The server `.env` contains provider credentials, hashed gateway-client records, authorization policy, and client rate limits. It does not need to contain raw gateway client keys.
 
 ### Gateway variables
 
@@ -77,6 +80,7 @@ The server `.env` contains provider credentials, hashed gateway-client records, 
 | `SAG_CLIENTS` | Comma-separated hashed gateway client-key registry. |
 | `SAG_ALLOWED_MODELS` | Deployment-wide model ceiling. |
 | `SAG_CLIENT_ALLOWED_MODELS` | Per-client model grants. |
+| `SAG_CLIENT_RATE_LIMITS` | Per-client protected chat requests allowed per minute. |
 
 `SAG_CLIENTS` records use:
 
@@ -90,14 +94,21 @@ Per-client model grants use:
 client_id:model[,client_id:model...]
 ```
 
-Repeat a client ID to grant multiple models:
+Per-client rate limits use:
+
+```text
+client_id:requests_per_minute[,client_id:requests_per_minute...]
+```
+
+Example:
 
 ```dotenv
 SAG_ALLOWED_MODELS=openrouter/free,nvidia/model:free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free,service-a:nvidia/model:free
+SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
 ```
 
-A request is forwarded only when the requested model passes **both** policy layers:
+A chat request is processed only when the authenticated client has rate-limit policy and the requested model passes **both** authorization layers:
 
 1. the model is globally enabled in `SAG_ALLOWED_MODELS`; and
 2. the authenticated `client_id` has that exact model in `SAG_CLIENT_ALLOWED_MODELS`.
@@ -157,6 +168,46 @@ SAG_CLIENT_API_KEY=paste-raw-generated-key-here
 
 Both `.env` and `.client.env` are ignored by Git.
 
+## Per-Client Rate Limiting
+
+`SAG_CLIENT_RATE_LIMITS` defines a fixed requests-per-minute limit for each authenticated client:
+
+```dotenv
+SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
+```
+
+The limiter runs after authentication and before model/provider work. Therefore every authenticated chat attempt consumes client capacity, including requests later denied by model policy.
+
+Successful responses include:
+
+```text
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 9
+```
+
+When the client exhausts the current window, the gateway returns:
+
+```text
+HTTP/1.1 429 Too Many Requests
+Retry-After: 42
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 0
+```
+
+with:
+
+```json
+{"detail":"Rate limit exceeded."}
+```
+
+Missing, malformed, or client-incomplete rate-limit policy fails closed with `503`.
+
+### Current implementation boundary
+
+The rate limiter is intentionally process-local and in memory. It is correct for the current single-process local development setup, but each Uvicorn worker or deployed replica would otherwise maintain an independent counter.
+
+Distributed rate enforcement will move behind the same policy boundary to Redis before multi-worker or multi-replica deployment.
+
 ## Providers
 
 ### Mock provider
@@ -167,6 +218,7 @@ The mock provider is deterministic and non-production. It performs no external n
 SAG_PROVIDER=mock
 SAG_ALLOWED_MODELS=mock-model
 SAG_CLIENT_ALLOWED_MODELS=local-dev:mock-model
+SAG_CLIENT_RATE_LIMITS=local-dev:60
 ```
 
 ### OpenAI provider
@@ -175,6 +227,7 @@ SAG_CLIENT_ALLOWED_MODELS=local-dev:mock-model
 SAG_PROVIDER=openai
 SAG_ALLOWED_MODELS=your-model-name
 SAG_CLIENT_ALLOWED_MODELS=local-dev:your-model-name
+SAG_CLIENT_RATE_LIMITS=local-dev:30
 OPENAI_API_KEY=your-provider-key
 OPENAI_BASE_URL=
 ```
@@ -189,6 +242,7 @@ For free-model experimentation:
 SAG_PROVIDER=openrouter
 SAG_ALLOWED_MODELS=openrouter/free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
+SAG_CLIENT_RATE_LIMITS=local-dev:10
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
 ```
@@ -201,13 +255,16 @@ Before a chat-completion request reaches a provider, the gateway requires:
 
 1. a valid structured gateway API key;
 2. a matching hashed client-key record in `SAG_CLIENTS`;
-3. a requested model present in the global allowlist; and
-4. a matching model grant for the authenticated client.
+3. configured per-client rate policy with available capacity;
+4. a requested model present in the global allowlist; and
+5. a matching model grant for the authenticated client.
 
 The gateway fails closed:
 
 - missing or invalid client registry returns `503`
 - missing or invalid client credentials return `401`
+- missing or invalid per-client rate policy returns `503`
+- exceeded rate limit returns `429`
 - missing global model policy returns `503`
 - missing or invalid per-client model policy returns `503`
 - models denied by either authorization layer return `403`
@@ -219,7 +276,21 @@ The same generic `403` response is used for global and client-level model denial
 
 Each request receives an `X-Request-ID`. A valid caller-supplied value is preserved; otherwise the gateway generates one.
 
-Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger. Successful completion events can include:
+Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger. A successful rate-limit decision can include:
+
+```json
+{
+  "event": "rate_limit",
+  "outcome": "allow",
+  "client_id": "local-dev",
+  "key_id": "abcd1234",
+  "limit_rpm": 10,
+  "remaining": 9,
+  "request_id": "req_..."
+}
+```
+
+A successful completion event can include:
 
 ```json
 {
@@ -262,7 +333,19 @@ cp .env.example .env
 python -m app.api_keys local-dev
 ```
 
-Copy the generated server record into `SAG_CLIENTS`, configure provider credentials, set the global allowlist, and grant the desired model to `local-dev` in `SAG_CLIENT_ALLOWED_MODELS`.
+Copy the generated server record into `SAG_CLIENTS`, configure provider credentials, set the global allowlist, grant the desired model to `local-dev`, and set a client rate limit.
+
+For the current OpenRouter development setup:
+
+```dotenv
+SAG_PROVIDER=openrouter
+SAG_CLIENTS=your-existing-server-record
+SAG_ALLOWED_MODELS=openrouter/free
+SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
+SAG_CLIENT_RATE_LIMITS=local-dev:10
+OPENROUTER_API_KEY=your-existing-openrouter-key
+OPENROUTER_BASE_URL=
+```
 
 Start the gateway:
 
@@ -317,7 +400,7 @@ Run:
 pytest -q
 ```
 
-The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport.
+The test suite forces the mock provider so local provider settings cannot accidentally cause billable upstream calls. Provider integrations use mocked HTTP transport. Rate-limit state is reset between tests so the suite is deterministic and order-independent.
 
 ## Repository Layout
 
@@ -329,6 +412,7 @@ Secure-AI-Gateway/
 │   ├── auth.py
 │   ├── main.py
 │   ├── models.py
+│   ├── rate_limit.py
 │   ├── policies/
 │   │   └── model_access.py
 │   └── providers/
@@ -338,6 +422,7 @@ Secure-AI-Gateway/
 │       ├── openai.py
 │       └── openrouter.py
 ├── tests/
+│   └── test_rate_limit.py
 ├── .client.env.example
 ├── .env.example
 ├── .gitignore
@@ -376,11 +461,11 @@ Project functions use an RME-style docstring where appropriate:
 - [x] hashed API-key verification
 - [x] deployment-wide model allowlist
 - [x] per-client model allowlists
+- [x] per-client rate limiting
 - [x] structured audit logging
 - [x] request correlation
 - [ ] persistent client/key registry
 - [ ] key revocation and rotation workflow
-- [ ] per-client rate limiting
 - [ ] token and cost budgets
 
 ### Phase 3 — LLM security controls
@@ -404,7 +489,7 @@ Project functions use an RME-style docstring where appropriate:
 
 - [ ] Dockerized gateway
 - [ ] PostgreSQL
-- [ ] Redis
+- [ ] Redis-backed distributed rate limiting
 - [ ] GitHub Actions CI
 - [ ] OpenTelemetry / Prometheus
 - [ ] Kubernetes
