@@ -16,6 +16,7 @@ Currently implemented:
 - provider abstraction
 - deterministic non-network mock provider
 - OpenAI upstream provider
+- OpenRouter upstream provider
 - environment-driven provider selection
 - bearer API-key authentication
 - fail-closed model allowlist enforcement
@@ -68,18 +69,18 @@ Then edit `.env` for the environment you are running. The committed template use
 
 | Variable | Purpose |
 | --- | --- |
-| `SAG_PROVIDER` | Selects the provider backend. Currently `mock` or `openai`. |
+| `SAG_PROVIDER` | Selects the provider backend. Currently `mock`, `openai`, or `openrouter`. |
 | `SAG_API_KEY` | Bearer credential required by clients calling the gateway. |
 | `SAG_ALLOWED_MODELS` | Comma-separated list of exact model names allowed by gateway policy. |
 
 ### Provider-specific variables
 
-The OpenAI provider uses:
-
 | Variable | Purpose |
 | --- | --- |
-| `OPENAI_API_KEY` | Upstream provider credential. Required when `SAG_PROVIDER=openai`. |
-| `OPENAI_BASE_URL` | Optional OpenAI-compatible base URL override. Leave empty to use the standard provider URL. |
+| `OPENAI_API_KEY` | Required when `SAG_PROVIDER=openai`. |
+| `OPENAI_BASE_URL` | Optional OpenAI API base URL override. |
+| `OPENROUTER_API_KEY` | Required when `SAG_PROVIDER=openrouter`. |
+| `OPENROUTER_BASE_URL` | Optional OpenRouter API base URL override. Defaults to `https://openrouter.ai/api/v1`. |
 
 `.env` is ignored by Git. Do not commit real gateway keys or upstream provider credentials.
 
@@ -99,43 +100,68 @@ source .env
 set +a
 ```
 
-The `.env.example` template intentionally avoids shell metacharacter placeholders such as `<value>` so this works in Bash.
-
 ## Providers
 
 ### Mock provider
 
-The **mock provider** is a deterministic, non-production provider used for local development and automated tests. It performs no external network request and does not require an upstream API key.
-
-Example `.env` configuration:
+The **mock provider** is deterministic and non-production. It performs no external network request and is used for local development and automated tests.
 
 ```dotenv
 SAG_PROVIDER=mock
 SAG_API_KEY=local-gateway-key
 SAG_ALLOWED_MODELS=mock-model
-OPENAI_API_KEY=
-OPENAI_BASE_URL=
 ```
-
-The mock provider is intentionally distinguishable from a real provider so tests cannot be mistaken for successful upstream model calls.
 
 ### OpenAI provider
 
-The OpenAI provider forwards approved requests to an OpenAI-compatible upstream API.
-
-Example `.env` configuration:
+The OpenAI provider forwards approved requests to the OpenAI API.
 
 ```dotenv
 SAG_PROVIDER=openai
-SAG_API_KEY=replace-with-gateway-key
-SAG_ALLOWED_MODELS=replace-with-allowed-model
-OPENAI_API_KEY=replace-with-provider-key
+SAG_API_KEY=local-gateway-key
+SAG_ALLOWED_MODELS=your-model-name
+OPENAI_API_KEY=your-provider-key
 OPENAI_BASE_URL=
 ```
 
-`OPENAI_BASE_URL` is optional. Leave it empty to use the standard OpenAI API base URL, or set it to an OpenAI-compatible endpoint when needed.
+Real upstream requests may incur provider charges.
 
-Real upstream requests can incur provider charges. Automated tests use the mock provider or mocked HTTP transport and do not require real upstream credentials.
+### OpenRouter provider
+
+The OpenRouter provider forwards approved requests through OpenRouter's OpenAI-compatible chat-completions API.
+
+Create an OpenRouter API key from your account, then configure the gateway:
+
+```dotenv
+SAG_PROVIDER=openrouter
+SAG_API_KEY=local-gateway-key
+SAG_ALLOWED_MODELS=openrouter/free
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_BASE_URL=
+```
+
+`OPENROUTER_BASE_URL` can normally remain empty; the gateway defaults it to:
+
+```text
+https://openrouter.ai/api/v1
+```
+
+For no-token-cost experimentation, `openrouter/free` lets OpenRouter choose from currently available free models. You may also allow specific OpenRouter model slugs instead. Free-model availability and rate limits are controlled by OpenRouter and can change independently of this project.
+
+Example gateway request:
+
+```bash
+curl -i \
+  -X POST http://127.0.0.1:8000/v1/chat/completions \
+  -H "Authorization: Bearer $SAG_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "openrouter/free",
+    "messages": [
+      {"role": "user", "content": "Reply with exactly: Secure gateway works"}
+    ]
+  }'
+```
 
 ## Security Behavior
 
@@ -155,13 +181,7 @@ Provider credentials and provider response bodies are not returned in gateway er
 
 ## Request Correlation
 
-Each request receives a correlation identifier.
-
-A valid caller-supplied `X-Request-ID` is preserved. Otherwise, the gateway generates one:
-
-```text
-req_4f7d8e0bd18e4fcbb56ef2577b141e03
-```
+Each request receives a correlation identifier. A valid caller-supplied `X-Request-ID` is preserved; otherwise, the gateway generates one.
 
 The identifier is returned in the `X-Request-ID` response header and included in audit records.
 
@@ -174,7 +194,7 @@ Example events:
 ```json
 {"event":"authentication","outcome":"allow","request_id":"req_...","timestamp":"..."}
 {"event":"model_policy","model":"model-name","outcome":"allow","request_id":"req_...","timestamp":"..."}
-{"event":"chat_completion","latency_ms":1.234,"model":"model-name","outcome":"success","provider":"mock","request_id":"req_...","timestamp":"..."}
+{"event":"chat_completion","latency_ms":1.234,"model":"model-name","outcome":"success","provider":"openrouter","request_id":"req_...","timestamp":"..."}
 ```
 
 The audit layer intentionally does not log:
@@ -201,7 +221,8 @@ Secure-AI-Gateway/
 │       ├── base.py
 │       ├── factory.py
 │       ├── mock.py
-│       └── openai.py
+│       ├── openai.py
+│       └── openrouter.py
 ├── tests/
 ├── .env.example
 ├── .gitignore
@@ -247,7 +268,7 @@ uvicorn app.main:app --reload --env-file .env
 pytest -q
 ```
 
-The test suite forces the mock provider so local environment settings cannot accidentally cause billable provider calls during normal tests.
+The test suite forces the mock provider so local environment settings cannot accidentally cause billable provider calls during normal tests. Provider integrations use mocked HTTP transport for deterministic tests.
 
 ### Health check
 
@@ -260,33 +281,6 @@ Expected body:
 ```json
 {"status":"ok"}
 ```
-
-### Chat request
-
-If the shell needs the gateway key from `.env`, load it first:
-
-```bash
-set -a
-source .env
-set +a
-```
-
-For the mock-provider development configuration:
-
-```bash
-curl -i \
-  -X POST http://127.0.0.1:8000/v1/chat/completions \
-  -H "Authorization: Bearer $SAG_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "mock-model",
-    "messages": [
-      {"role": "user", "content": "hello"}
-    ]
-  }'
-```
-
-For a real provider, replace `mock-model` in the request with the exact model name configured in `SAG_ALLOWED_MODELS`.
 
 FastAPI documentation is available at:
 
@@ -314,16 +308,6 @@ source .venv/bin/activate
 pytest -q
 ```
 
-After local changes:
-
-```bash
-pytest -q
-git status
-git add <files>
-git commit -m "Describe the change"
-git push
-```
-
 ## Function Documentation Convention
 
 Project functions use an RME-style docstring where appropriate:
@@ -345,6 +329,7 @@ Project functions use an RME-style docstring where appropriate:
 - [x] provider interface
 - [x] deterministic mock provider
 - [x] OpenAI upstream provider
+- [x] OpenRouter upstream provider
 - [x] provider selection
 
 ### Phase 2 — Core security controls
@@ -389,18 +374,7 @@ Project functions use an RME-style docstring where appropriate:
 
 ## Testing Philosophy
 
-Security features should be measurable rather than assumed.
-
-The project will include benign and adversarial inputs so controls can be evaluated with metrics such as:
-
-```text
-Detection Rate      = TP / (TP + FN)
-False Positive Rate = FP / (FP + TN)
-Precision           = TP / (TP + FP)
-Latency Overhead    = gateway latency - direct provider latency
-```
-
-External provider calls remain behind provider interfaces so most tests can run deterministically without network access, provider credentials, or API cost.
+Security features should be measurable rather than assumed. External provider calls remain behind provider interfaces so most tests can run deterministically without network access, provider credentials, or API cost.
 
 ## License
 
