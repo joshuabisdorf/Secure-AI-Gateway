@@ -184,6 +184,164 @@ async def create_client_key(
     raise RuntimeError("unable_to_generate_unique_key_id")
 
 
+async def revoke_client_key(database_url: str, key_id: str) -> bool:
+    """
+    RME
+
+    Requires:
+        - database_url identifies an initialized PostgreSQL database.
+        - key_id identifies a stored gateway API key.
+
+    Modifies:
+        - gateway_api_keys.is_active and gateway_api_keys.revoked_at.
+
+    Effects:
+        - Revokes the key immediately for subsequent authentication lookups.
+        - Is idempotent when the key has already been revoked.
+        - Rejects unknown key IDs.
+
+    Inputs:
+        - database_url: PostgreSQL connection string.
+        - key_id: Public gateway key identifier to revoke.
+
+    Outputs:
+        - True when this call changed an active key to revoked; False when already revoked.
+    """
+    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+        async with connection.cursor() as cursor:
+            await cursor.execute(
+                """
+                UPDATE gateway_api_keys
+                SET is_active = FALSE,
+                    revoked_at = COALESCE(revoked_at, NOW())
+                WHERE key_id = %s
+                  AND is_active = TRUE
+                RETURNING client_id
+                """,
+                (key_id,),
+            )
+            revoked = await cursor.fetchone()
+            if revoked is not None:
+                return True
+
+            await cursor.execute(
+                "SELECT 1 FROM gateway_api_keys WHERE key_id = %s",
+                (key_id,),
+            )
+            exists = await cursor.fetchone()
+
+    if exists is None:
+        raise ValueError("unknown_key_id")
+    return False
+
+
+async def rotate_client_keys(
+    database_url: str,
+    client_id: str,
+) -> tuple[str, str, tuple[str, ...]]:
+    """
+    RME
+
+    Requires:
+        - database_url identifies an initialized PostgreSQL database.
+        - client_id identifies an active client with at least one active API key.
+
+    Modifies:
+        - gateway_api_keys rows for the client.
+        - Operating-system cryptographic random state.
+
+    Effects:
+        - Creates one replacement API key and stores only its hash.
+        - Revokes all previously active keys for the client in the same transaction.
+        - Rolls back the full rotation when any database step fails.
+
+    Inputs:
+        - database_url: PostgreSQL connection string.
+        - client_id: Client identity whose active keys are being rotated.
+
+    Outputs:
+        - Tuple containing the new raw API key, new key ID, and revoked key IDs.
+    """
+    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+        async with connection.transaction():
+            async with connection.cursor() as cursor:
+                await cursor.execute(
+                    """
+                    SELECT is_active
+                    FROM gateway_clients
+                    WHERE client_id = %s
+                    FOR UPDATE
+                    """,
+                    (client_id,),
+                )
+                client_row = await cursor.fetchone()
+                if client_row is None:
+                    raise ValueError("unknown_client_id")
+                if not bool(client_row[0]):
+                    raise ValueError("client_inactive")
+
+                await cursor.execute(
+                    """
+                    SELECT key_id
+                    FROM gateway_api_keys
+                    WHERE client_id = %s
+                      AND is_active = TRUE
+                    ORDER BY created_at, key_id
+                    """,
+                    (client_id,),
+                )
+                active_rows = await cursor.fetchall()
+                if not active_rows:
+                    raise ValueError("no_active_keys_to_rotate")
+
+                new_api_key: str | None = None
+                new_key_id: str | None = None
+                for _ in range(3):
+                    candidate_api_key, candidate_record = generate_api_key(client_id)
+                    await cursor.execute(
+                        """
+                        INSERT INTO gateway_api_keys (
+                            key_id,
+                            client_id,
+                            api_key_sha256
+                        )
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        RETURNING key_id
+                        """,
+                        (
+                            candidate_record.key_id,
+                            candidate_record.client_id,
+                            candidate_record.api_key_sha256,
+                        ),
+                    )
+                    inserted = await cursor.fetchone()
+                    if inserted is not None:
+                        new_api_key = candidate_api_key
+                        new_key_id = candidate_record.key_id
+                        break
+
+                if new_api_key is None or new_key_id is None:
+                    raise RuntimeError("unable_to_generate_unique_key_id")
+
+                await cursor.execute(
+                    """
+                    UPDATE gateway_api_keys
+                    SET is_active = FALSE,
+                        revoked_at = COALESCE(revoked_at, NOW())
+                    WHERE client_id = %s
+                      AND key_id <> %s
+                      AND is_active = TRUE
+                    RETURNING key_id
+                    """,
+                    (client_id, new_key_id),
+                )
+                revoked_rows = await cursor.fetchall()
+
+    revoked_key_ids = tuple(str(row[0]) for row in revoked_rows)
+    return new_api_key, new_key_id, revoked_key_ids
+
+
 async def import_environment_records(database_url: str) -> int:
     """
     RME
@@ -273,6 +431,26 @@ async def _run_command(args: argparse.Namespace) -> None:
         print("Store this raw key on the client; it is not stored in PostgreSQL.")
         return
 
+    if args.command == "revoke":
+        changed = await revoke_client_key(database_url, args.key_id)
+        if changed:
+            print(f"Revoked key_id={args.key_id}.")
+        else:
+            print(f"Key key_id={args.key_id} was already revoked.")
+        return
+
+    if args.command == "rotate":
+        api_key, key_id, revoked_key_ids = await rotate_client_keys(
+            database_url,
+            args.client_id,
+        )
+        print(f"Client ID: {args.client_id}")
+        print(f"New key ID: {key_id}")
+        print(f"API key: {api_key}")
+        print("Revoked key IDs: " + ",".join(revoked_key_ids))
+        print("Store this raw key on the client; it is not stored in PostgreSQL.")
+        return
+
     if args.command == "list":
         rows = await list_client_keys(database_url)
         if not rows:
@@ -302,7 +480,8 @@ def main() -> None:
         - Terminal output.
 
     Effects:
-        - Initializes schema, migrates environment records, creates keys, or lists metadata.
+        - Initializes schema, migrates records, creates keys, revokes keys, rotates keys,
+          or lists non-secret metadata.
 
     Inputs:
         - Command-line subcommand and arguments.
@@ -327,12 +506,24 @@ def main() -> None:
     )
     create_parser.add_argument("client_id")
 
+    revoke_parser = subparsers.add_parser(
+        "revoke",
+        help="Revoke one API key by public key ID.",
+    )
+    revoke_parser.add_argument("key_id")
+
+    rotate_parser = subparsers.add_parser(
+        "rotate",
+        help="Create a replacement key and atomically revoke prior active keys.",
+    )
+    rotate_parser.add_argument("client_id")
+
     subparsers.add_parser("list", help="List non-secret client/key metadata.")
 
     args = parser.parse_args()
     try:
         asyncio.run(_run_command(args))
-    except (ValueError, OSError, psycopg.Error) as exc:
+    except (ValueError, RuntimeError, OSError, psycopg.Error) as exc:
         parser.error(str(exc))
 
 
