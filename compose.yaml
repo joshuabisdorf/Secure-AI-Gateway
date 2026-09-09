@@ -9,7 +9,7 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
-      - sag_postgres_data:/var/lib/postgresql/data
+      - sag_postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U sag -d secure_ai_gateway"]
       interval: 5s
