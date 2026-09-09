@@ -44,6 +44,7 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
+        - Verifies requested and resolved model identities are recorded.
         - Verifies prompt content and bearer credentials are not logged.
 
     Inputs:
@@ -54,7 +55,7 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
         - None. Assertions determine whether auditing is safe and complete.
     """
     monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
-    monkeypatch.setenv("SAG_ALLOWED_MODELS", "fake-model")
+    monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     caplog.set_level(logging.INFO, logger="secure_ai_gateway.audit")
 
     client = TestClient(app)
@@ -64,7 +65,7 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
         "/v1/chat/completions",
         headers={"Authorization": "Bearer sag_test_key"},
         json={
-            "model": "fake-model",
+            "model": "mock-model",
             "messages": [{"role": "user", "content": secret_prompt}],
         },
     )
@@ -77,16 +78,18 @@ def test_audit_log_records_decisions_without_secrets(monkeypatch, caplog) -> Non
         event["event"] == "authentication" and event["outcome"] == "allow"
         for event in events
     )
-    assert any(
-        event["event"] == "model_policy" and event["outcome"] == "allow"
-        for event in events
-    )
+
+    policy_event = next(event for event in events if event["event"] == "model_policy")
+    assert policy_event["outcome"] == "allow"
+    assert policy_event["requested_model"] == "mock-model"
+    assert "resolved_model" not in policy_event
 
     completion_event = next(
         event for event in events if event["event"] == "chat_completion"
     )
     assert completion_event["outcome"] == "success"
-    assert completion_event["model"] == "fake-model"
+    assert completion_event["requested_model"] == "mock-model"
+    assert completion_event["resolved_model"] == "mock-model"
     assert completion_event["request_id"] == response.headers["X-Request-ID"]
     assert float(completion_event["latency_ms"]) >= 0
 
