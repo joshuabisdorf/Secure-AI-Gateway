@@ -3,6 +3,7 @@ import logging
 
 from fastapi.testclient import TestClient
 
+from app.audit import audit_logger
 from app.main import app
 
 
@@ -45,6 +46,7 @@ def test_audit_log_attributes_client_without_secrets(
 
     Modifies:
         - Temporarily configures gateway environment variables and log capture.
+        - Temporarily attaches pytest's capture handler to the audit logger.
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
@@ -70,14 +72,18 @@ def test_audit_log_attributes_client_without_secrets(
     client = TestClient(app)
     secret_prompt = "do not log this prompt value"
 
-    response = client.post(
-        "/v1/chat/completions",
-        headers={"Authorization": f"Bearer {gateway_api_key}"},
-        json={
-            "model": "mock-model",
-            "messages": [{"role": "user", "content": secret_prompt}],
-        },
-    )
+    audit_logger.addHandler(caplog.handler)
+    try:
+        response = client.post(
+            "/v1/chat/completions",
+            headers={"Authorization": f"Bearer {gateway_api_key}"},
+            json={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": secret_prompt}],
+            },
+        )
+    finally:
+        audit_logger.removeHandler(caplog.handler)
 
     assert response.status_code == 200
     assert response.headers["X-Request-ID"].startswith("req_")
