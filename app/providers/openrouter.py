@@ -29,6 +29,7 @@ class OpenRouterProvider(OpenAIProvider):
 
         Effects:
             - Configures the shared OpenAI-compatible chat transport for OpenRouter.
+            - Requests OpenRouter token and cost usage accounting.
             - Fails closed when no OpenRouter API key is configured.
 
         Inputs:
@@ -55,4 +56,5 @@ class OpenRouterProvider(OpenAIProvider):
             base_url=resolved_base_url,
             timeout_seconds=timeout_seconds,
             transport=transport,
+            include_usage=True,
         )
