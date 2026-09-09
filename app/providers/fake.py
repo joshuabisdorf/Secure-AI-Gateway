@@ -10,6 +10,8 @@ from app.providers.base import Provider
 
 
 class FakeProvider(Provider):
+    name = "fake"
+
     async def chat_completion(
         self,
         request: ChatCompletionRequest,
