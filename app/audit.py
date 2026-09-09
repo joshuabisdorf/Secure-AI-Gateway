@@ -19,6 +19,9 @@ def emit_audit_event(
     provider: str | None = None,
     reason: str | None = None,
     latency_ms: float | None = None,
+    limit_rpm: int | None = None,
+    remaining: int | None = None,
+    retry_after_seconds: int | None = None,
 ) -> None:
     """
     RME
@@ -44,11 +47,14 @@ def emit_audit_event(
         - provider: Optional upstream provider name.
         - reason: Optional non-secret decision reason.
         - latency_ms: Optional elapsed request latency in milliseconds.
+        - limit_rpm: Optional requests-per-minute limit applied to the client.
+        - remaining: Optional requests remaining in the current rate-limit window.
+        - retry_after_seconds: Optional delay before a denied client should retry.
 
     Outputs:
         - None.
     """
-    payload: dict[str, str | float] = {
+    payload: dict[str, str | float | int] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "request_id": request_id,
         "event": event,
@@ -69,5 +75,11 @@ def emit_audit_event(
         payload["reason"] = reason
     if latency_ms is not None:
         payload["latency_ms"] = round(latency_ms, 3)
+    if limit_rpm is not None:
+        payload["limit_rpm"] = limit_rpm
+    if remaining is not None:
+        payload["remaining"] = remaining
+    if retry_after_seconds is not None:
+        payload["retry_after_seconds"] = retry_after_seconds
 
     audit_logger.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
