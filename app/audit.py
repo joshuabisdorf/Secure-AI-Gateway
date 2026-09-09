@@ -5,6 +5,13 @@ from datetime import datetime, timezone
 
 audit_logger = logging.getLogger("secure_ai_gateway.audit")
 audit_logger.setLevel(logging.INFO)
+audit_logger.propagate = False
+
+if not audit_logger.handlers:
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(logging.Formatter("%(message)s"))
+    audit_logger.addHandler(console_handler)
 
 
 def emit_audit_event(
@@ -34,7 +41,8 @@ def emit_audit_event(
         - The process logging stream through the audit logger.
 
     Effects:
-        - Emits one JSON audit record without prompt content or credentials.
+        - Emits one JSON audit record to application stderr.
+        - Omits prompt content and credentials from the audit record.
 
     Inputs:
         - request_id: Correlation identifier for the request.
