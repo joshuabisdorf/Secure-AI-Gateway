@@ -1,5 +1,6 @@
 import re
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from time import perf_counter
 from uuid import uuid4
@@ -8,7 +9,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request, Response
 
 from app.api_keys import Principal
 from app.audit import emit_audit_event
-from app.auth import authenticate_api_key
+from app.auth import authenticate_api_key, client_registry
 from app.models import ChatCompletionRequest, ChatCompletionResponse
 from app.policies.model_access import enforce_model_allowed
 from app.providers.base import ProviderError
@@ -20,9 +21,39 @@ from app.usage_budget import (
     get_client_usage_budget,
 )
 
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """
+    RME
+
+    Requires:
+        - The configured client registry may own async resources.
+
+    Modifies:
+        - Client-registry connection-pool state during shutdown.
+
+    Effects:
+        - Leaves registry connections lazy during startup.
+        - Closes the PostgreSQL pool cleanly when the application shuts down.
+
+    Inputs:
+        - _: FastAPI application instance.
+
+    Outputs:
+        - Async lifespan context for FastAPI.
+    """
+    yield
+
+    close = getattr(client_registry, "close", None)
+    if close is not None:
+        await close()
+
+
 app = FastAPI(
     title="Secure AI Gateway",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 provider = build_provider()
