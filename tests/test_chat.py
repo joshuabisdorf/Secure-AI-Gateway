@@ -8,7 +8,7 @@ def test_chat_completion(monkeypatch) -> None:
     RME
 
     Requires:
-        - The FastAPI application and fake provider can be imported.
+        - The FastAPI application and mock provider can be imported.
 
     Modifies:
         - Temporarily configures SAG_API_KEY and SAG_ALLOWED_MODELS.
@@ -23,7 +23,7 @@ def test_chat_completion(monkeypatch) -> None:
         - None. Assertions determine whether the test passes.
     """
     monkeypatch.setenv("SAG_API_KEY", "sag_test_key")
-    monkeypatch.setenv("SAG_ALLOWED_MODELS", "fake-model")
+    monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
 
     client = TestClient(app)
 
@@ -33,7 +33,7 @@ def test_chat_completion(monkeypatch) -> None:
             "Authorization": "Bearer sag_test_key",
         },
         json={
-            "model": "fake-model",
+            "model": "mock-model",
             "messages": [
                 {
                     "role": "user",
@@ -48,6 +48,6 @@ def test_chat_completion(monkeypatch) -> None:
     body = response.json()
 
     assert body["object"] == "chat.completion"
-    assert body["model"] == "fake-model"
+    assert body["model"] == "mock-model"
     assert body["choices"][0]["message"]["role"] == "assistant"
-    assert body["choices"][0]["message"]["content"] == "Fake provider response."
+    assert body["choices"][0]["message"]["content"] == "Mock provider response."
