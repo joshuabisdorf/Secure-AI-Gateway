@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: secure_ai_gateway
+      POSTGRES_USER: sag
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sag_dev_password}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - sag_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sag -d secure_ai_gateway"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  sag_postgres_data:
