@@ -276,7 +276,9 @@ The same generic `403` response is used for global and client-level model denial
 
 Each request receives an `X-Request-ID`. A valid caller-supplied value is preserved; otherwise the gateway generates one.
 
-Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger. A successful rate-limit decision can include:
+Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger. The audit logger writes one JSON record per line to application stderr, so the records appear directly in the terminal running Uvicorn alongside its normal access logs.
+
+A successful rate-limit decision can include:
 
 ```json
 {
