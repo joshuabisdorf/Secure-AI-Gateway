@@ -16,10 +16,13 @@ The current codebase provides:
 - provider abstraction with a deterministic fake provider
 - bearer API-key authentication
 - fail-closed model allowlist enforcement
+- structured JSON audit logging
+- request correlation through `X-Request-ID`
+- request latency measurement
 - automated tests with `pytest`
 - isolated Python project configuration
 
-The next security milestone is structured audit logging, followed by a real upstream provider implementation.
+The next milestone is a real upstream provider implementation, followed by stronger identity and policy controls.
 
 ## Architecture
 
@@ -32,13 +35,14 @@ Secure AI Gateway
     |
     +-- Authentication              [implemented]
     +-- Model allowlist             [implemented]
+    +-- Audit logging               [implemented]
+    +-- Request correlation         [implemented]
     +-- Rate limiting               [planned]
     +-- Token and cost budgets      [planned]
     +-- PII detection/redaction     [planned]
     +-- Prompt-injection detection  [planned]
     +-- Tool permissions            [planned]
     +-- Policy engine               [planned]
-    +-- Audit logging               [next]
     +-- Model routing               [planned]
     |
     v
@@ -56,6 +60,14 @@ The chat-completions endpoint requires two independent conditions before a reque
 
 The model policy fails closed. If no usable allowlist is configured, authenticated requests return `503` rather than being forwarded without policy enforcement. Requests for models outside the allowlist return `403`.
 
+Each request also receives a correlation identifier. A valid caller-supplied `X-Request-ID` is preserved; otherwise the gateway generates an identifier such as:
+
+```text
+req_4f7d8e0bd18e4fcbb56ef2577b141e03
+```
+
+The identifier is returned in the `X-Request-ID` response header and attached to audit records.
+
 Example environment configuration:
 
 ```bash
@@ -65,14 +77,33 @@ export SAG_ALLOWED_MODELS="fake-model,another-model"
 
 Do not commit real API keys. `.env` is ignored by Git; `.env.example` documents supported development variables without containing secrets.
 
+## Audit Logging
+
+Security-relevant decisions are emitted as structured JSON through the `secure_ai_gateway.audit` logger.
+
+Examples:
+
+```json
+{"event":"authentication","outcome":"allow","request_id":"req_...","timestamp":"..."}
+{"event":"model_policy","model":"fake-model","outcome":"allow","request_id":"req_...","timestamp":"..."}
+{"event":"chat_completion","latency_ms":1.234,"model":"fake-model","outcome":"success","request_id":"req_...","timestamp":"..."}
+```
+
+The audit layer intentionally does **not** log:
+
+- prompt or message content
+- bearer API keys
+- upstream provider credentials
+
+Authentication failures record non-secret reasons such as `missing_key`, `invalid_key`, or `not_configured`. Model-policy denials record the requested model and policy result without recording prompt content.
+
 ## Planned Security Controls
 
 - per-user API keys and identities
 - hashed API-key storage
 - per-user rate limits
-- model allowlists
 - per-request and per-user token/cost budgets
-- structured security audit logs
+- persistent and queryable audit storage
 - PII detection and configurable redaction/blocking
 - prompt-injection detection
 - system-prompt leakage testing
@@ -128,6 +159,7 @@ Planned:
 Secure-AI-Gateway/
 ├── app/
 │   ├── __init__.py
+│   ├── audit.py
 │   ├── auth.py
 │   ├── main.py
 │   ├── models.py
@@ -139,6 +171,7 @@ Secure-AI-Gateway/
 │       ├── base.py
 │       └── fake.py
 ├── tests/
+│   ├── test_audit.py
 │   ├── test_auth.py
 │   ├── test_chat.py
 │   ├── test_health.py
@@ -201,19 +234,21 @@ uvicorn app.main:app --reload
 Health check:
 
 ```bash
-curl http://127.0.0.1:8000/health
+curl -i http://127.0.0.1:8000/health
 ```
 
-Expected response:
+Expected body:
 
 ```json
 {"status":"ok"}
 ```
 
+The response also contains an `X-Request-ID` header.
+
 Authenticated chat request:
 
 ```bash
-curl \
+curl -i \
   -X POST http://127.0.0.1:8000/v1/chat/completions \
   -H "Authorization: Bearer $SAG_API_KEY" \
   -H "Content-Type: application/json" \
@@ -288,9 +323,10 @@ Project functions use an RME-style docstring where appropriate:
 
 - [x] API-key authentication
 - [x] model allowlist enforcement
+- [x] structured audit logging
+- [x] request correlation
 - [ ] per-user identities and API keys
 - [ ] policy engine
-- [ ] structured audit logging
 - [ ] rate limiting
 - [ ] token and cost budgets
 
