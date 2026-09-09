@@ -13,16 +13,18 @@ The current codebase provides:
 - FastAPI application foundation
 - `/health` endpoint
 - OpenAI-style `/v1/chat/completions` endpoint
-- provider abstraction with a deterministic fake provider
+- provider abstraction with deterministic fake and OpenAI upstream providers
+- environment-driven provider selection
 - bearer API-key authentication
 - fail-closed model allowlist enforcement
 - structured JSON audit logging
 - request correlation through `X-Request-ID`
 - request latency measurement
+- sanitized upstream provider failures
 - automated tests with `pytest`
 - isolated Python project configuration
 
-The next milestone is a real upstream provider implementation, followed by stronger identity and policy controls.
+The next milestone is stronger caller identity and policy controls, followed by rate limiting and usage budgets.
 
 ## Architecture
 
@@ -37,16 +39,16 @@ Secure AI Gateway
     +-- Model allowlist             [implemented]
     +-- Audit logging               [implemented]
     +-- Request correlation         [implemented]
+    +-- Provider routing            [fake + OpenAI]
     +-- Rate limiting               [planned]
     +-- Token and cost budgets      [planned]
     +-- PII detection/redaction     [planned]
     +-- Prompt-injection detection  [planned]
     +-- Tool permissions            [planned]
     +-- Policy engine               [planned]
-    +-- Model routing               [planned]
     |
     v
-OpenAI / Anthropic / Local Models
+OpenAI / future providers / local models
 ```
 
 Applications authenticate to the gateway rather than receiving direct access to upstream provider credentials.
@@ -68,14 +70,48 @@ req_4f7d8e0bd18e4fcbb56ef2577b141e03
 
 The identifier is returned in the `X-Request-ID` response header and attached to audit records.
 
-Example environment configuration:
+Known upstream provider errors are converted to a generic `502` response. Provider response bodies and provider credentials are not returned to the caller or written to audit logs.
+
+Do not commit real API keys. `.env` is ignored by Git; `.env.example` documents supported variables without containing secrets.
+
+## Providers
+
+### Fake provider
+
+The fake provider is the default and is used for local development and deterministic tests.
 
 ```bash
+export SAG_PROVIDER="fake"
 export SAG_API_KEY="sag_dev_change_me"
-export SAG_ALLOWED_MODELS="fake-model,another-model"
+export SAG_ALLOWED_MODELS="fake-model"
 ```
 
-Do not commit real API keys. `.env` is ignored by Git; `.env.example` documents supported development variables without containing secrets.
+### OpenAI provider
+
+To forward approved gateway requests to OpenAI, configure the provider **before starting Uvicorn**:
+
+```bash
+export SAG_PROVIDER="openai"
+export SAG_API_KEY="sag_dev_change_me"
+export OPENAI_API_KEY="your-provider-key"
+export SAG_ALLOWED_MODELS="your-allowed-openai-model"
+
+uvicorn app.main:app --reload
+```
+
+`OPENAI_BASE_URL` defaults to:
+
+```text
+https://api.openai.com/v1
+```
+
+It can be overridden for development or an OpenAI-compatible upstream endpoint:
+
+```bash
+export OPENAI_BASE_URL="https://api.example.test/v1"
+```
+
+Real upstream requests can incur provider charges. Tests use `httpx.MockTransport` and never require a real OpenAI key or network request.
 
 ## Audit Logging
 
@@ -86,16 +122,17 @@ Examples:
 ```json
 {"event":"authentication","outcome":"allow","request_id":"req_...","timestamp":"..."}
 {"event":"model_policy","model":"fake-model","outcome":"allow","request_id":"req_...","timestamp":"..."}
-{"event":"chat_completion","latency_ms":1.234,"model":"fake-model","outcome":"success","request_id":"req_...","timestamp":"..."}
+{"event":"chat_completion","latency_ms":1.234,"model":"fake-model","outcome":"success","provider":"fake","request_id":"req_...","timestamp":"..."}
 ```
 
 The audit layer intentionally does **not** log:
 
 - prompt or message content
-- bearer API keys
+- gateway bearer API keys
 - upstream provider credentials
+- upstream provider response bodies
 
-Authentication failures record non-secret reasons such as `missing_key`, `invalid_key`, or `not_configured`. Model-policy denials record the requested model and policy result without recording prompt content.
+Authentication failures record non-secret reasons such as `missing_key`, `invalid_key`, or `not_configured`. Provider failures use non-secret reason codes such as `upstream_timeout`, `upstream_network_error`, or `upstream_http_429`.
 
 ## Planned Security Controls
 
@@ -169,13 +206,16 @@ Secure-AI-Gateway/
 │   └── providers/
 │       ├── __init__.py
 │       ├── base.py
-│       └── fake.py
+│       ├── factory.py
+│       ├── fake.py
+│       └── openai.py
 ├── tests/
 │   ├── test_audit.py
 │   ├── test_auth.py
 │   ├── test_chat.py
 │   ├── test_health.py
-│   └── test_model_policy.py
+│   ├── test_model_policy.py
+│   └── test_openai_provider.py
 ├── .env.example
 ├── .gitignore
 ├── pyproject.toml
@@ -215,6 +255,7 @@ python -m pip install -e '.[dev]'
 ### Configure development security policy
 
 ```bash
+export SAG_PROVIDER="fake"
 export SAG_API_KEY="sag_dev_change_me"
 export SAG_ALLOWED_MODELS="fake-model"
 ```
@@ -317,7 +358,8 @@ Project functions use an RME-style docstring where appropriate:
 - [x] OpenAI-compatible chat-completions schema
 - [x] provider interface
 - [x] fake provider
-- [ ] real upstream provider
+- [x] OpenAI upstream provider
+- [x] provider selection
 
 ### Phase 2 — Core security controls
 
@@ -326,6 +368,7 @@ Project functions use an RME-style docstring where appropriate:
 - [x] structured audit logging
 - [x] request correlation
 - [ ] per-user identities and API keys
+- [ ] hashed API-key storage
 - [ ] policy engine
 - [ ] rate limiting
 - [ ] token and cost budgets
