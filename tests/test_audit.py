@@ -42,7 +42,7 @@ def test_audit_log_attributes_client_without_secrets(
     RME
 
     Requires:
-        - Gateway client authentication, rate-limit policy, and model policy are configured.
+        - Gateway authentication, rate, model, and usage-budget policy are configured.
 
     Modifies:
         - Temporarily configures gateway environment variables and log capture.
@@ -50,7 +50,7 @@ def test_audit_log_attributes_client_without_secrets(
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
-        - Verifies client identity, rate-limit state, and model identities are recorded.
+        - Verifies client identity, rate state, usage accounting, and models are recorded.
         - Verifies prompt content and bearer credentials are not logged.
 
     Inputs:
@@ -62,6 +62,7 @@ def test_audit_log_attributes_client_without_secrets(
         - None. Assertions determine whether auditing is safe and complete.
     """
     monkeypatch.setenv("SAG_CLIENT_RATE_LIMITS", "test-client:10")
+    monkeypatch.setenv("SAG_CLIENT_DAILY_BUDGETS", "test-client:100:1.00")
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     monkeypatch.setenv(
         "SAG_CLIENT_ALLOWED_MODELS",
@@ -108,7 +109,20 @@ def test_audit_log_attributes_client_without_secrets(
     assert policy_event["client_id"] == "test-client"
     assert policy_event["key_id"] == "testkey"
     assert policy_event["requested_model"] == "mock-model"
-    assert "resolved_model" not in policy_event
+
+    usage_event = next(event for event in events if event["event"] == "usage_budget")
+    assert usage_event["outcome"] == "recorded"
+    assert usage_event["client_id"] == "test-client"
+    assert usage_event["key_id"] == "testkey"
+    assert usage_event["request_tokens"] == 5
+    assert usage_event["request_cost_usd"] == 0.0
+    assert usage_event["token_limit_daily"] == 100
+    assert usage_event["tokens_used_daily"] == 5
+    assert usage_event["tokens_remaining_daily"] == 95
+    assert usage_event["cost_limit_daily_usd"] == 1.0
+    assert usage_event["cost_used_daily_usd"] == 0.0
+    assert usage_event["cost_remaining_daily_usd"] == 1.0
+    assert "budget_reset_at" in usage_event
 
     completion_event = next(
         event for event in events if event["event"] == "chat_completion"
