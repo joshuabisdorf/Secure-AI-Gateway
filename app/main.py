@@ -118,7 +118,7 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid gateway API key mapped to a client identity.
-        - The requested model is explicitly allowed by gateway policy.
+        - The requested model is allowed globally and for the authenticated client.
 
     Modifies:
         - Provider-specific state, if any.
@@ -126,10 +126,10 @@ async def chat_completion(
 
     Effects:
         - Authenticates and identifies the caller.
-        - Enforces and records the configured model allowlist decision.
+        - Enforces deployment-wide and per-client model allowlists.
+        - Records the resulting policy decision with client attribution.
         - Sends the normalized request to the configured provider when allowed.
         - Records requested and resolved model identities on successful completion.
-        - Attributes policy and completion events to the authenticated client.
         - Records completion outcome and request latency without prompt content.
         - Converts known upstream provider failures to a generic 502 response.
 
@@ -144,7 +144,7 @@ async def chat_completion(
     request_id = http_request.state.request_id
 
     try:
-        enforce_model_allowed(request.model)
+        enforce_model_allowed(request.model, principal.client_id)
     except HTTPException as exc:
         emit_audit_event(
             request_id=request_id,
