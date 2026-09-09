@@ -12,6 +12,8 @@ def emit_audit_event(
     request_id: str,
     event: str,
     outcome: str,
+    client_id: str | None = None,
+    key_id: str | None = None,
     requested_model: str | None = None,
     resolved_model: str | None = None,
     provider: str | None = None,
@@ -35,6 +37,8 @@ def emit_audit_event(
         - request_id: Correlation identifier for the request.
         - event: Audit event category.
         - outcome: Decision or result for the event.
+        - client_id: Optional authenticated gateway client identity.
+        - key_id: Optional public identifier for the authenticated gateway key.
         - requested_model: Optional model name requested by the gateway client.
         - resolved_model: Optional model name reported by the upstream provider.
         - provider: Optional upstream provider name.
@@ -51,6 +55,10 @@ def emit_audit_event(
         "outcome": outcome,
     }
 
+    if client_id is not None:
+        payload["client_id"] = client_id
+    if key_id is not None:
+        payload["key_id"] = key_id
     if requested_model is not None:
         payload["requested_model"] = requested_model
     if resolved_model is not None:
