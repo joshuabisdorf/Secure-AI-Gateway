@@ -2,9 +2,10 @@ import os
 
 import pytest
 
-# Keep the test suite deterministic, offline, and free of provider API charges.
-# This must run during test collection, before test modules import app.main.
+# Keep the test suite deterministic, offline, database-free, and free of provider API charges.
+# This must run during test collection, before test modules import app.main/app.auth.
 os.environ["SAG_PROVIDER"] = "mock"
+os.environ["SAG_CLIENT_REGISTRY_BACKEND"] = "environment"
 os.environ["SAG_CLIENT_RATE_LIMITS"] = "test-client:10000"
 os.environ["SAG_CLIENT_DAILY_BUDGETS"] = "test-client:1000000:1000.00"
 
@@ -53,7 +54,7 @@ def gateway_api_key(monkeypatch) -> str:
         - pytest provides the monkeypatch fixture.
 
     Modifies:
-        - Temporarily configures SAG_CLIENTS for the current test.
+        - Temporarily configures the test-only environment client registry.
 
     Effects:
         - Provides a raw test client key whose hash appears in SAG_CLIENTS.
