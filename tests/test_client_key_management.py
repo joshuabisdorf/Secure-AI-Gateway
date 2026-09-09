@@ -151,7 +151,11 @@ def test_rotate_revokes_old_key_and_revoke_is_idempotent(monkeypatch) -> None:
     async def fake_connect(database_url: str):
         return await _fake_connect_factory(state, database_url)
 
-    monkeypatch.setattr(clients.psycopg.AsyncConnection, "connect", fake_connect)
+    monkeypatch.setattr(
+        clients.psycopg.AsyncConnection,
+        "connect",
+        staticmethod(fake_connect),
+    )
     monkeypatch.setattr(
         clients,
         "generate_api_key",
