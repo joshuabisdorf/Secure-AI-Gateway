@@ -1,8 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends.
-
-It centralizes client authentication, model authorization, rate limiting, token/cost budgets, provider routing, audit logging, and request correlation before a request reaches an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, request throttling, usage budgets, provider routing, audit logging, and request correlation before requests reach an upstream model.
 
 ## Current capabilities
 
@@ -18,6 +16,7 @@ Implemented:
 - deployment-wide and per-client model allowlists
 - per-client requests-per-minute rate limiting
 - per-client UTC-day token/cost budgets
+- PostgreSQL-backed persistent daily usage accounting
 - OpenRouter token/cost accounting
 - structured one-line JSON audit events with client attribution
 - `X-Request-ID` request correlation
@@ -25,7 +24,7 @@ Implemented:
 - sanitized provider failures
 - deterministic `pytest` suite that does not call real providers
 
-Rate-limit counters and daily usage totals are still process-local. Redis-backed rate limiting and persistent usage accounting remain future infrastructure work.
+Rate-limit counters are still process-local. Redis-backed distributed rate limiting is the next infrastructure milestone.
 
 ## Request path
 
@@ -41,7 +40,7 @@ Secure AI Gateway
   +-- per-client rate limit
   +-- global model allowlist
   +-- per-client model allowlist
-  +-- daily token/cost budget
+  +-- PostgreSQL daily token/cost accounting
   +-- structured audit logging
   +-- provider routing
   |
@@ -53,17 +52,12 @@ The upstream provider credential is held only by the gateway. Clients receive ga
 
 ## Local configuration
 
-Copy the template:
-
-```bash
-cp .env.example .env
-```
-
 A typical OpenRouter development configuration is:
 
 ```dotenv
 SAG_PROVIDER=openrouter
 SAG_CLIENT_REGISTRY_BACKEND=postgres
+SAG_USAGE_LEDGER_BACKEND=postgres
 
 POSTGRES_PASSWORD=sag_dev_password
 DATABASE_URL=postgresql://sag:sag_dev_password@127.0.0.1:5432/secure_ai_gateway
@@ -71,7 +65,7 @@ DATABASE_URL=postgresql://sag:sag_dev_password@127.0.0.1:5432/secure_ai_gateway
 SAG_ALLOWED_MODELS=openrouter/free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 SAG_CLIENT_RATE_LIMITS=local-dev:10
-SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
+SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
 
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
@@ -83,15 +77,53 @@ Use `-` to disable one usage-budget dimension. For example:
 SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
 ```
 
-means 50,000 tokens per UTC day with no gateway dollar-cost ceiling.
+means 50,000 tokens per UTC day with no gateway dollar-cost ceiling. `.env` and `.client.env` are ignored by Git.
 
-`.env` and `.client.env` are ignored by Git.
+## PostgreSQL
+
+The repository includes a PostgreSQL 18 service in `compose.yaml`, bound to local loopback only:
+
+```bash
+docker compose up -d postgres
+docker compose ps
+```
+
+Load server configuration before running database commands:
+
+```bash
+set -a
+source .env
+set +a
+```
+
+### Schema migrations
+
+Apply all pending migrations:
+
+```bash
+python -m app.database migrate
+```
+
+Inspect recorded migrations:
+
+```bash
+python -m app.database status
+```
+
+Migrations are ordered by filename and tracked in `schema_migrations` with a SHA-256 digest. The runner refuses to continue if an already-applied migration file has been modified.
+
+Current migrations:
+
+```text
+001_client_registry.sql
+002_daily_usage.sql
+```
+
+If upgrading a database that was initialized before the migration runner existed, running `python -m app.database migrate` is safe: the original client-registry DDL is idempotent, then the new daily-usage table is created and both migrations are recorded.
 
 ## PostgreSQL client registry
 
-Runtime authentication defaults to PostgreSQL. The database stores only client identity, public key ID, SHA-256 key digest, activation state, and timestamps. It never stores the raw gateway key.
-
-The schema separates clients from API keys:
+The database stores only client identity, public key ID, SHA-256 key digest, activation state, and timestamps. It never stores raw gateway API keys.
 
 ```text
 gateway_clients
@@ -114,112 +146,29 @@ gateway_api_keys
   revoked_at
 ```
 
-That layout supports multiple keys per client, immediate revocation, and transactional key rotation.
+For each protected request the gateway validates the structured bearer key, extracts `key_id`, queries PostgreSQL for an active key belonging to an active client, hashes the complete presented key, compares hashes with `hmac.compare_digest`, and returns `Principal(client_id, key_id)` to downstream policy checks.
 
-### Start PostgreSQL
+Database failures fail closed with sanitized `503` responses. Unknown, inactive, or incorrect keys return `401`.
 
-The repository includes `compose.yaml` with PostgreSQL bound to local loopback only:
+### Client/key commands
 
-```bash
-docker compose up -d postgres
-```
-
-Check it:
-
-```bash
-docker compose ps
-```
-
-### Initialize the schema
-
-Load your server environment into the shell:
-
-```bash
-set -a
-source .env
-set +a
-```
-
-Then run:
-
-```bash
-python -m app.clients init-db
-```
-
-Expected:
-
-```text
-Client registry schema initialized.
-```
-
-### Migrate an existing `SAG_CLIENTS` key without changing the raw client key
-
-If upgrading from the earlier environment-backed client registry, temporarily keep your existing line in `.env`:
-
-```dotenv
-SAG_CLIENTS=local-dev:<key-id>:<sha256>
-```
-
-Load `.env`, then import it:
-
-```bash
-set -a
-source .env
-set +a
-python -m app.clients import-env
-```
-
-Expected:
-
-```text
-Imported 1 client key record(s).
-```
-
-Verify only non-secret metadata is stored:
+List non-secret metadata:
 
 ```bash
 python -m app.clients list
 ```
 
-Example:
-
-```text
-client_id=local-dev key_id=abcd1234 client_active=true key_active=true
-```
-
-After that succeeds, remove `SAG_CLIENTS` from `.env`. The raw key in `.client.env` does not change.
-
-### Create a new database-backed client key
-
-For a new client:
+Create a database-backed client key:
 
 ```bash
 python -m app.clients create service-a
 ```
 
-The command prints the raw key once. PostgreSQL stores only its SHA-256 digest.
-
-Keep the raw key on the client side, for example:
-
-```dotenv
-SAG_CLIENT_API_KEY=sag_<key-id>_<secret>
-```
-
-## API-key revocation and rotation
-
-List non-secret client/key metadata:
-
-```bash
-python -m app.clients list
-```
-
-Revoke one key by its public key ID:
+Revoke one key:
 
 ```bash
 python -m app.clients revoke <key-id>
 ```
-
-A revoked key remains in PostgreSQL for attribution/history but is excluded from authentication immediately. Repeating the same revoke command is safe and reports that the key was already revoked.
 
 Rotate all active keys for a client:
 
@@ -227,32 +176,9 @@ Rotate all active keys for a client:
 python -m app.clients rotate local-dev
 ```
 
-Rotation runs in one PostgreSQL transaction. It creates a replacement key hash and revokes all previously active keys for that client before committing. The command prints the new raw key exactly once; PostgreSQL never stores that raw value.
+Rotation creates a replacement key hash and revokes prior active keys in one PostgreSQL transaction. The new raw key is printed once and must be stored on the client side, such as in `.client.env`.
 
-After rotation, replace the client-side credential in `.client.env`:
-
-```dotenv
-SAG_CLIENT_API_KEY=sag_<new-key-id>_<new-secret>
-```
-
-Do not discard the printed raw replacement key until the client-side secret store has been updated. Because only the hash is persisted, the raw key cannot be recovered from PostgreSQL later.
-
-## Authentication behavior
-
-For each protected request the gateway:
-
-1. validates the structured bearer-key format;
-2. extracts the public `key_id`;
-3. queries PostgreSQL for an active key belonging to an active client;
-4. hashes the presented complete key;
-5. compares the hash with `hmac.compare_digest`; and
-6. returns a `Principal(client_id, key_id)` to downstream policy checks.
-
-Database failures are sanitized and fail closed with `503`. Unknown, inactive, or incorrect keys return `401`.
-
-The test suite explicitly uses the legacy environment registry backend so tests stay deterministic and do not require Docker/PostgreSQL.
-
-## Per-client model authorization
+## Model authorization
 
 A requested model must pass both layers:
 
@@ -283,20 +209,13 @@ Configure fixed requests-per-minute limits:
 SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
 ```
 
-Allowed responses include:
-
-```text
-X-RateLimit-Limit: 10
-X-RateLimit-Remaining: 9
-```
-
-Exhausted clients receive `429 Too Many Requests` with `Retry-After`.
+Allowed responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining`. Exhausted clients receive `429 Too Many Requests` with `Retry-After`.
 
 The current limiter is process-local. Redis-backed enforcement is required before multi-worker or multi-replica deployment.
 
 ## Daily token and cost budgets
 
-Format:
+Budget format:
 
 ```text
 client_id:daily_tokens:daily_cost_usd
@@ -312,28 +231,38 @@ SAG_CLIENT_DAILY_BUDGETS=service-a:-:5.00
 
 OpenRouter supplies provider-reported token counts and request cost when usage accounting is requested. Free models normally report zero cost while still consuming tokens.
 
-The current daily ledger resets at UTC midnight and is process-local. Restarting the gateway resets accumulated usage until persistent usage accounting is implemented.
+The gateway reads the current UTC-day total from PostgreSQL before forwarding. After a successful provider response, it atomically increments the persisted row with:
+
+```text
+gateway_daily_usage
+  client_id
+  usage_date
+  tokens_used
+  cost_used_usd
+  updated_at
+```
+
+The primary key is `(client_id, usage_date)`, so each client has one cumulative row per UTC day. Concurrent completions use an atomic PostgreSQL upsert and cannot lose increments through a process-local read/modify/write race.
+
+Exact usage is only known after the provider responds. Therefore the request that crosses the remaining budget is returned and recorded; subsequent requests are blocked until the next UTC day.
+
+Successful responses can include:
+
+```text
+X-Usage-Tokens-Used
+X-Usage-Tokens-Remaining
+X-Usage-Cost-USD
+X-Usage-Cost-Remaining-USD
+X-Usage-Budget-Reset
+```
+
+If persistent usage state cannot be read, the gateway returns `503` before forwarding. If an upstream completion succeeds but its usage cannot be persisted, the gateway also fails closed and emits an audit error rather than silently losing accounting data.
 
 ## Audit logging
 
-Audit events are emitted as one JSON object per line to application stderr, so they appear in the terminal running Uvicorn.
+Audit events are emitted as one JSON object per line to application stderr, so they appear in the terminal running Uvicorn. Safe fields include client/key IDs, model names, rate-limit state, request/cumulative usage, provider name, request ID, and latency.
 
-They can include safe fields such as:
-
-```json
-{
-  "event": "chat_completion",
-  "outcome": "success",
-  "client_id": "local-dev",
-  "key_id": "abcd1234",
-  "provider": "openrouter",
-  "requested_model": "openrouter/free",
-  "resolved_model": "provider/model:free",
-  "request_id": "req_..."
-}
-```
-
-The audit layer intentionally omits raw gateway keys, prompts/messages, provider credentials, and provider response bodies.
+The audit layer intentionally omits raw gateway keys, prompts/messages, provider credentials, and upstream response bodies.
 
 ## Development setup
 
@@ -343,16 +272,20 @@ Requirements:
 - Docker with Compose
 - Git
 
-Install or refresh dependencies after pulling changes:
+Install or refresh dependencies:
 
 ```bash
 python -m pip install -e '.[dev]'
 ```
 
-Start PostgreSQL:
+Start PostgreSQL and migrate the schema:
 
 ```bash
 docker compose up -d postgres
+set -a
+source .env
+set +a
+python -m app.database migrate
 ```
 
 Run tests:
@@ -385,7 +318,7 @@ curl -i \
   -d '{
     "model": "openrouter/free",
     "messages": [
-      {"role": "user", "content": "Reply with exactly: PostgreSQL auth works"}
+      {"role": "user", "content": "Reply with exactly: Persistent usage works"}
     ]
   }'
 ```
@@ -400,6 +333,7 @@ Secure-AI-Gateway/
 │   ├── auth.py
 │   ├── client_registry.py
 │   ├── clients.py
+│   ├── database.py
 │   ├── main.py
 │   ├── models.py
 │   ├── rate_limit.py
@@ -408,7 +342,8 @@ Secure-AI-Gateway/
 │   └── providers/
 ├── db/
 │   └── migrations/
-│       └── 001_client_registry.sql
+│       ├── 001_client_registry.sql
+│       └── 002_daily_usage.sql
 ├── tests/
 ├── .client.env.example
 ├── .env.example
@@ -438,10 +373,10 @@ Secure-AI-Gateway/
 - [x] global model allowlist
 - [x] per-client model policy
 - [x] per-client rate limiting
-- [x] daily token/cost budgets
+- [x] daily token and cost budgets
+- [x] persistent PostgreSQL usage accounting
 - [x] structured audit logging
 - [x] request correlation
-- [ ] persistent usage accounting
 - [ ] Redis-backed distributed rate limiting
 
 ### LLM security controls
