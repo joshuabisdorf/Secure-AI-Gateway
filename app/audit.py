@@ -43,6 +43,9 @@ def emit_audit_event(
     prompt_injection_detected_count: int | None = None,
     prompt_injection_score: int | None = None,
     prompt_injection_indicators: str | None = None,
+    tool_requested_count: int | None = None,
+    tool_requested_names: str | None = None,
+    tool_denied_names: str | None = None,
 ) -> None:
     """
     RME
@@ -56,8 +59,9 @@ def emit_audit_event(
 
     Effects:
         - Emits one JSON audit record to application stderr.
-        - Omits prompt content, detected PII values, and credentials from the audit record.
-        - Records prompt-injection metadata only as safe labels/counts/scores.
+        - Omits prompt content, detected PII values, credentials, tool arguments,
+          and tool outputs from the audit record.
+        - Records prompt-injection and tool-authorization metadata only as safe labels/names.
 
     Inputs:
         - request_id: Correlation identifier for the request.
@@ -87,6 +91,9 @@ def emit_audit_event(
         - prompt_injection_detected_count: Optional count of unique injection indicators.
         - prompt_injection_score: Optional aggregate deterministic injection score.
         - prompt_injection_indicators: Optional comma-separated safe indicator labels.
+        - tool_requested_count: Optional number of distinct function tools exposed.
+        - tool_requested_names: Optional comma-separated validated function names.
+        - tool_denied_names: Optional comma-separated function names denied by policy.
 
     Outputs:
         - None.
@@ -122,6 +129,9 @@ def emit_audit_event(
         "prompt_injection_detected_count": prompt_injection_detected_count,
         "prompt_injection_score": prompt_injection_score,
         "prompt_injection_indicators": prompt_injection_indicators,
+        "tool_requested_count": tool_requested_count,
+        "tool_requested_names": tool_requested_names,
+        "tool_denied_names": tool_denied_names,
     }
     for field, value in optional_fields.items():
         if value is not None:
