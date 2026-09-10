@@ -2,11 +2,13 @@ import os
 
 import pytest
 
-# Keep the test suite deterministic, offline, database-free, and free of provider API charges.
-# This must run during test collection, before test modules import app.main/app.auth.
+# Keep the test suite deterministic, offline, database-free, Redis-free, and free of
+# provider API charges. This must run during test collection, before test modules import
+# app.main/app.auth.
 os.environ["SAG_PROVIDER"] = "mock"
 os.environ["SAG_CLIENT_REGISTRY_BACKEND"] = "environment"
 os.environ["SAG_USAGE_LEDGER_BACKEND"] = "memory"
+os.environ["SAG_RATE_LIMIT_BACKEND"] = "memory"
 os.environ["SAG_CLIENT_RATE_LIMITS"] = "test-client:10000"
 os.environ["SAG_CLIENT_DAILY_BUDGETS"] = "test-client:1000000:1000.00"
 
@@ -23,8 +25,7 @@ def reset_process_local_policy_state():
     RME
 
     Requires:
-        - Tests configure the in-memory usage ledger backend.
-        - The gateway exposes process-local rate-limit and usage-ledger state.
+        - Tests configure in-memory rate-limit and usage-ledger backends.
 
     Modifies:
         - Process-local gateway rate-limit and test usage-budget state around each test.
@@ -36,7 +37,7 @@ def reset_process_local_policy_state():
         - None.
 
     Outputs:
-        - None. Fixture setup and teardown isolate process-local state.
+        - None. Fixture setup and teardown isolate process-local test state.
     """
     from app.main import rate_limiter, usage_ledger
 
