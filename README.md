@@ -1,6 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, sensitive-data controls, prompt-injection controls, tool exposure policy, provider routing, audit logging, and request correlation before requests reach an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, sensitive-data controls, prompt-injection controls, tool exposure policy, provider routing, audit logging, request correlation, and security evaluation before requests reach an upstream model.
 
 ## Current capabilities
 
@@ -21,11 +21,12 @@ Implemented:
 - least-privilege function-tool exposure authorization
 - OpenAI-compatible function `tools`, `tool_choice`, tool-result messages, and assistant `tool_calls`
 - versioned named security-policy profiles that consolidate per-client controls
+- versioned offline adversarial prompt-injection benchmark with precision, recall, FPR, FNR, and category metrics
 - structured one-line JSON audit events with client attribution and request correlation
 - sanitized provider failures
 - deterministic `pytest` suite that does not call real providers, PostgreSQL, or Redis
 
-The next evaluation milestone is a versioned adversarial dataset with measurable prompt-injection detection and false-positive metrics.
+The next major implementation milestone is Dockerizing the gateway and then enforcing the test/benchmark gates in GitHub Actions CI. Semantic PII and stronger prompt-injection detection remain explicit security-research improvements rather than completed controls.
 
 ## Request path
 
@@ -56,7 +57,7 @@ The upstream provider credential is held only by the gateway. Clients receive ga
 
 ## Local configuration
 
-A typical OpenRouter development `.env` is now:
+A typical OpenRouter development `.env` is:
 
 ```dotenv
 SAG_PROVIDER=openrouter
@@ -123,19 +124,11 @@ set +a
 python -m app.policy_cli validate
 ```
 
-Expected metadata-only output:
-
-```text
-VALID security_policy version=1 profiles=2 clients=1
-```
-
-When `SAG_SECURITY_POLICY_FILE` is enabled, it is authoritative. The gateway clears the legacy per-control inputs in its own process before compiling the validated profile registry into the established enforcement modules. If the file is invalid or unavailable, it does not fall back to stale legacy grants; protected requests fail closed.
-
-The policy file is loaded at process startup, so restart the gateway after changing it.
+When `SAG_SECURITY_POLICY_FILE` is enabled, it is authoritative. Invalid or unavailable unified policy does not fall back to stale legacy grants; protected requests fail closed. The policy file is loaded at process startup, so restart the gateway after changing it.
 
 The deployment-wide `SAG_ALLOWED_MODELS` setting deliberately remains outside the profile file. A client profile may narrow model access but cannot widen that hard ceiling.
 
-See `docs/security-policy-profiles.md` for the schema, migration behavior, and security boundaries.
+See `docs/security-policy-profiles.md` for the schema and migration behavior.
 
 ## Local state services
 
@@ -263,6 +256,33 @@ A passing run means no tested synthetic canary leakage was observed. It does not
 
 See `docs/system-prompt-leakage.md` for details.
 
+## Prompt-injection benchmark
+
+The committed version-1 benchmark evaluates the deterministic input detector completely offline:
+
+```bash
+python -m app.evals.prompt_injection_benchmark
+python -m app.evals.prompt_injection_benchmark --enforce-baseline
+```
+
+The dataset contains 66 synthetic cases across ordinary benign traffic, hard-negative security discussion, direct overrides, system-prompt extraction, role impersonation, safety bypass, secret exfiltration, Base64/hex payloads, typoglycemia, indirect injection, and split multi-turn attacks.
+
+The evaluator reports a confusion matrix, precision, recall, false-positive rate, false-negative rate, per-category detection rates, and the dataset SHA-256 digest. `--format json` provides machine-readable output; `--show-errors` prints only failing case IDs, never prompt bodies.
+
+The version-1 baseline when introduced is:
+
+```text
+TP=36  FP=7  TN=13  FN=10
+precision=0.8372
+recall=0.7826
+false_positive_rate=0.3500
+false_negative_rate=0.2174
+```
+
+Those numbers intentionally expose current limitations: straightforward and encoded attacks score well, while typoglycemia and split multi-turn attacks are missed and quoted/descriptive security text can false-positive. The FPR is a rate on this deliberately difficult curated benchmark, not an estimate of production traffic.
+
+See `docs/prompt-injection-benchmark.md` for dataset composition, metric definitions, thresholds, and versioning rules.
+
 ## Audit logging
 
 Audit events are emitted as one JSON object per line to application stderr. Safe fields include client/key IDs, model names, rate-limit state, PII type/count metadata, prompt-injection indicator metadata, validated function-tool names/counts, request/cumulative usage, provider name, request ID, and latency.
@@ -289,7 +309,7 @@ Create local policy configuration once:
 cp config/security-policies.example.json config/security-policies.json
 ```
 
-Start state services, load configuration, validate policy, and migrate PostgreSQL:
+Start state services, load configuration, validate policy, migrate PostgreSQL, and run offline tests/evaluation:
 
 ```bash
 docker compose up -d postgres redis
@@ -299,6 +319,7 @@ set +a
 python -m app.policy_cli validate
 python -m app.database migrate
 pytest -q
+python -m app.evals.prompt_injection_benchmark --enforce-baseline
 ```
 
 Start the gateway:
@@ -329,6 +350,7 @@ Secure-AI-Gateway/
 │   ├── clients.py
 │   ├── database.py
 │   ├── evals/
+│   │   ├── prompt_injection_benchmark.py
 │   │   └── system_prompt_leakage.py
 │   ├── main.py
 │   ├── models.py
@@ -346,12 +368,16 @@ Secure-AI-Gateway/
 │   └── security-policies.example.json
 ├── db/migrations/
 ├── docs/
+│   ├── prompt-injection-benchmark.md
 │   ├── security-policy-profiles.md
 │   ├── system-prompt-leakage.md
 │   └── tool-authorization.md
+├── evals/datasets/
+│   └── prompt_injection_v1.json
 ├── tests/
 │   ├── test_pii.py
 │   ├── test_prompt_injection.py
+│   ├── test_prompt_injection_benchmark.py
 │   ├── test_security_policy.py
 │   ├── test_system_prompt_leakage.py
 │   └── test_tool_authorization.py
@@ -397,7 +423,7 @@ Secure-AI-Gateway/
 
 ### Evaluation and infrastructure
 
-- [ ] versioned adversarial prompt dataset and measurable detection metrics
+- [x] versioned adversarial prompt dataset and measurable detection metrics
 - [ ] Dockerized gateway
 - [ ] GitHub Actions CI
 - [ ] OpenTelemetry / Prometheus
