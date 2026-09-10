@@ -14,6 +14,7 @@ services:
       SAG_CLIENT_REGISTRY_BACKEND: postgres
       SAG_USAGE_LEDGER_BACKEND: postgres
       SAG_RATE_LIMIT_BACKEND: redis
+      SAG_SEMANTIC_PII_BACKEND: ${SAG_SEMANTIC_PII_BACKEND:-spacy}
       SAG_ALLOWED_MODELS: ${SAG_ALLOWED_MODELS:-}
       SAG_SECURITY_POLICY_FILE: /app/config/security-policies.json
       DATABASE_URL: postgresql://sag:${POSTGRES_PASSWORD:-sag_dev_password}@postgres:5432/secure_ai_gateway
