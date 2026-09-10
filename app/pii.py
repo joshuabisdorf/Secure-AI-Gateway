@@ -184,14 +184,15 @@ def inspect_and_redact_request(request: ChatCompletionRequest) -> PIIInspectionR
     RME
 
     Requires:
-        - request is a validated chat-completion request containing string message content.
+        - request is a validated chat-completion request.
 
     Modifies:
         - Nothing. The original request object is not changed.
 
     Effects:
-        - Detects common structured PII in message content.
+        - Detects common structured PII in textual message content.
         - Redacts detected values in a copied request.
+        - Leaves non-text/tool-call message fields unchanged.
         - Does not retain or return raw detected values separately.
 
     Inputs:
@@ -204,6 +205,10 @@ def inspect_and_redact_request(request: ChatCompletionRequest) -> PIIInspectionR
     redacted_messages: list[ChatMessage] = []
 
     for message in request.messages:
+        if message.content is None:
+            redacted_messages.append(message)
+            continue
+
         redacted_content, message_types = _redact_text(message.content)
         detected_types.extend(message_types)
         redacted_messages.append(message.model_copy(update={"content": redacted_content}))
