@@ -13,6 +13,10 @@ from app.auth import authenticate_api_key, client_registry
 from app.models import ChatCompletionRequest, ChatCompletionResponse
 from app.pii import get_client_pii_policy, inspect_and_redact_request
 from app.policies.model_access import enforce_model_allowed
+from app.prompt_injection import (
+    get_client_prompt_injection_policy,
+    inspect_prompt_injection,
+)
 from app.providers.base import ProviderError
 from app.providers.factory import build_provider
 from app.rate_limit import (
@@ -200,7 +204,7 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid database-backed gateway API key.
-        - Rate-limit, model, PII, and daily usage-budget policies are configured.
+        - Rate-limit, model, PII, prompt-injection, and daily usage-budget policies are configured.
         - Redis rate-limit state and PostgreSQL usage accounting are available.
 
     Modifies:
@@ -213,7 +217,8 @@ async def chat_completion(
     Effects:
         - Applies authentication and distributed per-client request throttling.
         - Enforces model authorization and per-client PII policy.
-        - Redacts detected structured PII before provider forwarding or denies the request.
+        - Redacts detected structured PII before later content inspection/provider forwarding.
+        - Audits or denies explicit prompt-injection indicators according to client policy.
         - Reads durable accumulated usage before provider forwarding.
         - Records provider-reported usage atomically after successful completion.
         - Fails closed when required policy or shared state is unavailable.
@@ -373,6 +378,82 @@ async def chat_completion(
         requested_model=request.model,
         pii_detected_count=pii_result.detected_count,
         pii_types=pii_types,
+    )
+
+    try:
+        prompt_injection_policy = get_client_prompt_injection_policy(principal.client_id)
+    except HTTPException as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="prompt_injection",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            requested_model=request.model,
+            reason=str(exc.detail),
+        )
+        raise
+
+    if prompt_injection_policy.action == "off":
+        injection_detected_count = 0
+        injection_score = 0
+        injection_indicators: tuple[str, ...] = ()
+        injection_outcome = "off"
+        injection_action_header = "off"
+    else:
+        injection_result = inspect_prompt_injection(provider_request)
+        injection_detected_count = injection_result.detected_count
+        injection_score = injection_result.score
+        injection_indicators = injection_result.indicators
+
+        if injection_detected_count > 0 and prompt_injection_policy.action == "deny":
+            indicator_names = ",".join(injection_indicators) or None
+            emit_audit_event(
+                request_id=request_id,
+                event="prompt_injection",
+                outcome="deny",
+                client_id=principal.client_id,
+                key_id=principal.key_id,
+                requested_model=request.model,
+                reason="prompt_injection_detected",
+                prompt_injection_detected_count=injection_detected_count,
+                prompt_injection_score=injection_score,
+                prompt_injection_indicators=indicator_names,
+            )
+            raise HTTPException(
+                status_code=403,
+                detail="Potential prompt injection detected.",
+                headers={
+                    "X-Prompt-Injection-Action": "denied",
+                    "X-Prompt-Injection-Detected-Count": str(injection_detected_count),
+                    "X-Prompt-Injection-Score": str(injection_score),
+                },
+            )
+
+        injection_outcome = "audit" if injection_detected_count > 0 else "allow"
+        injection_action_header = "audited" if injection_detected_count > 0 else "none"
+
+    indicator_names = ",".join(injection_indicators) or None
+    outgoing_response.headers["X-Prompt-Injection-Action"] = injection_action_header
+    outgoing_response.headers["X-Prompt-Injection-Detected-Count"] = str(
+        injection_detected_count
+    )
+    outgoing_response.headers["X-Prompt-Injection-Score"] = str(injection_score)
+    emit_audit_event(
+        request_id=request_id,
+        event="prompt_injection",
+        outcome=injection_outcome,
+        client_id=principal.client_id,
+        key_id=principal.key_id,
+        requested_model=request.model,
+        reason=(
+            "prompt_injection_detected"
+            if injection_detected_count > 0
+            else None
+        ),
+        prompt_injection_detected_count=injection_detected_count,
+        prompt_injection_score=injection_score,
+        prompt_injection_indicators=indicator_names,
     )
 
     try:
