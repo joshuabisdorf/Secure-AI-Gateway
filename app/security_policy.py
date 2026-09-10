@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import re
@@ -270,7 +269,7 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
     _require_exact_keys(root, _root_keys, "invalid_security_policy_root")
 
     version = root["version"]
-    if version != 1 or isinstance(version, bool):
+    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
         raise ValueError("unsupported_security_policy_version")
 
     raw_profiles = root["profiles"]
@@ -398,56 +397,3 @@ def resolve_client_security_policy(client_id: str) -> ResolvedSecurityPolicy | N
 
     registry = load_security_policy_registry(configured_path)
     return registry.resolve(client_id)
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Validate the configured Secure AI Gateway security policy registry."
-    )
-    parser.add_argument(
-        "command",
-        choices=("validate",),
-        help="Policy operation to perform.",
-    )
-    return parser
-
-
-def main() -> None:
-    """
-    RME
-
-    Requires:
-        - SAG_SECURITY_POLICY_FILE is configured for the validate command.
-
-    Modifies:
-        - Terminal output.
-
-    Effects:
-        - Validates the complete policy registry without printing policy contents.
-        - Exits nonzero when configuration cannot be used safely.
-
-    Inputs:
-        - Command-line arguments and SAG_SECURITY_POLICY_FILE.
-
-    Outputs:
-        - A concise validation summary containing only version/count metadata.
-    """
-    args = _build_parser().parse_args()
-    if args.command != "validate":
-        raise SystemExit(2)
-
-    try:
-        registry = load_security_policy_registry()
-    except SecurityPolicyUnavailable as exc:
-        print(f"ERROR security_policy reason={exc.reason}")
-        raise SystemExit(2) from None
-
-    print(
-        "VALID security_policy "
-        f"version={registry.version} "
-        f"profiles={len(registry.profiles)} clients={len(registry.clients)}"
-    )
-
-
-if __name__ == "__main__":
-    main()
