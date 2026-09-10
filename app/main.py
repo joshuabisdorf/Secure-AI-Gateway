@@ -14,7 +14,11 @@ from app.models import ChatCompletionRequest, ChatCompletionResponse
 from app.policies.model_access import enforce_model_allowed
 from app.providers.base import ProviderError
 from app.providers.factory import build_provider
-from app.rate_limit import InMemoryRateLimiter, get_client_rate_limit
+from app.rate_limit import (
+    RateLimiterUnavailable,
+    build_rate_limiter,
+    get_client_rate_limit,
+)
 from app.usage_budget import (
     UsageBudgetDecision,
     UsageLedgerUnavailable,
@@ -23,7 +27,7 @@ from app.usage_budget import (
 )
 
 provider = build_provider()
-rate_limiter = InMemoryRateLimiter()
+rate_limiter = build_rate_limiter()
 usage_ledger = build_usage_ledger()
 _request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
@@ -37,11 +41,11 @@ async def lifespan(_: FastAPI):
         - Configured persistent resources may own async connection pools.
 
     Modifies:
-        - Client-registry and usage-ledger connection-pool state during shutdown.
+        - Client-registry, rate-limiter, and usage-ledger connection-pool state during shutdown.
 
     Effects:
-        - Leaves database connections lazy during startup.
-        - Closes opened PostgreSQL pools cleanly on application shutdown.
+        - Leaves backend connections lazy during startup.
+        - Closes opened PostgreSQL and Redis pools cleanly on application shutdown.
 
     Inputs:
         - _: FastAPI application instance.
@@ -51,7 +55,7 @@ async def lifespan(_: FastAPI):
     """
     yield
 
-    for resource in (client_registry, usage_ledger):
+    for resource in (client_registry, rate_limiter, usage_ledger):
         close = getattr(resource, "close", None)
         if close is not None:
             await close()
@@ -196,19 +200,19 @@ async def chat_completion(
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid database-backed gateway API key.
         - Rate-limit, model, and daily usage-budget policies are configured.
-        - Persistent usage accounting is available.
+        - Redis rate-limit state and PostgreSQL usage accounting are available.
 
     Modifies:
-        - Process-local rate-limit state.
+        - Shared per-client rate-limit state in Redis.
         - Persistent per-client daily usage totals in PostgreSQL.
         - Provider-specific state, if any.
         - The audit logging stream and response policy headers.
 
     Effects:
-        - Applies authentication, rate limiting, and model authorization.
-        - Reads durable accumulated usage before provider forwarding.
+        - Applies authentication and distributed per-client request throttling.
+        - Fails closed when Redis rate-limit state is unavailable.
+        - Enforces model authorization and durable daily usage budgets.
         - Records provider-reported usage atomically after successful completion.
-        - Fails closed when persistent accounting is unavailable.
         - Returns the request that crosses a budget, then blocks later requests.
 
     Inputs:
@@ -235,7 +239,22 @@ async def chat_completion(
         )
         raise
 
-    rate_decision = rate_limiter.check(principal.client_id, limit_rpm)
+    try:
+        rate_decision = await rate_limiter.check(principal.client_id, limit_rpm)
+    except RateLimiterUnavailable as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="rate_limit",
+            outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason="rate_limiter_unavailable",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Rate limiting is unavailable.",
+        ) from exc
+
     if not rate_decision.allowed:
         retry_after_seconds = rate_decision.retry_after_seconds or 1
         emit_audit_event(
