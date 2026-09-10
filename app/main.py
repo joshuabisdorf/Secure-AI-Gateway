@@ -16,10 +16,16 @@ from app.providers.base import ProviderError
 from app.providers.factory import build_provider
 from app.rate_limit import InMemoryRateLimiter, get_client_rate_limit
 from app.usage_budget import (
-    InMemoryUsageLedger,
     UsageBudgetDecision,
+    UsageLedgerUnavailable,
+    build_usage_ledger,
     get_client_usage_budget,
 )
+
+provider = build_provider()
+rate_limiter = InMemoryRateLimiter()
+usage_ledger = build_usage_ledger()
+_request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 @asynccontextmanager
@@ -28,14 +34,14 @@ async def lifespan(_: FastAPI):
     RME
 
     Requires:
-        - The configured client registry may own async resources.
+        - Configured persistent resources may own async connection pools.
 
     Modifies:
-        - Client-registry connection-pool state during shutdown.
+        - Client-registry and usage-ledger connection-pool state during shutdown.
 
     Effects:
-        - Leaves registry connections lazy during startup.
-        - Closes the PostgreSQL pool cleanly when the application shuts down.
+        - Leaves database connections lazy during startup.
+        - Closes opened PostgreSQL pools cleanly on application shutdown.
 
     Inputs:
         - _: FastAPI application instance.
@@ -45,9 +51,10 @@ async def lifespan(_: FastAPI):
     """
     yield
 
-    close = getattr(client_registry, "close", None)
-    if close is not None:
-        await close()
+    for resource in (client_registry, usage_ledger):
+        close = getattr(resource, "close", None)
+        if close is not None:
+            await close()
 
 
 app = FastAPI(
@@ -55,11 +62,6 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
-
-provider = build_provider()
-rate_limiter = InMemoryRateLimiter()
-usage_ledger = InMemoryUsageLedger()
-_request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 
 def resolve_request_id(candidate: str | None) -> str:
@@ -83,7 +85,6 @@ def resolve_request_id(candidate: str | None) -> str:
     """
     if candidate is not None and _request_id_pattern.fullmatch(candidate):
         return candidate
-
     return f"req_{uuid4().hex}"
 
 
@@ -136,7 +137,6 @@ def _budget_audit_fields(
                 ),
             }
         )
-
     return fields
 
 
@@ -178,24 +178,7 @@ async def add_request_context(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """
-    RME
-
-    Requires:
-        - The FastAPI application is running.
-
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Reports the health status of the gateway.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A dictionary containing the gateway health status.
-    """
+    """Return the gateway process health status."""
     return {"status": "ok"}
 
 
@@ -211,26 +194,22 @@ async def chat_completion(
 
     Requires:
         - request satisfies the gateway chat-completion schema.
-        - The caller provides a valid gateway API key mapped to a client identity.
-        - Rate-limit and daily usage-budget policy are configured for the client.
-        - The requested model is allowed globally and for the authenticated client.
+        - The caller provides a valid database-backed gateway API key.
+        - Rate-limit, model, and daily usage-budget policies are configured.
+        - Persistent usage accounting is available.
 
     Modifies:
-        - Process-local per-client rate-limit state.
-        - Process-local per-client daily usage totals.
+        - Process-local rate-limit state.
+        - Persistent per-client daily usage totals in PostgreSQL.
         - Provider-specific state, if any.
-        - The audit logging stream.
-        - Rate-limit and usage-budget headers on successful responses.
+        - The audit logging stream and response policy headers.
 
     Effects:
-        - Authenticates and identifies the caller.
-        - Applies per-client request-rate limits before model/provider work.
-        - Enforces deployment-wide and per-client model allowlists.
-        - Blocks forwarding when a previously accumulated daily usage budget is exhausted.
-        - Sends the normalized request to the configured provider when allowed.
-        - Records provider-reported token and cost usage after successful completion.
-        - Returns the request that crosses a budget, then blocks subsequent requests.
-        - Records security decisions and completion outcome without prompt content.
+        - Applies authentication, rate limiting, and model authorization.
+        - Reads durable accumulated usage before provider forwarding.
+        - Records provider-reported usage atomically after successful completion.
+        - Fails closed when persistent accounting is unavailable.
+        - Returns the request that crosses a budget, then blocks later requests.
 
     Inputs:
         - request: Requested model and chat messages.
@@ -328,7 +307,22 @@ async def chat_completion(
         )
         raise
 
-    budget_decision = usage_ledger.check(principal.client_id, usage_budget)
+    try:
+        budget_decision = await usage_ledger.check(principal.client_id, usage_budget)
+    except UsageLedgerUnavailable as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="usage_budget",
+            outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason="usage_ledger_unavailable",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Usage accounting is unavailable.",
+        ) from exc
+
     if not budget_decision.allowed:
         emit_audit_event(
             request_id=request_id,
@@ -403,12 +397,29 @@ async def chat_completion(
         )
 
     request_cost = Decimal(str(usage.cost)) if usage.cost is not None else Decimal("0")
-    updated_budget = usage_ledger.record(
-        principal.client_id,
-        usage_budget,
-        total_tokens=usage.total_tokens,
-        cost_usd=request_cost,
-    )
+    try:
+        updated_budget = await usage_ledger.record(
+            principal.client_id,
+            usage_budget,
+            total_tokens=usage.total_tokens,
+            cost_usd=request_cost,
+        )
+    except UsageLedgerUnavailable as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="usage_budget",
+            outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            provider=provider.name,
+            request_tokens=usage.total_tokens,
+            request_cost_usd=usage.cost,
+            reason="usage_ledger_write_failed",
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Usage accounting is unavailable.",
+        ) from exc
 
     outgoing_response.headers["X-Usage-Budget-Reset"] = updated_budget.reset_at.isoformat()
     outgoing_response.headers["X-Usage-Tokens-Used"] = str(updated_budget.tokens_used_daily)
