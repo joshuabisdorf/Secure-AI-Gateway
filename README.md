@@ -1,6 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, request throttling, usage budgets, provider routing, audit logging, and request correlation before requests reach an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, provider routing, audit logging, and request correlation before requests reach an upstream model.
 
 ## Current capabilities
 
@@ -14,7 +14,7 @@ Implemented:
 - PostgreSQL-backed persistent client/key registry
 - database-backed API-key revocation and atomic rotation
 - deployment-wide and per-client model allowlists
-- per-client requests-per-minute rate limiting
+- Redis-backed per-client requests-per-minute rate limiting
 - per-client UTC-day token/cost budgets
 - PostgreSQL-backed persistent daily usage accounting
 - OpenRouter token/cost accounting
@@ -22,9 +22,9 @@ Implemented:
 - `X-Request-ID` request correlation
 - requested-versus-resolved model attribution
 - sanitized provider failures
-- deterministic `pytest` suite that does not call real providers
+- deterministic `pytest` suite that does not call real providers, PostgreSQL, or Redis
 
-Rate-limit counters are still process-local. Redis-backed distributed rate limiting is the next infrastructure milestone.
+The next security milestone is PII detection and redaction before prompts are forwarded upstream.
 
 ## Request path
 
@@ -37,7 +37,7 @@ Secure AI Gateway
   |
   +-- PostgreSQL client/key lookup
   +-- constant-time key-hash verification
-  +-- per-client rate limit
+  +-- Redis per-client rate limit
   +-- global model allowlist
   +-- per-client model allowlist
   +-- PostgreSQL daily token/cost accounting
@@ -58,9 +58,11 @@ A typical OpenRouter development configuration is:
 SAG_PROVIDER=openrouter
 SAG_CLIENT_REGISTRY_BACKEND=postgres
 SAG_USAGE_LEDGER_BACKEND=postgres
+SAG_RATE_LIMIT_BACKEND=redis
 
 POSTGRES_PASSWORD=sag_dev_password
 DATABASE_URL=postgresql://sag:sag_dev_password@127.0.0.1:5432/secure_ai_gateway
+REDIS_URL=redis://127.0.0.1:6379/0
 
 SAG_ALLOWED_MODELS=openrouter/free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
@@ -79,16 +81,22 @@ SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
 
 means 50,000 tokens per UTC day with no gateway dollar-cost ceiling. `.env` and `.client.env` are ignored by Git.
 
-## PostgreSQL
+## Local state services
 
-The repository includes a PostgreSQL 18 service in `compose.yaml`, bound to local loopback only:
+`compose.yaml` provides PostgreSQL 18 and Redis 8.10.1. Both are bound only to `127.0.0.1` for local development.
+
+Start them together:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres redis
 docker compose ps
 ```
 
-Load server configuration before running database commands:
+Redis uses append-only persistence in the local Compose service. Production deployments still need appropriate Redis authentication, TLS, network isolation, replication, and availability configuration.
+
+## PostgreSQL schema migrations
+
+Load server configuration:
 
 ```bash
 set -a
@@ -96,15 +104,13 @@ source .env
 set +a
 ```
 
-### Schema migrations
-
-Apply all pending migrations:
+Apply pending migrations:
 
 ```bash
 python -m app.database migrate
 ```
 
-Inspect recorded migrations:
+Inspect migration status:
 
 ```bash
 python -m app.database status
@@ -118,8 +124,6 @@ Current migrations:
 001_client_registry.sql
 002_daily_usage.sql
 ```
-
-If upgrading a database that was initialized before the migration runner existed, running `python -m app.database migrate` is safe: the original client-registry DDL is idempotent, then the new daily-usage table is created and both migrations are recorded.
 
 ## PostgreSQL client registry
 
@@ -152,27 +156,10 @@ Database failures fail closed with sanitized `503` responses. Unknown, inactive,
 
 ### Client/key commands
 
-List non-secret metadata:
-
 ```bash
 python -m app.clients list
-```
-
-Create a database-backed client key:
-
-```bash
 python -m app.clients create service-a
-```
-
-Revoke one key:
-
-```bash
 python -m app.clients revoke <key-id>
-```
-
-Rotate all active keys for a client:
-
-```bash
 python -m app.clients rotate local-dev
 ```
 
@@ -201,17 +188,43 @@ SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 
 `other-model` is globally enabled but unavailable to `local-dev`.
 
-## Per-client rate limiting
+## Redis distributed rate limiting
 
-Configure fixed requests-per-minute limits:
+Configure the backend and per-client requests-per-minute limits:
 
 ```dotenv
+SAG_RATE_LIMIT_BACKEND=redis
+REDIS_URL=redis://127.0.0.1:6379/0
 SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
 ```
 
-Allowed responses include `X-RateLimit-Limit` and `X-RateLimit-Remaining`. Exhausted clients receive `429 Too Many Requests` with `Retry-After`.
+The runtime limiter uses Redis `INCREX`, available in Redis 8.8+, to atomically increment a fixed-window counter, enforce the configured upper bound, and set the window expiration only when a new window is created.
 
-The current limiter is process-local. Redis-backed enforcement is required before multi-worker or multi-replica deployment.
+Each client uses a Redis key of the form:
+
+```text
+sag:rate_limit:<client_id>
+```
+
+Allowed responses include:
+
+```text
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 9
+```
+
+When the shared counter has reached the limit, the gateway returns:
+
+```text
+HTTP/1.1 429 Too Many Requests
+Retry-After: <seconds-until-window-reset>
+X-RateLimit-Limit: 10
+X-RateLimit-Remaining: 0
+```
+
+Because the counter lives in Redis, Uvicorn restarts and additional gateway workers do not reset or split the request quota. If Redis cannot evaluate the decision, the gateway fails closed with `503 Rate limiting is unavailable.` rather than forwarding without enforcement.
+
+The in-memory limiter remains available only as the deterministic test backend through `SAG_RATE_LIMIT_BACKEND=memory`.
 
 ## Daily token and cost budgets
 
@@ -231,7 +244,7 @@ SAG_CLIENT_DAILY_BUDGETS=service-a:-:5.00
 
 OpenRouter supplies provider-reported token counts and request cost when usage accounting is requested. Free models normally report zero cost while still consuming tokens.
 
-The gateway reads the current UTC-day total from PostgreSQL before forwarding. After a successful provider response, it atomically increments the persisted row with:
+The gateway reads the current UTC-day total from PostgreSQL before forwarding. After a successful provider response, it atomically increments:
 
 ```text
 gateway_daily_usage
@@ -246,15 +259,7 @@ The primary key is `(client_id, usage_date)`, so each client has one cumulative 
 
 Exact usage is only known after the provider responds. Therefore the request that crosses the remaining budget is returned and recorded; subsequent requests are blocked until the next UTC day.
 
-Successful responses can include:
-
-```text
-X-Usage-Tokens-Used
-X-Usage-Tokens-Remaining
-X-Usage-Cost-USD
-X-Usage-Cost-Remaining-USD
-X-Usage-Budget-Reset
-```
+Successful responses can include `X-Usage-Tokens-Used`, `X-Usage-Tokens-Remaining`, `X-Usage-Cost-USD`, `X-Usage-Cost-Remaining-USD`, and `X-Usage-Budget-Reset`.
 
 If persistent usage state cannot be read, the gateway returns `503` before forwarding. If an upstream completion succeeds but its usage cannot be persisted, the gateway also fails closed and emits an audit error rather than silently losing accounting data.
 
@@ -278,10 +283,10 @@ Install or refresh dependencies:
 python -m pip install -e '.[dev]'
 ```
 
-Start PostgreSQL and migrate the schema:
+Start state services and migrate PostgreSQL:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d postgres redis
 set -a
 source .env
 set +a
@@ -318,7 +323,7 @@ curl -i \
   -d '{
     "model": "openrouter/free",
     "messages": [
-      {"role": "user", "content": "Reply with exactly: Persistent usage works"}
+      {"role": "user", "content": "Reply with exactly: Distributed rate limit works"}
     ]
   }'
 ```
@@ -372,12 +377,11 @@ Secure-AI-Gateway/
 - [x] key revocation and rotation workflow
 - [x] global model allowlist
 - [x] per-client model policy
-- [x] per-client rate limiting
+- [x] Redis-backed distributed rate limiting
 - [x] daily token and cost budgets
 - [x] persistent PostgreSQL usage accounting
 - [x] structured audit logging
 - [x] request correlation
-- [ ] Redis-backed distributed rate limiting
 
 ### LLM security controls
 
