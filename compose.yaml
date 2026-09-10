@@ -1,4 +1,39 @@
 services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SAG_PROVIDER: ${SAG_PROVIDER:-mock}
+      SAG_CLIENT_REGISTRY_BACKEND: postgres
+      SAG_USAGE_LEDGER_BACKEND: postgres
+      SAG_RATE_LIMIT_BACKEND: redis
+      SAG_ALLOWED_MODELS: ${SAG_ALLOWED_MODELS:-}
+      SAG_SECURITY_POLICY_FILE: /app/config/security-policies.json
+      DATABASE_URL: postgresql://sag:${POSTGRES_PASSWORD:-sag_dev_password}@postgres:5432/secure_ai_gateway
+      REDIS_URL: redis://redis:6379/0
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./config/security-policies.json:/app/config/security-policies.json:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
   postgres:
     image: postgres:18
     restart: unless-stopped
