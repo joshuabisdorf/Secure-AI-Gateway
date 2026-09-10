@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "profiles": {
+    "local-default": {
+      "allowed_models": [
+        "openrouter/free"
+      ],
+      "requests_per_minute": 10,
+      "daily_budget": {
+        "tokens": 50000,
+        "cost_usd": "1.00"
+      },
+      "pii_action": "redact",
+      "prompt_injection_action": "audit",
+      "allowed_tools": []
+    },
+    "high-security": {
+      "allowed_models": [
+        "openrouter/free"
+      ],
+      "requests_per_minute": 5,
+      "daily_budget": {
+        "tokens": 25000,
+        "cost_usd": "0.50"
+      },
+      "pii_action": "deny",
+      "prompt_injection_action": "deny",
+      "allowed_tools": []
+    }
+  },
+  "clients": {
+    "local-dev": "local-default"
+  }
+}
