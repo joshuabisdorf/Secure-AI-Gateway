@@ -4,7 +4,7 @@ import pytest
 
 # Keep the test suite deterministic, offline, database-free, Redis-free, and free of
 # provider API charges. This must run during test collection, before test modules import
-# app.main/app.auth. A locally exported unified policy file must not override test policy.
+# app.main/app.auth. Locally exported runtime policy/backend settings must not override tests.
 os.environ.pop("SAG_SECURITY_POLICY_FILE", None)
 os.environ.pop("SAG_SECURITY_POLICY_ACTIVE", None)
 os.environ.pop("SAG_SECURITY_POLICY_ERROR", None)
@@ -12,6 +12,7 @@ os.environ["SAG_PROVIDER"] = "mock"
 os.environ["SAG_CLIENT_REGISTRY_BACKEND"] = "environment"
 os.environ["SAG_USAGE_LEDGER_BACKEND"] = "memory"
 os.environ["SAG_RATE_LIMIT_BACKEND"] = "memory"
+os.environ["SAG_SEMANTIC_PII_BACKEND"] = "spacy"
 os.environ["SAG_CLIENT_RATE_LIMITS"] = "test-client:10000"
 os.environ["SAG_CLIENT_DAILY_BUDGETS"] = "test-client:1000000:1000.00"
 os.environ["SAG_CLIENT_PII_POLICIES"] = "test-client:redact"
