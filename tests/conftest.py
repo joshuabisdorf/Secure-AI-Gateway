@@ -13,6 +13,7 @@ os.environ["SAG_CLIENT_RATE_LIMITS"] = "test-client:10000"
 os.environ["SAG_CLIENT_DAILY_BUDGETS"] = "test-client:1000000:1000.00"
 os.environ["SAG_CLIENT_PII_POLICIES"] = "test-client:redact"
 os.environ["SAG_CLIENT_PROMPT_INJECTION_POLICIES"] = "test-client:audit"
+os.environ["SAG_CLIENT_ALLOWED_TOOLS"] = "test-client:-"
 
 TEST_API_KEY = "sag_testkey_abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG"
 TEST_CLIENTS = (
