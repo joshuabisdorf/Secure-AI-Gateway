@@ -5,6 +5,11 @@ from dataclasses import dataclass
 from fastapi import HTTPException, status
 
 from app.models import ChatCompletionRequest, ChatMessage
+from app.semantic_pii import (
+    SemanticPIIAnalyzer,
+    redact_semantic_text,
+    semantic_pii_analyzer,
+)
 
 _client_id_pattern = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _email_pattern = re.compile(
@@ -132,6 +137,24 @@ def get_client_pii_policy(client_id: str) -> PIIPolicy:
 
 
 def _luhn_valid(candidate: str) -> bool:
+    """
+    RME
+
+    Requires:
+        - candidate may contain a payment-card-like digit sequence with separators.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Applies the Luhn checksum only to 13-19 digit candidates.
+
+    Inputs:
+        - candidate: Potential payment-card number.
+
+    Outputs:
+        - True when the candidate has a valid supported-length Luhn checksum.
+    """
     digits = [int(character) for character in candidate if character.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
         return False
@@ -149,7 +172,26 @@ def _luhn_valid(candidate: str) -> bool:
     return checksum % 10 == 0
 
 
-def _redact_text(text: str) -> tuple[str, list[str]]:
+def _redact_structured_text(text: str) -> tuple[str, list[str]]:
+    """
+    RME
+
+    Requires:
+        - text is user/model message content.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Detects and redacts deterministic email, SSN, phone, and payment-card values.
+        - Does not retain raw detected values separately.
+
+    Inputs:
+        - text: Message text to inspect.
+
+    Outputs:
+        - Redacted text and one safe type label per finding.
+    """
     detected_types: list[str] = []
 
     def redact_pattern(
@@ -179,24 +221,31 @@ def _redact_text(text: str) -> tuple[str, list[str]]:
     return redacted, detected_types
 
 
-def inspect_and_redact_request(request: ChatCompletionRequest) -> PIIInspectionResult:
+def inspect_and_redact_request(
+    request: ChatCompletionRequest,
+    semantic_analyzer: SemanticPIIAnalyzer = semantic_pii_analyzer,
+) -> PIIInspectionResult:
     """
     RME
 
     Requires:
         - request is a validated chat-completion request.
+        - semantic_analyzer is a configured local semantic PII analyzer.
 
     Modifies:
-        - Nothing. The original request object is not changed.
+        - Lazy semantic model state on first semantic inspection.
+        - Nothing in the original request object.
 
     Effects:
-        - Detects common structured PII in textual message content.
-        - Redacts detected values in a copied request.
+        - Detects deterministic structured PII first.
+        - Runs local semantic/contextual PII detection on the structured-redacted text.
+        - Redacts all selected values in a copied provider request.
         - Leaves non-text/tool-call message fields unchanged.
         - Does not retain or return raw detected values separately.
 
     Inputs:
         - request: Validated gateway chat-completion request.
+        - semantic_analyzer: Semantic analyzer implementation, injectable for tests.
 
     Outputs:
         - PIIInspectionResult with a redacted request, total finding count, and safe type names.
@@ -209,9 +258,16 @@ def inspect_and_redact_request(request: ChatCompletionRequest) -> PIIInspectionR
             redacted_messages.append(message)
             continue
 
-        redacted_content, message_types = _redact_text(message.content)
-        detected_types.extend(message_types)
-        redacted_messages.append(message.model_copy(update={"content": redacted_content}))
+        structured_redacted, structured_types = _redact_structured_text(message.content)
+        semantic_redacted, semantic_types = redact_semantic_text(
+            structured_redacted,
+            semantic_analyzer,
+        )
+        detected_types.extend(structured_types)
+        detected_types.extend(semantic_types)
+        redacted_messages.append(
+            message.model_copy(update={"content": semantic_redacted})
+        )
 
     return PIIInspectionResult(
         redacted_request=request.model_copy(update={"messages": redacted_messages}),
