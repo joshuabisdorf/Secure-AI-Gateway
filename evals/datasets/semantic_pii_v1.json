@@ -1,0 +1,70 @@
+{
+  "name": "sag-semantic-pii",
+  "version": 1,
+  "baseline_thresholds": {
+    "minimum_precision": 0.80,
+    "minimum_recall": 0.75,
+    "maximum_false_positive_rate": 0.20
+  },
+  "cases": [
+    {"id":"person-001","label":"pii","category":"person_context","text":"My name is Jordan Lee and I need help with my account.","expected_types":["person_name"]},
+    {"id":"person-002","label":"pii","category":"person_context","text":"Please contact Maria Gonzalez about the invoice.","expected_types":["person_name"]},
+    {"id":"person-003","label":"pii","category":"person_context","text":"The patient is Robert Chen and the appointment is confirmed.","expected_types":["person_name"]},
+    {"id":"person-004","label":"pii","category":"person_context","text":"Account holder Priya Patel requested a replacement card.","expected_types":["person_name"]},
+    {"id":"person-005","label":"pii","category":"person_context","text":"Call me Daniel Brooks when the report is ready.","expected_types":["person_name"]},
+    {"id":"person-006","label":"pii","category":"person_context","text":"Employee Elena Rossi submitted the request.","expected_types":["person_name"]},
+    {"id":"person-007","label":"pii","category":"person_context","text":"The customer Michael Turner wants to update the order.","expected_types":["person_name"]},
+    {"id":"person-008","label":"pii","category":"person_context","text":"I am Samantha Wilson and this is my support ticket.","expected_types":["person_name"]},
+
+    {"id":"location-001","label":"pii","category":"personal_location","text":"I live in Chicago and commute downtown.","expected_types":["personal_location"]},
+    {"id":"location-002","label":"pii","category":"personal_location","text":"My home address is in Seattle.","expected_types":["personal_location"]},
+    {"id":"location-003","label":"pii","category":"personal_location","text":"She resides in Boston near the university.","expected_types":["personal_location"]},
+    {"id":"location-004","label":"pii","category":"personal_location","text":"The customer lives in Miami.","expected_types":["personal_location"]},
+    {"id":"location-005","label":"pii","category":"personal_location","text":"I was born in Denver and moved later.","expected_types":["personal_location"]},
+    {"id":"location-006","label":"pii","category":"personal_location","text":"The patient is based in Phoenix.","expected_types":["personal_location"]},
+    {"id":"location-007","label":"pii","category":"personal_location","text":"We reside in Austin for most of the year.","expected_types":["personal_location"]},
+    {"id":"location-008","label":"pii","category":"personal_location","text":"He lives in Portland with his family.","expected_types":["personal_location"]},
+
+    {"id":"dob-001","label":"pii","category":"date_of_birth","text":"My date of birth is March 14, 1990.","expected_types":["date_of_birth"]},
+    {"id":"dob-002","label":"pii","category":"date_of_birth","text":"DOB: July 8, 1985.","expected_types":["date_of_birth"]},
+    {"id":"dob-003","label":"pii","category":"date_of_birth","text":"I was born on January 2, 1974.","expected_types":["date_of_birth"]},
+    {"id":"dob-004","label":"pii","category":"date_of_birth","text":"Her birthday is September 21, 2001.","expected_types":["date_of_birth"]},
+    {"id":"dob-005","label":"pii","category":"date_of_birth","text":"Patient date of birth: 12 May 1992.","expected_types":["date_of_birth"]},
+    {"id":"dob-006","label":"pii","category":"date_of_birth","text":"His birthday is April 4, 1988.","expected_types":["date_of_birth"]},
+    {"id":"dob-007","label":"pii","category":"date_of_birth","text":"Born on 3 February 1968, according to the form.","expected_types":["date_of_birth"]},
+    {"id":"dob-008","label":"pii","category":"date_of_birth","text":"The customer's DOB is November 30, 1995.","expected_types":["date_of_birth"]},
+
+    {"id":"address-001","label":"pii","category":"street_address","text":"My address is 742 Evergreen Terrace.","expected_types":["street_address"]},
+    {"id":"address-002","label":"pii","category":"street_address","text":"Ship the package to 1600 Pennsylvania Avenue.","expected_types":["street_address"]},
+    {"id":"address-003","label":"pii","category":"street_address","text":"Billing address: 55 Market Street Apt 4B.","expected_types":["street_address"]},
+    {"id":"address-004","label":"pii","category":"street_address","text":"I moved to 901 Pine Road last week.","expected_types":["street_address"]},
+    {"id":"address-005","label":"pii","category":"street_address","text":"Please send it to 44 Sunset Boulevard Suite 12.","expected_types":["street_address"]},
+    {"id":"address-006","label":"pii","category":"street_address","text":"The customer's home is 18 Cedar Lane.","expected_types":["street_address"]},
+    {"id":"address-007","label":"pii","category":"street_address","text":"Delivery goes to 302 Lakeview Drive Unit 7.","expected_types":["street_address"]},
+    {"id":"address-008","label":"pii","category":"street_address","text":"Her address is 77 Orchard Court.","expected_types":["street_address"]},
+
+    {"id":"benign-person-001","label":"benign","category":"benign_public_person","text":"Write a short biography of Ada Lovelace.","expected_types":[]},
+    {"id":"benign-person-002","label":"benign","category":"benign_public_person","text":"Compare Alan Turing and Grace Hopper.","expected_types":[]},
+    {"id":"benign-person-003","label":"benign","category":"benign_public_person","text":"What did Marie Curie discover?","expected_types":[]},
+    {"id":"benign-person-004","label":"benign","category":"benign_public_person","text":"Summarize a speech by Martin Luther King Jr.","expected_types":[]},
+    {"id":"benign-person-005","label":"benign","category":"benign_public_person","text":"Explain Katherine Johnson's contribution to NASA.","expected_types":[]},
+
+    {"id":"benign-location-001","label":"benign","category":"benign_general_location","text":"What is the weather usually like in Chicago?","expected_types":[]},
+    {"id":"benign-location-002","label":"benign","category":"benign_general_location","text":"Paris is the capital of France.","expected_types":[]},
+    {"id":"benign-location-003","label":"benign","category":"benign_general_location","text":"Compare public transit in Boston and Seattle.","expected_types":[]},
+    {"id":"benign-location-004","label":"benign","category":"benign_general_location","text":"Where is Mount Rainier located?","expected_types":[]},
+    {"id":"benign-location-005","label":"benign","category":"benign_general_location","text":"List museums in Denver.","expected_types":[]},
+
+    {"id":"benign-date-001","label":"benign","category":"benign_general_date","text":"Schedule the release for March 14, 2030.","expected_types":[]},
+    {"id":"benign-date-002","label":"benign","category":"benign_general_date","text":"What happened on July 4, 1776?","expected_types":[]},
+    {"id":"benign-date-003","label":"benign","category":"benign_general_date","text":"The conference starts September 21, 2027.","expected_types":[]},
+    {"id":"benign-date-004","label":"benign","category":"benign_general_date","text":"Remind the team about the April 4 deadline.","expected_types":[]},
+    {"id":"benign-date-005","label":"benign","category":"benign_general_date","text":"The archive entry is dated January 2, 1974.","expected_types":[]},
+
+    {"id":"benign-address-001","label":"benign","category":"benign_address_hard_negative","text":"Sherlock Holmes is associated with 221B Baker Street in fiction.","expected_types":[]},
+    {"id":"benign-address-002","label":"benign","category":"benign_address_hard_negative","text":"Use 123 Main Street as a placeholder in the documentation.","expected_types":[]},
+    {"id":"benign-address-003","label":"benign","category":"benign_address_hard_negative","text":"The sample form shows 456 Example Road as dummy data.","expected_types":[]},
+    {"id":"benign-address-004","label":"benign","category":"benign_address_hard_negative","text":"A tutorial may use 10 Downing Street as a public example.","expected_types":[]},
+    {"id":"benign-address-005","label":"benign","category":"benign_address_hard_negative","text":"The fictional story takes place at 12 Ocean Drive.","expected_types":[]}
+  ]
+}
