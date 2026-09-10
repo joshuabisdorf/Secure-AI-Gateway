@@ -11,6 +11,7 @@ from app.api_keys import Principal
 from app.audit import emit_audit_event
 from app.auth import authenticate_api_key, client_registry
 from app.models import ChatCompletionRequest, ChatCompletionResponse
+from app.pii import get_client_pii_policy, inspect_and_redact_request
 from app.policies.model_access import enforce_model_allowed
 from app.providers.base import ProviderError
 from app.providers.factory import build_provider
@@ -199,21 +200,23 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid database-backed gateway API key.
-        - Rate-limit, model, and daily usage-budget policies are configured.
+        - Rate-limit, model, PII, and daily usage-budget policies are configured.
         - Redis rate-limit state and PostgreSQL usage accounting are available.
 
     Modifies:
         - Shared per-client rate-limit state in Redis.
+        - A copied provider request when PII is redacted; the caller request is unchanged.
         - Persistent per-client daily usage totals in PostgreSQL.
         - Provider-specific state, if any.
         - The audit logging stream and response policy headers.
 
     Effects:
         - Applies authentication and distributed per-client request throttling.
-        - Fails closed when Redis rate-limit state is unavailable.
-        - Enforces model authorization and durable daily usage budgets.
+        - Enforces model authorization and per-client PII policy.
+        - Redacts detected structured PII before provider forwarding or denies the request.
+        - Reads durable accumulated usage before provider forwarding.
         - Records provider-reported usage atomically after successful completion.
-        - Returns the request that crosses a budget, then blocks later requests.
+        - Fails closed when required policy or shared state is unavailable.
 
     Inputs:
         - request: Requested model and chat messages.
@@ -314,6 +317,65 @@ async def chat_completion(
     )
 
     try:
+        pii_policy = get_client_pii_policy(principal.client_id)
+    except HTTPException as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="pii_policy",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            requested_model=request.model,
+            reason=str(exc.detail),
+        )
+        raise
+
+    pii_result = inspect_and_redact_request(request)
+    pii_types = ",".join(pii_result.detected_types) or None
+
+    if pii_result.detected_count > 0 and pii_policy.action == "deny":
+        emit_audit_event(
+            request_id=request_id,
+            event="pii_policy",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            requested_model=request.model,
+            reason="pii_detected",
+            pii_detected_count=pii_result.detected_count,
+            pii_types=pii_types,
+        )
+        raise HTTPException(
+            status_code=403,
+            detail="Request contains prohibited sensitive data.",
+            headers={
+                "X-PII-Action": "denied",
+                "X-PII-Detected-Count": str(pii_result.detected_count),
+            },
+        )
+
+    provider_request = request
+    pii_outcome = "allow"
+    pii_action_header = "none"
+    if pii_result.detected_count > 0:
+        provider_request = pii_result.redacted_request
+        pii_outcome = "redact"
+        pii_action_header = "redacted"
+
+    outgoing_response.headers["X-PII-Action"] = pii_action_header
+    outgoing_response.headers["X-PII-Detected-Count"] = str(pii_result.detected_count)
+    emit_audit_event(
+        request_id=request_id,
+        event="pii_policy",
+        outcome=pii_outcome,
+        client_id=principal.client_id,
+        key_id=principal.key_id,
+        requested_model=request.model,
+        pii_detected_count=pii_result.detected_count,
+        pii_types=pii_types,
+    )
+
+    try:
         usage_budget = get_client_usage_budget(principal.client_id)
     except HTTPException as exc:
         emit_audit_event(
@@ -362,7 +424,7 @@ async def chat_completion(
         )
 
     try:
-        provider_response = await provider.chat_completion(request)
+        provider_response = await provider.chat_completion(provider_request)
     except ProviderError as exc:
         latency_ms = (perf_counter() - http_request.state.started_at) * 1000
         emit_audit_event(
