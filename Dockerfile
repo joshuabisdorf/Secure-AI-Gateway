@@ -9,7 +9,6 @@ COPY pyproject.toml ./
 COPY app ./app
 
 RUN python -m venv /opt/venv \
-    && /opt/venv/bin/python -m pip install --upgrade pip \
     && /opt/venv/bin/python -m pip install .
 
 FROM python:3.13.15-slim-bookworm AS runtime
