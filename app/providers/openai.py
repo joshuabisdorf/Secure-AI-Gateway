@@ -34,7 +34,7 @@ class OpenAIProvider(Provider):
             - Optionally requests extended usage accounting from compatible providers.
 
         Inputs:
-            - api_key: Optional explicit upstream API key.
+            - api_key: Optional explicit upstream OpenAI API key.
             - base_url: Optional upstream API root.
             - timeout_seconds: Maximum duration of an upstream request.
             - transport: Optional httpx transport used for deterministic testing.
@@ -66,27 +66,40 @@ class OpenAIProvider(Provider):
 
         Requires:
             - request is a validated gateway chat-completion request.
+            - Any function tools in request were authorized by the gateway before this call.
             - The provider has a configured OpenAI API key.
 
         Modifies:
-            - Upstream OpenAI API usage and billing.
+            - Upstream OpenAI-compatible API usage and billing.
 
         Effects:
-            - Sends the normalized request to the OpenAI Chat Completions API.
-            - Converts the upstream response into the gateway response model.
+            - Sends messages and optional authorized function tools/tool choice upstream.
+            - Converts the upstream response, including function tool calls, into gateway models.
             - Converts upstream failures into non-secret ProviderError reasons.
 
         Inputs:
-            - request: Requested upstream model and chat messages.
+            - request: Requested upstream model, messages, and optional authorized tools.
 
         Outputs:
             - A normalized chat-completion response.
         """
         payload: dict[str, object] = {
             "model": request.model,
-            "messages": [message.model_dump() for message in request.messages],
+            "messages": [
+                message.model_dump(exclude_none=True) for message in request.messages
+            ],
             "stream": False,
         }
+        if request.tools is not None:
+            payload["tools"] = [
+                tool.model_dump(exclude_none=True) for tool in request.tools
+            ]
+        if request.tool_choice is not None:
+            payload["tool_choice"] = (
+                request.tool_choice
+                if isinstance(request.tool_choice, str)
+                else request.tool_choice.model_dump(exclude_none=True)
+            )
         if self._include_usage:
             payload["usage"] = {"include": True}
 
