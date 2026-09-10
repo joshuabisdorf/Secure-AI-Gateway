@@ -32,6 +32,12 @@ _dob_context_patterns = (
     re.compile(r"\bborn\s+(?:on\s+)?\b", re.IGNORECASE),
     re.compile(r"\bbirthday\b", re.IGNORECASE),
 )
+_address_context_patterns = (
+    re.compile(r"\b(?:my|her|his|their|home|billing|shipping)\s+address\b", re.IGNORECASE),
+    re.compile(r"\b(?:ship|send|deliver|delivery)\b", re.IGNORECASE),
+    re.compile(r"\b(?:moved|move|moving)\s+to\b", re.IGNORECASE),
+    re.compile(r"\b(?:customer|patient|recipient)[’']?s?\s+home\b", re.IGNORECASE),
+)
 _street_address_pattern = re.compile(
     r"(?<!\w)\d{1,6}\s+"
     r"(?:[A-Za-z0-9][A-Za-z0-9.'-]*\s+){0,5}"
@@ -107,7 +113,7 @@ def _context_window(text: str, start: int, end: int) -> str:
         - Nothing.
 
     Effects:
-        - Limits context inspection around an NLP entity to a bounded local window.
+        - Limits context inspection around an entity/span to a bounded local window.
 
     Inputs:
         - text: Source message text.
@@ -254,7 +260,7 @@ class SpacySemanticPIIAnalyzer:
 
         Effects:
             - Uses local NER plus bounded context to identify person names, personal locations, and dates of birth.
-            - Adds a complementary street-address recognizer.
+            - Identifies street addresses only when bounded personal/delivery context is present.
             - Returns offsets/types only and never persists raw matched values.
 
         Inputs:
@@ -265,9 +271,11 @@ class SpacySemanticPIIAnalyzer:
         """
         findings: list[SemanticPIIFinding] = []
         for match in _street_address_pattern.finditer(text):
-            findings.append(
-                SemanticPIIFinding("street_address", match.start(), match.end())
-            )
+            context = _context_window(text, match.start(), match.end())
+            if _has_context(context, _address_context_patterns):
+                findings.append(
+                    SemanticPIIFinding("street_address", match.start(), match.end())
+                )
 
         doc = self._get_nlp()(text)
         for entity in doc.ents:
