@@ -40,6 +40,9 @@ def emit_audit_event(
     budget_reset_at: str | None = None,
     pii_detected_count: int | None = None,
     pii_types: str | None = None,
+    prompt_injection_detected_count: int | None = None,
+    prompt_injection_score: int | None = None,
+    prompt_injection_indicators: str | None = None,
 ) -> None:
     """
     RME
@@ -54,6 +57,7 @@ def emit_audit_event(
     Effects:
         - Emits one JSON audit record to application stderr.
         - Omits prompt content, detected PII values, and credentials from the audit record.
+        - Records prompt-injection metadata only as safe labels/counts/scores.
 
     Inputs:
         - request_id: Correlation identifier for the request.
@@ -80,6 +84,9 @@ def emit_audit_event(
         - budget_reset_at: Optional ISO timestamp for the next budget reset.
         - pii_detected_count: Optional count of PII findings without raw values.
         - pii_types: Optional comma-separated PII type names without raw values.
+        - prompt_injection_detected_count: Optional count of unique injection indicators.
+        - prompt_injection_score: Optional aggregate deterministic injection score.
+        - prompt_injection_indicators: Optional comma-separated safe indicator labels.
 
     Outputs:
         - None.
@@ -112,6 +119,9 @@ def emit_audit_event(
         "budget_reset_at": budget_reset_at,
         "pii_detected_count": pii_detected_count,
         "pii_types": pii_types,
+        "prompt_injection_detected_count": prompt_injection_detected_count,
+        "prompt_injection_score": prompt_injection_score,
+        "prompt_injection_indicators": prompt_injection_indicators,
     }
     for field, value in optional_fields.items():
         if value is not None:
