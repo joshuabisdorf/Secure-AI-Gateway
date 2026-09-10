@@ -1,6 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, sensitive-data controls, prompt-injection controls, tool exposure policy, provider routing, audit logging, request correlation, and security evaluation before requests reach an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, rate limiting, usage budgets, sensitive-data controls, prompt-injection controls, tool permissions, provider routing, audit logging, request correlation, and security evaluation before requests reach an upstream model.
 
 ## Current capabilities
 
@@ -10,25 +10,25 @@ Implemented:
 - deterministic non-network mock provider
 - OpenAI and OpenRouter upstream providers
 - structured high-entropy gateway API keys with SHA-256 verification
-- PostgreSQL-backed persistent client/key registry
-- database-backed API-key revocation and atomic rotation
+- PostgreSQL-backed client/key registry, immediate key revocation, and atomic rotation
 - deployment-wide model ceiling plus per-client model grants
-- Redis-backed per-client requests-per-minute rate limiting
+- Redis-backed distributed per-client rate limiting
 - per-client UTC-day token/cost budgets with PostgreSQL persistence
-- structured PII `redact` and `deny` policies
+- structured PII recognition for email, U.S. SSN, phone, and Luhn-valid payment-card values
+- local semantic/contextual PII recognition for person names, personal locations, dates of birth, and street addresses
+- per-client PII `redact` and `deny` policies
 - deterministic prompt-injection `audit`, `deny`, and `off` policies
 - synthetic system-prompt leakage evaluation with disposable canaries
 - least-privilege function-tool exposure authorization
 - OpenAI-compatible function `tools`, `tool_choice`, tool-result messages, and assistant `tool_calls`
-- versioned named security-policy profiles that consolidate per-client controls
-- versioned offline adversarial prompt-injection benchmark with precision, recall, FPR, FNR, and category metrics
-- Dockerized gateway with PostgreSQL/Redis Compose integration and non-root runtime hardening
-- GitHub Actions CI gates for pytest, the prompt-injection benchmark, and Docker image builds
-- structured one-line JSON audit events with client attribution and request correlation
+- versioned named security-policy profiles
+- versioned prompt-injection and semantic-PII benchmarks with precision/recall/FPR/FNR metrics
+- hardened Dockerized gateway with PostgreSQL/Redis Compose integration
+- GitHub Actions CI gates for pytest, both security benchmarks, and Docker builds
+- structured one-line JSON audit events with request/client attribution
 - sanitized provider failures
-- deterministic `pytest` suite that does not call real providers, PostgreSQL, or Redis
 
-The next security milestone is semantic PII detection/evaluation, followed by execution-time tool authorization. Observability and deployment infrastructure follow after those controls.
+The next security milestone is **execution-time tool authorization**. Observability and deployment infrastructure follow after that control.
 
 ## Request path
 
@@ -45,7 +45,9 @@ Secure AI Gateway
   +-- function-tool exposure authorization
   +-- Redis per-client rate limit
   +-- deployment-wide + client model authorization
-  +-- PII inspection / redaction or denial
+  +-- structured PII detection
+  +-- local semantic/contextual PII detection
+  +-- PII redaction or denial
   +-- prompt-injection inspection / audit or denial
   +-- PostgreSQL daily token/cost accounting
   +-- structured audit logging
@@ -66,12 +68,13 @@ SAG_PROVIDER=openrouter
 SAG_CLIENT_REGISTRY_BACKEND=postgres
 SAG_USAGE_LEDGER_BACKEND=postgres
 SAG_RATE_LIMIT_BACKEND=redis
+SAG_SEMANTIC_PII_BACKEND=spacy
 
 POSTGRES_PASSWORD=sag_dev_password
 DATABASE_URL=postgresql://sag:sag_dev_password@127.0.0.1:5432/secure_ai_gateway
 REDIS_URL=redis://127.0.0.1:6379/0
 
-# Deployment-wide hard ceiling, separate from client profiles.
+# Deployment-wide hard ceiling.
 SAG_ALLOWED_MODELS=openrouter/free
 
 # Non-secret per-client policy registry.
@@ -87,43 +90,11 @@ Create the ignored local policy registry once:
 cp config/security-policies.example.json config/security-policies.json
 ```
 
-`config/security-policies.json`, `.env`, and `.client.env` are ignored by Git and excluded from the Docker build context.
-
-## Dockerized local stack
-
-The default integration workflow runs the gateway, PostgreSQL, and Redis through Compose:
-
-```bash
-docker compose build gateway
-docker compose up -d
-docker compose ps
-```
-
-The gateway is exposed only on `127.0.0.1:8000`; PostgreSQL and Redis retain their loopback-only development ports. Inside the Compose network, the gateway uses `postgres:5432` and `redis:6379`, so the host-side `DATABASE_URL` and `REDIS_URL` can remain unchanged for direct development.
-
-Compose waits for PostgreSQL and Redis to become healthy before starting the gateway. The tracked container entrypoint validates the unified security policy and applies idempotent PostgreSQL migrations before starting Uvicorn.
-
-The gateway container runs as a dedicated non-root user, uses a read-only root filesystem, drops all Linux capabilities, enables `no-new-privileges`, and receives only a small writable `/tmp` tmpfs. The local policy file is bind-mounted read-only.
-
-Verify process health:
-
-```bash
-curl -i http://127.0.0.1:8000/health
-```
-
-For routine cleanup, preserve persistent database/rate-limit state:
-
-```bash
-docker compose down
-```
-
-Do not use `docker compose down -v` unless intentionally deleting PostgreSQL and Redis data.
-
-See `docs/docker.md` for the complete container workflow and security boundaries.
+`.env`, `.client.env`, and `config/security-policies.json` are ignored by Git and excluded from the Docker build context.
 
 ## Unified security policy profiles
 
-Normal per-client policy is grouped in one versioned registry:
+Normal per-client security configuration is grouped in one versioned registry:
 
 ```json
 {
@@ -147,7 +118,7 @@ Normal per-client policy is grouped in one versioned registry:
 }
 ```
 
-Validate host-side configuration with:
+Validate it with:
 
 ```bash
 set -a
@@ -156,96 +127,95 @@ set +a
 python -m app.policy_cli validate
 ```
 
-When `SAG_SECURITY_POLICY_FILE` is enabled, it is authoritative. Invalid or unavailable unified policy does not fall back to stale legacy grants; protected requests fail closed. The deployment-wide `SAG_ALLOWED_MODELS` setting remains independent, so a client profile can narrow model access but cannot widen the hard ceiling.
+When `SAG_SECURITY_POLICY_FILE` is enabled, it is authoritative. Invalid or unavailable policy does not fall back to stale legacy grants. `SAG_ALLOWED_MODELS` remains a separate deployment-wide ceiling, so a client profile can narrow model access but cannot widen it.
 
-See `docs/security-policy-profiles.md` for the schema and migration behavior.
+See `docs/security-policy-profiles.md`.
 
-## Persistent state
+## PII detection and redaction
 
-PostgreSQL stores client/key records and daily usage. Redis stores distributed fixed-window request counters. Current database migrations are:
+The PII stack runs before prompt-injection inspection and provider forwarding.
+
+### Structured layer
+
+The deterministic layer detects:
+
+- email addresses
+- U.S. SSNs in `NNN-NN-NNNN` form
+- common North American phone-number formats
+- 13–19 digit payment-card candidates that pass Luhn validation
+
+### Semantic/contextual layer
+
+The second layer runs locally with spaCy `en_core_web_sm` and recognizes supported entities only in personal context:
 
 ```text
-001_client_registry.sql
-002_daily_usage.sql
+person_name        -> [REDACTED_PERSON]
+personal_location  -> [REDACTED_LOCATION]
+date_of_birth      -> [REDACTED_DOB]
+street_address     -> [REDACTED_ADDRESS]
 ```
 
-For host-run development, apply migrations with:
+Structured redaction runs first, then semantic analysis sees only the already-sanitized copy. The semantic model is installed with the project/container and does not send message text to a remote PII service.
 
-```bash
-set -a
-source .env
-set +a
-python -m app.database migrate
-python -m app.database status
+Named-entity recognition alone is not considered sufficient evidence of private data. Contextual rules distinguish patterns such as `my name is`, `patient`, `I live in`, `DOB`, or delivery/home-address language from ordinary references to public people, cities, dates, and example addresses.
+
+If the semantic model cannot load, PII inspection fails closed with `503 PII detection is unavailable.` It does not silently fall back to structured-only protection.
+
+The existing profile action applies to the combined stack:
+
+```text
+redact  replace structured and semantic findings in the copied provider request
+deny    reject when either layer detects PII
 ```
 
-The Docker gateway entrypoint runs the same migration command before Uvicorn. A future multi-replica production deployment should move migrations to a dedicated deployment/init job instead of running them concurrently in every replica.
+Audit records receive only safe type/count metadata. Raw detected values are not copied into audit events.
 
-Client/key administration remains host-side:
+This is an English-focused first semantic layer, not comprehensive PII/PHI recognition. It can miss unusual phrasing and unsupported entity types, and contextual recognizers can still over-redact. It does not yet cover broad clinical entities, arbitrary account identifiers, relationship inference, multilingual PII, or cross-message identity resolution.
+
+See `docs/semantic-pii.md`.
+
+## Semantic PII benchmark
+
+The version-1 benchmark is fully offline:
 
 ```bash
-python -m app.clients list
-python -m app.clients create service-a
-python -m app.clients revoke <key-id>
-python -m app.clients rotate local-dev
+python -m app.evals.semantic_pii_benchmark --show-errors
+python -m app.evals.semantic_pii_benchmark --enforce-baseline --show-errors
 ```
 
-Raw gateway keys are never stored in PostgreSQL.
+Dataset:
 
-## Security controls
-
-### Model authorization
-
-A requested model must pass both the deployment-wide `SAG_ALLOWED_MODELS` ceiling and `profile.allowed_models`. Failure at either layer returns the same generic denial.
-
-### Distributed rate limiting
-
-`profile.requests_per_minute` supplies the authenticated client's fixed-window quota. Redis stores the shared counter under `sag:rate_limit:<client_id>`, so Uvicorn restarts and additional workers do not reset or split quota. Redis failures fail closed.
-
-### Daily token and cost budgets
-
-Profiles configure daily token and/or cost limits. The gateway reads the current UTC-day total from PostgreSQL before forwarding and atomically records provider-reported usage after completion. The request that crosses the remaining budget is returned and recorded; subsequent requests are blocked until the next UTC day.
-
-### PII detection and redaction
-
-`profile.pii_action` is `redact` or `deny`. The structured baseline detects email addresses, U.S. SSNs, common North American phone formats, and Luhn-valid payment-card candidates. Raw detected values are not copied into audit records. This remains structured-pattern protection, not comprehensive semantic PII recognition.
-
-### Prompt-injection detection
-
-`profile.prompt_injection_action` is `audit`, `deny`, or `off`. The deterministic baseline identifies direct instruction override, system/developer prompt extraction, role impersonation, safety/policy bypass, secret-exfiltration requests, and bounded Base64/hex content that decodes to a direct indicator. The score is a deterministic rule score, not a probability.
-
-### Function-tool authorization
-
-`profile.allowed_tools` lists exact function names the authenticated client may expose to the model. There is no wildcard grant. An empty list means no tools. This authorizes tool exposure only; the gateway does not execute tool calls. Any future executor must independently authenticate context, validate arguments, and re-authorize the side effect before execution.
-
-See `docs/tool-authorization.md` for details.
-
-## Security evaluation
-
-### System-prompt leakage
-
-The live evaluator inserts only synthetic protected text and a disposable canary into a test system prompt:
-
-```bash
-python -m app.evals.system_prompt_leakage \
-  --live \
-  --model openrouter/free
+```text
+evals/datasets/semantic_pii_v1.json
 ```
 
-It reports `PASS`/`FAIL` without printing provider response bodies. A passing run means no tested synthetic canary leakage was observed; it does not make system prompts a secrecy or authorization boundary.
+It contains 52 curated cases: 32 supported personal-context positives and 20 hard negatives involving public people, ordinary locations/dates, and public/example/fictional addresses.
 
-### Prompt-injection benchmark
+The measured v1 baseline on the clean GitHub Actions runner when introduced was:
 
-The committed version-1 benchmark evaluates the deterministic detector completely offline:
+```text
+TP=32  FP=0  TN=20  FN=0
+precision=1.0000
+recall=1.0000
+false_positive_rate=0.0000
+false_negative_rate=0.0000
+```
+
+Those numbers describe this deliberately scoped regression dataset only. They are **not** an estimate of real-world PII-detection accuracy or evidence that the detector is complete. Meaningful dataset/label changes should become `semantic_pii_v2.json` rather than silently rewriting v1.
+
+## Prompt-injection detection and benchmark
+
+`profile.prompt_injection_action` is `audit`, `deny`, or `off`. The deterministic baseline identifies direct instruction override, system/developer prompt extraction, role impersonation, safety/policy bypass, secret-exfiltration requests, and bounded Base64/hex content that decodes to a direct indicator.
+
+The score is a deterministic rule score, not a probability. Raw prompts and matched fragments are not added to audit logs.
+
+Run its versioned 66-case benchmark with:
 
 ```bash
-python -m app.evals.prompt_injection_benchmark
 python -m app.evals.prompt_injection_benchmark --enforce-baseline --show-errors
 ```
 
-The dataset contains 66 synthetic cases and reports a confusion matrix, precision, recall, false-positive rate, false-negative rate, category detection rates, and a dataset SHA-256 digest.
-
-The version-1 baseline when introduced is:
+The initial v1 baseline is:
 
 ```text
 TP=36  FP=7  TN=13  FN=10
@@ -255,35 +225,77 @@ false_positive_rate=0.3500
 false_negative_rate=0.2174
 ```
 
-Those metrics deliberately expose current weaknesses, including typoglycemia, split multi-turn attacks, and false positives on quoted/descriptive security text. See `docs/prompt-injection-benchmark.md` for metric definitions and versioning rules.
+The benchmark deliberately exposes current weaknesses including typoglycemia, split multi-turn attacks, and false positives on quoted/descriptive security text.
+
+See `docs/prompt-injection-benchmark.md`.
+
+## Function-tool authorization
+
+`profile.allowed_tools` lists exact function names an authenticated client may expose to the model. There is no wildcard grant; an empty list means no tools. A named `tool_choice` must refer to a declared and permitted function.
+
+This control authorizes **tool exposure**, not execution. The gateway currently proxies function definitions and model-generated `tool_calls`; it does not execute them. Model output is untrusted data. The next milestone adds a separate execution-time authorization boundary before any tool side effect is allowed.
+
+See `docs/tool-authorization.md`.
+
+## Other security controls
+
+A requested model must pass both `SAG_ALLOWED_MODELS` and the client profile's `allowed_models` grant. Redis provides distributed fixed-window per-client quotas. PostgreSQL stores client/key records and UTC-day usage totals. Usage budgets are checked before provider work and provider-reported usage is recorded after completion.
+
+The audit layer intentionally omits raw gateway keys, prompts/messages, matched injection fragments, detected PII values, provider credentials, function arguments, tool-result content, and upstream response bodies.
+
+The live system-prompt leakage evaluator uses only synthetic protected text and disposable canaries:
+
+```bash
+python -m app.evals.system_prompt_leakage --live --model openrouter/free
+```
+
+A passing leakage run means no tested synthetic canary leakage was observed; system prompts are not treated as a secrecy or authorization boundary. See `docs/system-prompt-leakage.md`.
+
+## Dockerized local stack
+
+Build and run the gateway, PostgreSQL, and Redis:
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl -i http://127.0.0.1:8000/health
+```
+
+The gateway container runs as a non-root user with a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, a small writable `/tmp`, and a read-only policy-file mount. The local spaCy model is installed during the image build; no first-request model download is required.
+
+For routine shutdown, preserve persistent state:
+
+```bash
+docker compose down
+```
+
+Do not use `docker compose down -v` unless intentionally deleting PostgreSQL and Redis data.
+
+See `docs/docker.md`.
 
 ## Continuous integration
 
-GitHub Actions runs three independent gates on pushes to `main` and pull requests:
+GitHub Actions runs four independent gates on pushes to `main` and pull requests:
 
 ```text
 Pytest
 Prompt-injection benchmark
+Semantic PII benchmark
 Docker build
 ```
 
-The workflow is `.github/workflows/ci.yml`. It grants only `contents: read`, requires no provider/database/Redis secrets, and does not make live LLM calls. The benchmark job enforces the committed v1 regression thresholds, and the Docker job builds the production image without pushing it to a registry.
+The workflow is `.github/workflows/ci.yml`. It grants only `contents: read`, requires no provider/database/Redis secrets, and makes no live LLM calls.
 
-Run the same core gates locally with:
+Run the equivalent gates locally with:
 
 ```bash
 pytest -q
 python -m app.evals.prompt_injection_benchmark --enforce-baseline --show-errors
+python -m app.evals.semantic_pii_benchmark --enforce-baseline --show-errors
 docker build --tag secure-ai-gateway:ci .
 ```
 
-See `docs/continuous-integration.md` for CI security boundaries and future branch-protection guidance.
-
-## Audit logging
-
-Audit events are emitted as one JSON object per line to application stderr. Safe fields include client/key IDs, model names, rate-limit state, PII type/count metadata, prompt-injection indicator metadata, validated function-tool names/counts, request/cumulative usage, provider name, request ID, and latency.
-
-The audit layer intentionally omits raw gateway keys, prompts/messages, matched injection fragments, detected PII values, provider credentials, function arguments, tool-result content, and upstream response bodies.
+See `docs/continuous-integration.md`.
 
 ## Development setup
 
@@ -293,15 +305,13 @@ Requirements:
 - Docker with Compose
 - Git
 
-Run deterministic host-side tests and the benchmark:
+Install or refresh dependencies after pulling changes:
 
 ```bash
 python -m pip install -e '.[dev]'
-pytest -q
-python -m app.evals.prompt_injection_benchmark --enforce-baseline
 ```
 
-For direct host-side gateway development, start only the state services:
+For direct host-side development:
 
 ```bash
 docker compose up -d postgres redis
@@ -313,7 +323,7 @@ python -m app.database migrate
 uvicorn app.main:app --reload --env-file .env
 ```
 
-For integration testing of the containerized gateway instead:
+For containerized integration testing:
 
 ```bash
 docker compose up -d --build
@@ -331,27 +341,31 @@ set +a
 
 ```text
 Secure-AI-Gateway/
-├── .github/workflows/
-│   └── ci.yml
+├── .github/workflows/ci.yml
 ├── app/
 │   ├── evals/
+│   │   ├── prompt_injection_benchmark.py
+│   │   ├── semantic_pii_benchmark.py
+│   │   └── system_prompt_leakage.py
 │   ├── policies/
 │   ├── providers/
+│   ├── pii.py
+│   ├── semantic_pii.py
 │   └── ...
-├── config/
-│   └── security-policies.example.json
+├── config/security-policies.example.json
 ├── db/migrations/
-├── docker/
-│   └── entrypoint.sh
+├── docker/entrypoint.sh
 ├── docs/
 │   ├── continuous-integration.md
 │   ├── docker.md
 │   ├── prompt-injection-benchmark.md
 │   ├── security-policy-profiles.md
+│   ├── semantic-pii.md
 │   ├── system-prompt-leakage.md
 │   └── tool-authorization.md
 ├── evals/datasets/
-│   └── prompt_injection_v1.json
+│   ├── prompt_injection_v1.json
+│   └── semantic_pii_v1.json
 ├── tests/
 ├── .dockerignore
 ├── Dockerfile
@@ -387,15 +401,16 @@ Secure-AI-Gateway/
 ### LLM security controls
 
 - [x] structured PII detection/redaction
-- [ ] semantic PII detection/evaluation
+- [x] semantic PII detection/evaluation
 - [x] deterministic prompt-injection detection
 - [x] system-prompt leakage tests
-- [x] least-privilege function-tool authorization
+- [x] least-privilege function-tool exposure authorization
 - [ ] execution-time tool authorization
 
 ### Evaluation and infrastructure
 
 - [x] versioned adversarial prompt dataset and measurable detection metrics
+- [x] versioned semantic PII benchmark and regression gate
 - [x] Dockerized gateway
 - [x] GitHub Actions CI
 - [ ] OpenTelemetry / Prometheus
@@ -405,7 +420,7 @@ Secure-AI-Gateway/
 
 ## Function documentation convention
 
-Project functions use RME-style docstrings where appropriate:
+Project functions use RME-style docstrings:
 
 - **Requires** — conditions that must hold before execution
 - **Modifies** — state/resources changed
