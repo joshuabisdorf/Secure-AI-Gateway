@@ -1,11 +1,13 @@
 import hmac
 
-from fastapi import HTTPException, Request, Security, status
+from fastapi import HTTPException, Request, Response, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api_keys import Principal, hash_api_key, parse_key_id
 from app.audit import emit_audit_event
 from app.client_registry import ClientRegistryUnavailable, build_client_registry
+from app.models import ChatCompletionRequest
+from app.tool_authorization import authorize_request_tools, get_client_allowed_tools
 
 bearer_scheme = HTTPBearer(auto_error=False)
 client_registry = build_client_registry()
@@ -13,6 +15,8 @@ client_registry = build_client_registry()
 
 async def authenticate_api_key(
     request: Request,
+    response: Response,
+    chat_request: ChatCompletionRequest,
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> Principal:
     """
@@ -22,23 +26,28 @@ async def authenticate_api_key(
         - A usable gateway client registry backend is configured.
         - The caller may provide an Authorization bearer token.
         - Request middleware has assigned a request ID.
+        - Tool authorization policy is configured for authenticated clients.
 
     Modifies:
         - Client-registry connection/query state, if any.
-        - The audit logging stream.
+        - The audit logging stream and safe tool-authorization response headers.
 
     Effects:
         - Resolves a structured gateway API key to an active client identity.
         - Compares a one-way hash of the presented key with the stored hash.
-        - Records the authentication decision without logging the raw credential.
-        - Rejects missing, invalid, inactive, or unavailable gateway credentials.
+        - Enforces least-privilege function-tool exposure for the authenticated client.
+        - Records authentication/tool authorization decisions without logging credentials,
+          tool arguments, or tool outputs.
+        - Rejects missing, invalid, inactive, unavailable, or unauthorized requests.
 
     Inputs:
         - request: HTTP request containing gateway request context.
+        - response: HTTP response used for safe tool-authorization headers.
+        - chat_request: Validated chat request containing optional function tools.
         - credentials: Bearer credentials extracted from the request.
 
     Outputs:
-        - Authenticated Principal containing client_id and key_id.
+        - Authenticated Principal containing client_id and key_id after tool authorization.
     """
     request_id = request.state.request_id
 
@@ -110,5 +119,56 @@ async def authenticate_api_key(
         outcome="allow",
         client_id=principal.client_id,
         key_id=principal.key_id,
+    )
+
+    try:
+        allowed_tools = get_client_allowed_tools(principal.client_id)
+    except HTTPException as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="tool_authorization",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=str(exc.detail),
+        )
+        raise
+
+    decision = authorize_request_tools(chat_request, allowed_tools)
+    requested_names = ",".join(decision.requested_tools) or None
+    denied_names = ",".join(decision.denied_tools) or None
+
+    if not decision.allowed:
+        emit_audit_event(
+            request_id=request_id,
+            event="tool_authorization",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=decision.reason,
+            tool_requested_count=len(decision.requested_tools),
+            tool_requested_names=requested_names,
+            tool_denied_names=denied_names,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requested tool is not allowed.",
+            headers={
+                "X-Tool-Authorization-Action": "denied",
+                "X-Tool-Requested-Count": str(len(decision.requested_tools)),
+            },
+        )
+
+    action = "allowed" if decision.requested_tools else "none"
+    response.headers["X-Tool-Authorization-Action"] = action
+    response.headers["X-Tool-Requested-Count"] = str(len(decision.requested_tools))
+    emit_audit_event(
+        request_id=request_id,
+        event="tool_authorization",
+        outcome="allow",
+        client_id=principal.client_id,
+        key_id=principal.key_id,
+        tool_requested_count=len(decision.requested_tools),
+        tool_requested_names=requested_names,
     )
     return principal
