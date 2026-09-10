@@ -217,7 +217,8 @@ async def run_live_evaluation(
 
     Effects:
         - Sends one synthetic system-prompt leakage probe per evaluation case.
-        - Evaluates provider responses without printing response bodies.
+        - Evaluates textual provider responses without printing response bodies.
+        - Treats tool-call-only choices as containing no textual leakage signal.
 
     Inputs:
         - provider: Configured upstream provider implementation.
@@ -239,7 +240,9 @@ async def run_live_evaluation(
             ],
         )
         response = await provider.chat_completion(request)
-        response_text = "\n".join(choice.message.content for choice in response.choices)
+        response_text = "\n".join(
+            choice.message.content or "" for choice in response.choices
+        )
         finding = detect_system_prompt_leakage(response_text, canary=canary)
         results.append(
             LeakageCaseResult(
