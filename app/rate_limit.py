@@ -5,11 +5,20 @@ import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from time import monotonic
+from typing import Protocol
 
 from fastapi import HTTPException, status
+from redis.asyncio import Redis
+from redis.exceptions import RedisError
 
 _client_id_pattern = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _max_rate_limit_rpm = 1_000_000
+_default_window_seconds = 60
+_redis_key_prefix = "sag:rate_limit:"
+
+
+class RateLimiterUnavailable(RuntimeError):
+    """Raised when the configured rate-limit state backend cannot be used safely."""
 
 
 @dataclass(frozen=True)
@@ -24,6 +33,17 @@ class RateLimitDecision:
 class _RateLimitBucket:
     window_started_at: float
     request_count: int
+
+
+class _RedisClient(Protocol):
+    async def execute_command(self, *args: object) -> object:
+        ...
+
+    async def ttl(self, name: str) -> int:
+        ...
+
+    async def aclose(self) -> None:
+        ...
 
 
 def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
@@ -143,7 +163,7 @@ class InMemoryRateLimiter:
             - Initializes process-local rate-limit state.
 
         Effects:
-            - Creates a fixed-window rate limiter suitable for single-process development.
+            - Creates a fixed-window limiter used by deterministic tests.
 
         Inputs:
             - window_seconds: Duration of one rate-limit window.
@@ -160,7 +180,7 @@ class InMemoryRateLimiter:
         self._buckets: dict[str, _RateLimitBucket] = {}
         self._lock = threading.Lock()
 
-    def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
+    async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
         """
         RME
 
@@ -169,7 +189,7 @@ class InMemoryRateLimiter:
             - limit_rpm is a positive requests-per-minute limit.
 
         Modifies:
-            - Process-local request-count state for the client when a request is allowed.
+            - Process-local request-count state when a request is allowed.
 
         Effects:
             - Applies a fixed-window rate limit atomically for the current process.
@@ -220,23 +240,157 @@ class InMemoryRateLimiter:
             )
 
     def reset(self) -> None:
+        """Clear all process-local test rate-limit state."""
+        with self._lock:
+            self._buckets.clear()
+
+
+class RedisRateLimiter:
+    def __init__(
+        self,
+        redis_url: str,
+        *,
+        window_seconds: int = _default_window_seconds,
+        client: _RedisClient | None = None,
+    ) -> None:
         """
         RME
 
         Requires:
-            - Nothing.
+            - redis_url identifies a Redis 8.8+ server when client is not injected.
+            - window_seconds is a positive integer.
 
         Modifies:
-            - Process-local rate-limit bucket state.
+            - Initializes process-local Redis client/pool state.
 
         Effects:
-            - Clears all tracked client request counts.
+            - Creates a lazily connected distributed fixed-window rate limiter.
 
         Inputs:
-            - None.
+            - redis_url: Redis connection URL.
+            - window_seconds: Fixed rate-limit window duration.
+            - client: Optional Redis-compatible client for deterministic tests.
 
         Outputs:
-            - None.
+            - A configured RedisRateLimiter instance.
         """
-        with self._lock:
-            self._buckets.clear()
+        if window_seconds < 1:
+            raise ValueError("invalid_window_seconds")
+
+        self._window_seconds = window_seconds
+        self._client: _RedisClient = client or Redis.from_url(
+            redis_url,
+            decode_responses=True,
+        )
+
+    async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
+        """
+        RME
+
+        Requires:
+            - Redis 8.8+ is reachable and supports INCREX.
+            - client_id identifies an authenticated gateway client.
+            - limit_rpm is a positive requests-per-minute limit.
+
+        Modifies:
+            - Redis fixed-window counter for the client when capacity remains.
+
+        Effects:
+            - Atomically increments and caps the shared counter using INCREX.
+            - Preserves the original window expiration instead of extending it per request.
+            - Fails closed when Redis cannot safely evaluate the request.
+
+        Inputs:
+            - client_id: Authenticated gateway client identity.
+            - limit_rpm: Maximum requests allowed during the current 60-second window.
+
+        Outputs:
+            - RateLimitDecision shared across gateway processes and replicas.
+        """
+        if limit_rpm < 1:
+            raise ValueError("invalid_rate_limit")
+
+        key = f"{_redis_key_prefix}{client_id}"
+        try:
+            raw_result = await self._client.execute_command(
+                "INCREX",
+                key,
+                "BYINT",
+                1,
+                "UBOUND",
+                limit_rpm,
+                "EX",
+                self._window_seconds,
+                "ENX",
+            )
+            if not isinstance(raw_result, (list, tuple)) or len(raw_result) != 2:
+                raise RateLimiterUnavailable("invalid_redis_rate_limit_response")
+
+            current_value = int(raw_result[0])
+            applied_increment = int(raw_result[1])
+            ttl = await self._client.ttl(key)
+        except (RedisError, TypeError, ValueError) as exc:
+            raise RateLimiterUnavailable("rate_limiter_unavailable") from exc
+
+        allowed = applied_increment == 1
+        remaining = max(0, limit_rpm - current_value)
+        if allowed:
+            return RateLimitDecision(
+                allowed=True,
+                limit_rpm=limit_rpm,
+                remaining=remaining,
+            )
+
+        retry_after_seconds = ttl if ttl > 0 else 1
+        return RateLimitDecision(
+            allowed=False,
+            limit_rpm=limit_rpm,
+            remaining=0,
+            retry_after_seconds=retry_after_seconds,
+        )
+
+    async def close(self) -> None:
+        """Close the Redis client's connection pool."""
+        await self._client.aclose()
+
+
+class UnavailableRateLimiter:
+    async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
+        """Fail closed when no usable rate-limit backend is configured."""
+        raise RateLimiterUnavailable("rate_limiter_not_configured")
+
+
+def build_rate_limiter():
+    """
+    RME
+
+    Requires:
+        - SAG_RATE_LIMIT_BACKEND may select redis or memory.
+        - REDIS_URL is configured when the Redis backend is selected.
+
+    Modifies:
+        - Initializes rate-limiter backend state.
+
+    Effects:
+        - Selects Redis by default for runtime distributed enforcement.
+        - Retains the in-memory backend for deterministic tests.
+        - Fails closed through UnavailableRateLimiter when configuration is unusable.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - Configured rate-limiter backend.
+    """
+    backend = os.getenv("SAG_RATE_LIMIT_BACKEND", "redis").strip().lower()
+
+    if backend == "memory":
+        return InMemoryRateLimiter()
+
+    if backend == "redis":
+        redis_url = os.getenv("REDIS_URL")
+        if redis_url:
+            return RedisRateLimiter(redis_url)
+        return UnavailableRateLimiter()
+
+    return UnavailableRateLimiter()
