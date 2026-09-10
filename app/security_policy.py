@@ -336,6 +336,8 @@ def load_security_policy_registry(
     Outputs:
         - Validated SecurityPolicyRegistry.
     """
+    global _cache_signature, _cache_registry
+
     raw_path = configured_path or os.getenv("SAG_SECURITY_POLICY_FILE")
     if not raw_path or not raw_path.strip():
         raise SecurityPolicyUnavailable("security_policy_file_not_configured")
@@ -361,7 +363,6 @@ def load_security_policy_registry(
     except (OSError, UnicodeError, ValueError) as exc:
         raise SecurityPolicyUnavailable("invalid_security_policy_file") from exc
 
-    global _cache_signature, _cache_registry
     with _cache_lock:
         _cache_signature = signature
         _cache_registry = registry
