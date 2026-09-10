@@ -7,9 +7,10 @@ __pycache__/
 # Virtual environments
 .venv/
 
-# Secrets
+# Secrets and local configuration
 .env
 .client.env
+config/security-policies.json
 
 # IDEs
 .vscode/
