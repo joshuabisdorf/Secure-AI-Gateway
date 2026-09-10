@@ -48,13 +48,15 @@ def _policy_document() -> dict[str, object]:
     }
 
 
-def _track_legacy_policy_environment(monkeypatch) -> None:
+def _track_policy_environment(monkeypatch) -> None:
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_MODELS", "legacy-client:legacy-model")
     monkeypatch.setenv("SAG_CLIENT_RATE_LIMITS", "legacy-client:1")
     monkeypatch.setenv("SAG_CLIENT_DAILY_BUDGETS", "legacy-client:1:1.00")
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "legacy-client:redact")
     monkeypatch.setenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES", "legacy-client:audit")
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_TOOLS", "legacy-client:-")
+    monkeypatch.delenv("SAG_SECURITY_POLICY_ACTIVE", raising=False)
+    monkeypatch.delenv("SAG_SECURITY_POLICY_ERROR", raising=False)
 
 
 def test_parse_security_policy_registry_resolves_reusable_profiles() -> None:
@@ -90,24 +92,25 @@ def test_parse_security_policy_registry_resolves_reusable_profiles() -> None:
     assert resolved.profile.allowed_tools == frozenset({"calculator", "lookup"})
 
 
-def test_security_policy_registry_rejects_unknown_fields() -> None:
+def test_security_policy_registry_rejects_unknown_fields_and_non_integer_version() -> None:
     """
     RME
 
     Requires:
-        - The policy document contains an unsupported profile field.
+        - Policy documents contain an unsupported field or non-integer version.
 
     Modifies:
         - Nothing.
 
     Effects:
         - Verifies schema mistakes fail closed instead of being silently ignored.
+        - Verifies JSON 1.0 is not accepted as integer schema version 1.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether strict validation rejects the document.
+        - None. Assertions determine whether strict validation rejects the documents.
     """
     document = _policy_document()
     profiles = document["profiles"]
@@ -118,6 +121,11 @@ def test_security_policy_registry_rejects_unknown_fields() -> None:
 
     with pytest.raises(ValueError):
         parse_security_policy_registry(json.dumps(document))
+
+    version_document = _policy_document()
+    version_document["version"] = 1.0
+    with pytest.raises(ValueError):
+        parse_security_policy_registry(json.dumps(version_document))
 
 
 def test_startup_compiles_unified_profile_into_existing_enforcement_inputs(
@@ -147,7 +155,7 @@ def test_startup_compiles_unified_profile_into_existing_enforcement_inputs(
     policy_path = tmp_path / "security-policies.json"
     policy_path.write_text(json.dumps(_policy_document()), encoding="utf-8")
 
-    _track_legacy_policy_environment(monkeypatch)
+    _track_policy_environment(monkeypatch)
     monkeypatch.setenv("SAG_SECURITY_POLICY_FILE", str(policy_path))
     clear_security_policy_cache()
     apply_unified_security_policy_environment()
@@ -196,7 +204,7 @@ def test_enabled_invalid_unified_policy_clears_legacy_fallback(
     policy_path = tmp_path / "security-policies.json"
     policy_path.write_text("{}", encoding="utf-8")
 
-    _track_legacy_policy_environment(monkeypatch)
+    _track_policy_environment(monkeypatch)
     monkeypatch.setenv("SAG_SECURITY_POLICY_FILE", str(policy_path))
     clear_security_policy_cache()
     apply_unified_security_policy_environment()
