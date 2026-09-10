@@ -6,6 +6,7 @@ import pytest
 # This must run during test collection, before test modules import app.main/app.auth.
 os.environ["SAG_PROVIDER"] = "mock"
 os.environ["SAG_CLIENT_REGISTRY_BACKEND"] = "environment"
+os.environ["SAG_USAGE_LEDGER_BACKEND"] = "memory"
 os.environ["SAG_CLIENT_RATE_LIMITS"] = "test-client:10000"
 os.environ["SAG_CLIENT_DAILY_BUDGETS"] = "test-client:1000000:1000.00"
 
@@ -22,10 +23,11 @@ def reset_process_local_policy_state():
     RME
 
     Requires:
+        - Tests configure the in-memory usage ledger backend.
         - The gateway exposes process-local rate-limit and usage-ledger state.
 
     Modifies:
-        - Process-local gateway rate-limit and usage-budget state around each test.
+        - Process-local gateway rate-limit and test usage-budget state around each test.
 
     Effects:
         - Prevents request counts and usage totals from leaking between tests.
