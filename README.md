@@ -1,6 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, sensitive-data controls, provider routing, audit logging, and request correlation before requests reach an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, sensitive-data controls, prompt-injection controls, provider routing, audit logging, and request correlation before requests reach an upstream model.
 
 ## Current capabilities
 
@@ -19,13 +19,15 @@ Implemented:
 - PostgreSQL-backed persistent daily usage accounting
 - per-client structured-PII `redact` and `deny` policies
 - pre-provider redaction for email, U.S. SSN, common North American phone, and Luhn-valid payment-card values
+- per-client prompt-injection `audit`, `deny`, and explicit `off` policies
+- deterministic direct and encoded prompt-injection indicators with safe audit metadata
 - structured one-line JSON audit events with client attribution
 - `X-Request-ID` request correlation
 - requested-versus-resolved model attribution
 - sanitized provider failures
 - deterministic `pytest` suite that does not call real providers, PostgreSQL, or Redis
 
-The next LLM-security milestone is prompt-injection detection.
+The next LLM-security milestone is system-prompt leakage testing.
 
 ## Request path
 
@@ -42,6 +44,7 @@ Secure AI Gateway
   +-- global model allowlist
   +-- per-client model allowlist
   +-- per-client PII inspection / redaction or denial
+  +-- per-client prompt-injection inspection / audit or denial
   +-- PostgreSQL daily token/cost accounting
   +-- structured audit logging
   +-- provider routing
@@ -71,6 +74,7 @@ SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 SAG_CLIENT_RATE_LIMITS=local-dev:10
 SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
 SAG_CLIENT_PII_POLICIES=local-dev:redact
+SAG_CLIENT_PROMPT_INJECTION_POLICIES=local-dev:audit
 
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
@@ -245,7 +249,7 @@ with:
 {"detail":"Request contains prohibited sensitive data."}
 ```
 
-PII inspection runs after authentication, rate limiting, and model authorization, but before usage-budget/provider work. Therefore a denied request consumes request-rate capacity but does not incur model tokens or provider cost.
+PII inspection runs after authentication, rate limiting, and model authorization, but before prompt-injection, usage-budget, and provider work. Therefore a denied request consumes request-rate capacity but does not incur model tokens or provider cost.
 
 Audit events may record only safe metadata such as:
 
@@ -265,11 +269,90 @@ Raw detected values are not copied into audit records.
 
 This is structured-pattern protection, not comprehensive PII recognition. It does not yet claim to reliably identify names, street addresses, dates of birth, medical details, arbitrary account identifiers, or identity information implied by natural language. Those require semantic/NER detection plus measurable false-positive and false-negative evaluation. The deterministic structured layer remains useful even after a semantic detector is added.
 
+## Prompt-injection detection
+
+Per-client prompt-injection policy is mandatory for protected chat requests:
+
+```dotenv
+SAG_CLIENT_PROMPT_INJECTION_POLICIES=local-dev:audit,high-security-client:deny
+```
+
+Supported actions:
+
+```text
+audit  inspect the request, record safe detection metadata, and forward even when indicators are found
+deny   inspect the request and block it when one or more indicators are found
+off    explicitly skip prompt-injection inspection for that client
+```
+
+`off` is an explicit opt-out. Missing, malformed, or client-incomplete policy is different and fails closed with `503 Prompt injection policy is not configured.`
+
+The deterministic baseline currently detects named indicators for:
+
+- attempts to ignore, disregard, forget, or override prior/system/developer instructions
+- attempts to reveal or reproduce system/developer/hidden instructions
+- common developer/admin/root/unrestricted role impersonation
+- explicit safety/security/policy/guardrail bypass language
+- explicit attempts to extract API keys, passwords, secrets, credentials, or tokens
+- bounded Base64 or hexadecimal payloads that decode to one of the direct indicators above
+
+Encoded strings are not flagged merely for looking encoded. A bounded candidate must decode successfully and the decoded text must match a direct injection indicator.
+
+Each unique indicator contributes a fixed rule weight. `X-Prompt-Injection-Score` is therefore a deterministic rule score, not a probability, confidence estimate, or model judgment.
+
+In `audit` mode, a detected request can include:
+
+```text
+HTTP/1.1 200 OK
+X-Prompt-Injection-Action: audited
+X-Prompt-Injection-Detected-Count: 2
+X-Prompt-Injection-Score: 8
+```
+
+In `deny` mode, the same request is blocked before budget/provider work:
+
+```text
+HTTP/1.1 403 Forbidden
+X-Prompt-Injection-Action: denied
+X-Prompt-Injection-Detected-Count: 2
+X-Prompt-Injection-Score: 8
+```
+
+with:
+
+```json
+{"detail":"Potential prompt injection detected."}
+```
+
+Clean inspected requests use `X-Prompt-Injection-Action: none`. Explicit `off` mode uses `X-Prompt-Injection-Action: off` with zero detected indicators/score.
+
+Prompt-injection inspection runs on the request after any PII redaction. A denied injection attempt consumes request-rate capacity but does not consume model tokens or provider cost.
+
+Audit events store only safe metadata such as indicator labels, count, and score:
+
+```json
+{
+  "event": "prompt_injection",
+  "outcome": "audit",
+  "client_id": "local-dev",
+  "reason": "prompt_injection_detected",
+  "prompt_injection_detected_count": 2,
+  "prompt_injection_score": 8,
+  "prompt_injection_indicators": "instruction_override,system_prompt_extraction"
+}
+```
+
+Raw prompt text and matched prompt fragments are not added to audit records.
+
+### Detection boundary
+
+This is a deterministic first layer, not comprehensive prompt-injection prevention. It does not claim to reliably catch every indirect injection hidden in external content, typoglycemic or novel obfuscation, multi-turn attacks, best-of-N jailbreaks, multimodal injection, RAG poisoning, or model-specific jailbreak strategy. Later evaluation should measure attack detection and false-positive rates against a versioned adversarial dataset. A purpose-trained guardrail/classifier can be added as another layer without removing deterministic controls.
+
 ## Audit logging
 
-Audit events are emitted as one JSON object per line to application stderr. Safe fields include client/key IDs, model names, rate-limit state, PII count/type metadata, request/cumulative usage, provider name, request ID, and latency.
+Audit events are emitted as one JSON object per line to application stderr. Safe fields include client/key IDs, model names, rate-limit state, PII count/type metadata, prompt-injection indicator metadata, request/cumulative usage, provider name, request ID, and latency.
 
-The audit layer intentionally omits raw gateway keys, prompts/messages, detected PII values, provider credentials, and upstream response bodies.
+The audit layer intentionally omits raw gateway keys, prompts/messages, matched injection fragments, detected PII values, provider credentials, and upstream response bodies.
 
 ## Development setup
 
@@ -321,13 +404,15 @@ Secure-AI-Gateway/
 │   ├── main.py
 │   ├── models.py
 │   ├── pii.py
+│   ├── prompt_injection.py
 │   ├── rate_limit.py
 │   ├── usage_budget.py
 │   ├── policies/
 │   └── providers/
 ├── db/migrations/
 ├── tests/
-│   └── test_pii.py
+│   ├── test_pii.py
+│   └── test_prompt_injection.py
 ├── .client.env.example
 ├── .env.example
 ├── compose.yaml
@@ -362,7 +447,7 @@ Secure-AI-Gateway/
 
 - [x] structured PII detection/redaction
 - [ ] semantic PII detection/evaluation
-- [ ] prompt-injection detection
+- [x] deterministic prompt-injection detection
 - [ ] system-prompt leakage tests
 - [ ] tool authorization
 - [ ] configurable security policies
