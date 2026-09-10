@@ -23,11 +23,12 @@ Implemented:
 - versioned named security-policy profiles that consolidate per-client controls
 - versioned offline adversarial prompt-injection benchmark with precision, recall, FPR, FNR, and category metrics
 - Dockerized gateway with PostgreSQL/Redis Compose integration and non-root runtime hardening
+- GitHub Actions CI gates for pytest, the prompt-injection benchmark, and Docker image builds
 - structured one-line JSON audit events with client attribution and request correlation
 - sanitized provider failures
 - deterministic `pytest` suite that does not call real providers, PostgreSQL, or Redis
 
-The next infrastructure milestone is GitHub Actions CI that enforces the test suite, prompt-injection benchmark gate, and container build. Semantic PII detection/evaluation and execution-time tool authorization remain explicit security milestones after that foundation.
+The next security milestone is semantic PII detection/evaluation, followed by execution-time tool authorization. Observability and deployment infrastructure follow after those controls.
 
 ## Request path
 
@@ -256,6 +257,28 @@ false_negative_rate=0.2174
 
 Those metrics deliberately expose current weaknesses, including typoglycemia, split multi-turn attacks, and false positives on quoted/descriptive security text. See `docs/prompt-injection-benchmark.md` for metric definitions and versioning rules.
 
+## Continuous integration
+
+GitHub Actions runs three independent gates on pushes to `main` and pull requests:
+
+```text
+Pytest
+Prompt-injection benchmark
+Docker build
+```
+
+The workflow is `.github/workflows/ci.yml`. It grants only `contents: read`, requires no provider/database/Redis secrets, and does not make live LLM calls. The benchmark job enforces the committed v1 regression thresholds, and the Docker job builds the production image without pushing it to a registry.
+
+Run the same core gates locally with:
+
+```bash
+pytest -q
+python -m app.evals.prompt_injection_benchmark --enforce-baseline --show-errors
+docker build --tag secure-ai-gateway:ci .
+```
+
+See `docs/continuous-integration.md` for CI security boundaries and future branch-protection guidance.
+
 ## Audit logging
 
 Audit events are emitted as one JSON object per line to application stderr. Safe fields include client/key IDs, model names, rate-limit state, PII type/count metadata, prompt-injection indicator metadata, validated function-tool names/counts, request/cumulative usage, provider name, request ID, and latency.
@@ -308,6 +331,8 @@ set +a
 
 ```text
 Secure-AI-Gateway/
+├── .github/workflows/
+│   └── ci.yml
 ├── app/
 │   ├── evals/
 │   ├── policies/
@@ -319,6 +344,7 @@ Secure-AI-Gateway/
 ├── docker/
 │   └── entrypoint.sh
 ├── docs/
+│   ├── continuous-integration.md
 │   ├── docker.md
 │   ├── prompt-injection-benchmark.md
 │   ├── security-policy-profiles.md
@@ -371,7 +397,7 @@ Secure-AI-Gateway/
 
 - [x] versioned adversarial prompt dataset and measurable detection metrics
 - [x] Dockerized gateway
-- [ ] GitHub Actions CI
+- [x] GitHub Actions CI
 - [ ] OpenTelemetry / Prometheus
 - [ ] Kubernetes
 - [ ] Terraform
