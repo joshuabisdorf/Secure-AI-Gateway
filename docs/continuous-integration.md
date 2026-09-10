@@ -14,7 +14,7 @@ The workflow also supports manual `workflow_dispatch` runs.
 
 CI intentionally does not require provider, PostgreSQL, Redis, or gateway-client secrets.
 
-The test suite forces the mock provider plus in-memory rate-limit and usage-accounting backends. The prompt-injection benchmark is fully offline. The Docker job builds the production image but does not start it or make provider calls.
+The test suite forces the mock provider plus in-memory rate-limit and usage-accounting backends. The prompt-injection benchmark and semantic PII benchmark are fully offline. The semantic PII job runs the local spaCy model installed with the project; message text is not sent to a remote classifier. The Docker job builds the production image but does not start it or make provider calls.
 
 The workflow grants only:
 
@@ -35,7 +35,7 @@ The `Pytest` job installs the project with development dependencies under Python
 pytest -q
 ```
 
-This covers authentication, policy enforcement, rate limiting, usage budgets, PII handling, prompt-injection detection, system-prompt leakage evaluation logic, security-policy profiles, tool authorization, and provider normalization without calling real upstream providers.
+This covers authentication, policy enforcement, rate limiting, usage budgets, structured and semantic PII handling, prompt-injection detection, system-prompt leakage evaluation logic, security-policy profiles, tool authorization, and provider normalization without calling real upstream providers.
 
 ### Prompt-injection benchmark
 
@@ -47,9 +47,21 @@ python -m app.evals.prompt_injection_benchmark \
   --show-errors
 ```
 
-The job fails when the committed detector drops below the versioned benchmark thresholds for precision or recall, or exceeds the maximum benchmark false-positive rate. Error output includes case IDs only; prompt bodies are not printed.
+It fails when the committed detector drops below the versioned benchmark thresholds for precision or recall, or exceeds the maximum benchmark false-positive rate. Error output includes case IDs only; prompt bodies are not printed.
 
-The benchmark is a regression gate, not a claim that its thresholds are sufficient for production.
+### Semantic PII benchmark
+
+The `Semantic PII benchmark` job runs:
+
+```bash
+python -m app.evals.semantic_pii_benchmark \
+  --enforce-baseline \
+  --show-errors
+```
+
+It evaluates the local semantic/contextual PII analyzer against the versioned dataset and fails on precision, recall, or false-positive-rate regression. Output contains aggregate metrics, category names, and optional case IDs, not benchmark text or detected values.
+
+Both benchmark gates are curated regression tests. Their passing thresholds and measured results are not estimates of production accuracy.
 
 ### Docker build
 
@@ -59,7 +71,7 @@ The `Docker build` job runs a clean image build from the committed Dockerfile:
 docker build --tag secure-ai-gateway:ci .
 ```
 
-It validates that the production image remains buildable independently of a developer workstation. It does not push an image or require registry credentials.
+It validates that the production image, including the pinned local semantic PII model, remains buildable independently of a developer workstation. It does not push an image or require registry credentials.
 
 ## Concurrency
 
@@ -67,15 +79,16 @@ The workflow cancels an older in-progress run when a newer commit arrives for th
 
 ## Dependency actions
 
-The workflow uses current major releases of the official GitHub actions for checkout and Python setup. Major-version references receive compatible security and maintenance updates within that release line. A later supply-chain-hardening milestone can pin all third-party actions to immutable full commit SHAs and automate controlled updates.
+The workflow uses current major releases of the official GitHub actions for checkout and Python setup. A later supply-chain-hardening milestone can pin action references to immutable full commit SHAs and automate controlled updates.
 
 ## Branch protection
 
-Once the repository development flow uses pull requests consistently, the three jobs are intended to become required status checks before merging:
+Once the repository development flow uses pull requests consistently, these four jobs are intended to become required status checks before merging:
 
 ```text
 Pytest
 Prompt-injection benchmark
+Semantic PII benchmark
 Docker build
 ```
 
