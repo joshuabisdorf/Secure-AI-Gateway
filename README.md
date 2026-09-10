@@ -1,6 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, provider routing, audit logging, and request correlation before requests reach an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, distributed request throttling, usage budgets, sensitive-data controls, provider routing, audit logging, and request correlation before requests reach an upstream model.
 
 ## Current capabilities
 
@@ -17,14 +17,15 @@ Implemented:
 - Redis-backed per-client requests-per-minute rate limiting
 - per-client UTC-day token/cost budgets
 - PostgreSQL-backed persistent daily usage accounting
-- OpenRouter token/cost accounting
+- per-client structured-PII `redact` and `deny` policies
+- pre-provider redaction for email, U.S. SSN, common North American phone, and Luhn-valid payment-card values
 - structured one-line JSON audit events with client attribution
 - `X-Request-ID` request correlation
 - requested-versus-resolved model attribution
 - sanitized provider failures
 - deterministic `pytest` suite that does not call real providers, PostgreSQL, or Redis
 
-The next security milestone is PII detection and redaction before prompts are forwarded upstream.
+The next LLM-security milestone is prompt-injection detection.
 
 ## Request path
 
@@ -40,6 +41,7 @@ Secure AI Gateway
   +-- Redis per-client rate limit
   +-- global model allowlist
   +-- per-client model allowlist
+  +-- per-client PII inspection / redaction or denial
   +-- PostgreSQL daily token/cost accounting
   +-- structured audit logging
   +-- provider routing
@@ -68,55 +70,38 @@ SAG_ALLOWED_MODELS=openrouter/free
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 SAG_CLIENT_RATE_LIMITS=local-dev:10
 SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
+SAG_CLIENT_PII_POLICIES=local-dev:redact
 
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
 ```
 
-Use `-` to disable one usage-budget dimension. For example:
-
-```dotenv
-SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:-
-```
-
-means 50,000 tokens per UTC day with no gateway dollar-cost ceiling. `.env` and `.client.env` are ignored by Git.
+Use `-` to disable one usage-budget dimension. For example, `local-dev:50000:-` means 50,000 tokens per UTC day with no gateway dollar-cost ceiling. `.env` and `.client.env` are ignored by Git.
 
 ## Local state services
 
-`compose.yaml` provides PostgreSQL 18 and Redis 8.10.1. Both are bound only to `127.0.0.1` for local development.
-
-Start them together:
+`compose.yaml` provides PostgreSQL 18 and Redis. Both are bound only to `127.0.0.1` for local development.
 
 ```bash
 docker compose up -d postgres redis
 docker compose ps
 ```
 
-Redis uses append-only persistence in the local Compose service. Production deployments still need appropriate Redis authentication, TLS, network isolation, replication, and availability configuration.
+Redis uses append-only persistence locally. Production deployments still require appropriate authentication, TLS, network isolation, replication, and availability controls.
 
 ## PostgreSQL schema migrations
 
-Load server configuration:
+Load server configuration and apply pending migrations:
 
 ```bash
 set -a
 source .env
 set +a
-```
-
-Apply pending migrations:
-
-```bash
 python -m app.database migrate
-```
-
-Inspect migration status:
-
-```bash
 python -m app.database status
 ```
 
-Migrations are ordered by filename and tracked in `schema_migrations` with a SHA-256 digest. The runner refuses to continue if an already-applied migration file has been modified.
+Migrations are ordered by filename and tracked in `schema_migrations` with SHA-256 digests. The runner refuses to continue if an already-applied migration file has been modified.
 
 Current migrations:
 
@@ -127,14 +112,12 @@ Current migrations:
 
 ## PostgreSQL client registry
 
-The database stores only client identity, public key ID, SHA-256 key digest, activation state, and timestamps. It never stores raw gateway API keys.
+The database stores client identity, public key ID, SHA-256 key digest, activation state, and timestamps. It never stores raw gateway API keys.
 
 ```text
 gateway_clients
   client_id
   is_active
-  created_at
-  updated_at
 
         1
         |
@@ -152,9 +135,7 @@ gateway_api_keys
 
 For each protected request the gateway validates the structured bearer key, extracts `key_id`, queries PostgreSQL for an active key belonging to an active client, hashes the complete presented key, compares hashes with `hmac.compare_digest`, and returns `Principal(client_id, key_id)` to downstream policy checks.
 
-Database failures fail closed with sanitized `503` responses. Unknown, inactive, or incorrect keys return `401`.
-
-### Client/key commands
+Client/key administration:
 
 ```bash
 python -m app.clients list
@@ -163,34 +144,20 @@ python -m app.clients revoke <key-id>
 python -m app.clients rotate local-dev
 ```
 
-Rotation creates a replacement key hash and revokes prior active keys in one PostgreSQL transaction. The new raw key is printed once and must be stored on the client side, such as in `.client.env`.
+Rotation creates a replacement key hash and revokes prior active keys in one PostgreSQL transaction. The new raw key is printed once and must be stored on the client side.
 
 ## Model authorization
 
-A requested model must pass both layers:
-
-```text
-SAG_ALLOWED_MODELS
-        |
-        v
-SAG_CLIENT_ALLOWED_MODELS
-        |
-        v
-     provider
-```
-
-Example:
+A model must be present in both the deployment-wide ceiling and the authenticated client's grant:
 
 ```dotenv
 SAG_ALLOWED_MODELS=openrouter/free,other-model
 SAG_CLIENT_ALLOWED_MODELS=local-dev:openrouter/free
 ```
 
-`other-model` is globally enabled but unavailable to `local-dev`.
+This lets the deployment expose `other-model` while preventing `local-dev` from using it.
 
 ## Redis distributed rate limiting
-
-Configure the backend and per-client requests-per-minute limits:
 
 ```dotenv
 SAG_RATE_LIMIT_BACKEND=redis
@@ -198,33 +165,9 @@ REDIS_URL=redis://127.0.0.1:6379/0
 SAG_CLIENT_RATE_LIMITS=local-dev:10,service-a:60
 ```
 
-The runtime limiter uses Redis `INCREX`, available in Redis 8.8+, to atomically increment a fixed-window counter, enforce the configured upper bound, and set the window expiration only when a new window is created.
+The runtime limiter stores each client's fixed-window counter in Redis under `sag:rate_limit:<client_id>`. Counters survive Uvicorn restarts and are shared by gateway workers/replicas. Allowed responses expose `X-RateLimit-Limit` and `X-RateLimit-Remaining`; exhausted clients receive `429` with `Retry-After`. Redis failures fail closed with `503 Rate limiting is unavailable.`
 
-Each client uses a Redis key of the form:
-
-```text
-sag:rate_limit:<client_id>
-```
-
-Allowed responses include:
-
-```text
-X-RateLimit-Limit: 10
-X-RateLimit-Remaining: 9
-```
-
-When the shared counter has reached the limit, the gateway returns:
-
-```text
-HTTP/1.1 429 Too Many Requests
-Retry-After: <seconds-until-window-reset>
-X-RateLimit-Limit: 10
-X-RateLimit-Remaining: 0
-```
-
-Because the counter lives in Redis, Uvicorn restarts and additional gateway workers do not reset or split the request quota. If Redis cannot evaluate the decision, the gateway fails closed with `503 Rate limiting is unavailable.` rather than forwarding without enforcement.
-
-The in-memory limiter remains available only as the deterministic test backend through `SAG_RATE_LIMIT_BACKEND=memory`.
+The in-memory limiter remains only as the deterministic test backend through `SAG_RATE_LIMIT_BACKEND=memory`.
 
 ## Daily token and cost budgets
 
@@ -242,32 +185,91 @@ SAG_CLIENT_DAILY_BUDGETS=local-dev:50000:1.00
 SAG_CLIENT_DAILY_BUDGETS=service-a:-:5.00
 ```
 
-OpenRouter supplies provider-reported token counts and request cost when usage accounting is requested. Free models normally report zero cost while still consuming tokens.
+OpenRouter supplies provider-reported token counts and request cost when usage accounting is requested. The gateway reads the current UTC-day total from PostgreSQL before forwarding and atomically increments `gateway_daily_usage` after a successful provider response.
 
-The gateway reads the current UTC-day total from PostgreSQL before forwarding. After a successful provider response, it atomically increments:
-
-```text
-gateway_daily_usage
-  client_id
-  usage_date
-  tokens_used
-  cost_used_usd
-  updated_at
-```
-
-The primary key is `(client_id, usage_date)`, so each client has one cumulative row per UTC day. Concurrent completions use an atomic PostgreSQL upsert and cannot lose increments through a process-local read/modify/write race.
-
-Exact usage is only known after the provider responds. Therefore the request that crosses the remaining budget is returned and recorded; subsequent requests are blocked until the next UTC day.
+Exact usage is known only after completion. Therefore the request that crosses the remaining budget is returned and recorded; subsequent requests are blocked until the next UTC day.
 
 Successful responses can include `X-Usage-Tokens-Used`, `X-Usage-Tokens-Remaining`, `X-Usage-Cost-USD`, `X-Usage-Cost-Remaining-USD`, and `X-Usage-Budget-Reset`.
 
-If persistent usage state cannot be read, the gateway returns `503` before forwarding. If an upstream completion succeeds but its usage cannot be persisted, the gateway also fails closed and emits an audit error rather than silently losing accounting data.
+## PII detection and redaction
+
+Per-client PII policy is mandatory for protected chat requests:
+
+```dotenv
+SAG_CLIENT_PII_POLICIES=local-dev:redact,high-security-client:deny
+```
+
+Supported actions:
+
+```text
+redact  detect structured PII, replace values in a copied request, and forward only the sanitized copy
+deny    reject a request containing detected structured PII before any provider call
+```
+
+Missing, malformed, or client-incomplete PII policy fails closed with `503`.
+
+The current baseline detects:
+
+- email addresses
+- U.S. Social Security numbers in `NNN-NN-NNNN` form
+- common North American phone-number formats
+- 13-19 digit payment-card candidates that pass a Luhn checksum
+
+Redaction placeholders are type-specific:
+
+```text
+[REDACTED_EMAIL]
+[REDACTED_SSN]
+[REDACTED_PHONE]
+[REDACTED_PAYMENT_CARD]
+```
+
+A redacted allowed request includes headers such as:
+
+```text
+X-PII-Action: redacted
+X-PII-Detected-Count: 1
+```
+
+A `deny` policy returns:
+
+```text
+HTTP/1.1 403 Forbidden
+X-PII-Action: denied
+X-PII-Detected-Count: 1
+```
+
+with:
+
+```json
+{"detail":"Request contains prohibited sensitive data."}
+```
+
+PII inspection runs after authentication, rate limiting, and model authorization, but before usage-budget/provider work. Therefore a denied request consumes request-rate capacity but does not incur model tokens or provider cost.
+
+Audit events may record only safe metadata such as:
+
+```json
+{
+  "event": "pii_policy",
+  "outcome": "redact",
+  "client_id": "local-dev",
+  "pii_detected_count": 2,
+  "pii_types": "email,phone"
+}
+```
+
+Raw detected values are not copied into audit records.
+
+### Detection boundary
+
+This is structured-pattern protection, not comprehensive PII recognition. It does not yet claim to reliably identify names, street addresses, dates of birth, medical details, arbitrary account identifiers, or identity information implied by natural language. Those require semantic/NER detection plus measurable false-positive and false-negative evaluation. The deterministic structured layer remains useful even after a semantic detector is added.
 
 ## Audit logging
 
-Audit events are emitted as one JSON object per line to application stderr, so they appear in the terminal running Uvicorn. Safe fields include client/key IDs, model names, rate-limit state, request/cumulative usage, provider name, request ID, and latency.
+Audit events are emitted as one JSON object per line to application stderr. Safe fields include client/key IDs, model names, rate-limit state, PII count/type metadata, request/cumulative usage, provider name, request ID, and latency.
 
-The audit layer intentionally omits raw gateway keys, prompts/messages, provider credentials, and upstream response bodies.
+The audit layer intentionally omits raw gateway keys, prompts/messages, detected PII values, provider credentials, and upstream response bodies.
 
 ## Development setup
 
@@ -277,25 +279,15 @@ Requirements:
 - Docker with Compose
 - Git
 
-Install or refresh dependencies:
+Install or refresh dependencies and start state services:
 
 ```bash
 python -m pip install -e '.[dev]'
-```
-
-Start state services and migrate PostgreSQL:
-
-```bash
 docker compose up -d postgres redis
 set -a
 source .env
 set +a
 python -m app.database migrate
-```
-
-Run tests:
-
-```bash
 pytest -q
 ```
 
@@ -313,20 +305,7 @@ source .client.env
 set +a
 ```
 
-Then test OpenRouter:
-
-```bash
-curl -i \
-  -X POST http://127.0.0.1:8000/v1/chat/completions \
-  -H "Authorization: Bearer $SAG_CLIENT_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "openrouter/free",
-    "messages": [
-      {"role": "user", "content": "Reply with exactly: Distributed rate limit works"}
-    ]
-  }'
-```
+Then call the OpenAI-style route with the configured gateway key.
 
 ## Repository layout
 
@@ -341,15 +320,14 @@ Secure-AI-Gateway/
 │   ├── database.py
 │   ├── main.py
 │   ├── models.py
+│   ├── pii.py
 │   ├── rate_limit.py
 │   ├── usage_budget.py
 │   ├── policies/
 │   └── providers/
-├── db/
-│   └── migrations/
-│       ├── 001_client_registry.sql
-│       └── 002_daily_usage.sql
+├── db/migrations/
 ├── tests/
+│   └── test_pii.py
 ├── .client.env.example
 ├── .env.example
 ├── compose.yaml
@@ -370,22 +348,20 @@ Secure-AI-Gateway/
 
 ### Core security controls
 
-- [x] per-client identities
-- [x] structured/high-entropy API keys
+- [x] per-client identities and high-entropy API keys
 - [x] hashed API-key verification
 - [x] PostgreSQL persistent client/key registry
-- [x] key revocation and rotation workflow
-- [x] global model allowlist
-- [x] per-client model policy
+- [x] key revocation and atomic rotation
+- [x] global/per-client model authorization
 - [x] Redis-backed distributed rate limiting
-- [x] daily token and cost budgets
+- [x] daily token/cost budgets
 - [x] persistent PostgreSQL usage accounting
-- [x] structured audit logging
-- [x] request correlation
+- [x] structured audit logging and request correlation
 
 ### LLM security controls
 
-- [ ] PII detection/redaction
+- [x] structured PII detection/redaction
+- [ ] semantic PII detection/evaluation
 - [ ] prompt-injection detection
 - [ ] system-prompt leakage tests
 - [ ] tool authorization
