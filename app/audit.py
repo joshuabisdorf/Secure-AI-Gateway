@@ -38,6 +38,8 @@ def emit_audit_event(
     cost_used_daily_usd: float | None = None,
     cost_remaining_daily_usd: float | None = None,
     budget_reset_at: str | None = None,
+    pii_detected_count: int | None = None,
+    pii_types: str | None = None,
 ) -> None:
     """
     RME
@@ -51,7 +53,7 @@ def emit_audit_event(
 
     Effects:
         - Emits one JSON audit record to application stderr.
-        - Omits prompt content and credentials from the audit record.
+        - Omits prompt content, detected PII values, and credentials from the audit record.
 
     Inputs:
         - request_id: Correlation identifier for the request.
@@ -76,6 +78,8 @@ def emit_audit_event(
         - cost_used_daily_usd: Optional cumulative UTC-day USD cost.
         - cost_remaining_daily_usd: Optional remaining UTC-day USD capacity.
         - budget_reset_at: Optional ISO timestamp for the next budget reset.
+        - pii_detected_count: Optional count of PII findings without raw values.
+        - pii_types: Optional comma-separated PII type names without raw values.
 
     Outputs:
         - None.
@@ -106,6 +110,8 @@ def emit_audit_event(
         "cost_used_daily_usd": cost_used_daily_usd,
         "cost_remaining_daily_usd": cost_remaining_daily_usd,
         "budget_reset_at": budget_reset_at,
+        "pii_detected_count": pii_detected_count,
+        "pii_types": pii_types,
     }
     for field, value in optional_fields.items():
         if value is not None:
