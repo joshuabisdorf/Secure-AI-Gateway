@@ -278,8 +278,9 @@ def inspect_prompt_injection(request: ChatCompletionRequest) -> PromptInjectionR
         - Nothing.
 
     Effects:
-        - Inspects all client-supplied message content for explicit prompt-injection indicators.
+        - Inspects textual client-supplied message content for explicit prompt-injection indicators.
         - Decodes bounded Base64/hex candidates only to inspect them for the same indicators.
+        - Ignores non-text assistant/tool-call fields.
         - Returns only indicator labels and scores; raw prompt fragments are never retained.
 
     Inputs:
@@ -291,6 +292,8 @@ def inspect_prompt_injection(request: ChatCompletionRequest) -> PromptInjectionR
     matched: set[str] = set()
 
     for message in request.messages:
+        if message.content is None:
+            continue
         matched.update(_match_direct_indicators(message.content))
         matched.update(_match_encoded_indicators(message.content))
 
