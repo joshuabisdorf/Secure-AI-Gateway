@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import spacy
+from fastapi import HTTPException, status
 from spacy.language import Language
 
 _DEFAULT_MODEL = "en_core_web_sm"
@@ -53,8 +54,33 @@ _priority = {
 }
 
 
-class SemanticPIIUnavailable(RuntimeError):
-    """Raised when the configured semantic PII analyzer cannot be used safely."""
+class SemanticPIIUnavailable(HTTPException):
+    """Fail-closed HTTP error for an unavailable semantic PII analyzer."""
+
+    def __init__(self, reason: str) -> None:
+        """
+        RME
+
+        Requires:
+            - reason is a safe internal reason label and contains no prompt data.
+
+        Modifies:
+            - Initializes exception state.
+
+        Effects:
+            - Represents semantic PII unavailability as a sanitized HTTP 503 response.
+
+        Inputs:
+            - reason: Safe diagnostic reason label.
+
+        Outputs:
+            - Configured SemanticPIIUnavailable exception instance.
+        """
+        self.reason = reason
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PII detection is unavailable.",
+        )
 
 
 @dataclass(frozen=True)
@@ -194,7 +220,7 @@ class SpacySemanticPIIAnalyzer:
 
         Effects:
             - Loads only the components required for NER.
-            - Converts model-loading failures into a fail-closed gateway error.
+            - Converts model-loading failures into a sanitized fail-closed 503 error.
 
         Inputs:
             - None.
