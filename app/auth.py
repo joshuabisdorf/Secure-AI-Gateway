@@ -2,6 +2,7 @@ import hmac
 
 from fastapi import HTTPException, Request, Response, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from pydantic import ValidationError
 
 from app.api_keys import Principal, hash_api_key, parse_key_id
 from app.audit import emit_audit_event
@@ -16,7 +17,6 @@ client_registry = build_client_registry()
 async def authenticate_api_key(
     request: Request,
     response: Response,
-    chat_request: ChatCompletionRequest,
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> Principal:
     """
@@ -26,7 +26,7 @@ async def authenticate_api_key(
         - A usable gateway client registry backend is configured.
         - The caller may provide an Authorization bearer token.
         - Request middleware has assigned a request ID.
-        - Tool authorization policy is configured for authenticated clients.
+        - Tool authorization policy is configured for authenticated chat clients.
 
     Modifies:
         - Client-registry connection/query state, if any.
@@ -35,19 +35,17 @@ async def authenticate_api_key(
     Effects:
         - Resolves a structured gateway API key to an active client identity.
         - Compares a one-way hash of the presented key with the stored hash.
-        - Enforces least-privilege function-tool exposure for the authenticated client.
-        - Records authentication/tool authorization decisions without logging credentials,
-          tool arguments, or tool outputs.
-        - Rejects missing, invalid, inactive, unavailable, or unauthorized requests.
+        - For valid chat request bodies, enforces least-privilege function-tool exposure.
+        - Leaves invalid request-body handling to FastAPI's normal schema validation.
+        - Records decisions without logging credentials, tool arguments, or tool outputs.
 
     Inputs:
-        - request: HTTP request containing gateway request context.
+        - request: HTTP request containing gateway request context and cached body bytes.
         - response: HTTP response used for safe tool-authorization headers.
-        - chat_request: Validated chat request containing optional function tools.
         - credentials: Bearer credentials extracted from the request.
 
     Outputs:
-        - Authenticated Principal containing client_id and key_id after tool authorization.
+        - Authenticated Principal containing client_id and key_id after applicable tool authorization.
     """
     request_id = request.state.request_id
 
@@ -109,10 +107,7 @@ async def authenticate_api_key(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    principal = Principal(
-        client_id=record.client_id,
-        key_id=record.key_id,
-    )
+    principal = Principal(client_id=record.client_id, key_id=record.key_id)
     emit_audit_event(
         request_id=request_id,
         event="authentication",
@@ -120,6 +115,12 @@ async def authenticate_api_key(
         client_id=principal.client_id,
         key_id=principal.key_id,
     )
+
+    try:
+        body = await request.json()
+        chat_request = ChatCompletionRequest.model_validate(body)
+    except (ValueError, TypeError, ValidationError):
+        return principal
 
     try:
         allowed_tools = get_client_allowed_tools(principal.client_id)
