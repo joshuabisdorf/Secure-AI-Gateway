@@ -1,6 +1,9 @@
+import logging
+
 from fastapi.testclient import TestClient
 
 from app import main
+from app.audit import audit_logger
 from app.models import (
     ChatChoice,
     ChatCompletionRequest,
@@ -117,8 +120,9 @@ def test_structured_pii_is_redacted_without_retaining_raw_values() -> None:
     assert "[REDACTED_PAYMENT_CARD]" in redacted
 
 
-def test_redact_policy_forwards_only_sanitized_prompt(
+def test_redact_policy_forwards_only_sanitized_prompt_and_safe_audit(
     monkeypatch,
+    caplog,
     gateway_api_key,
 ) -> None:
     """
@@ -129,38 +133,46 @@ def test_redact_policy_forwards_only_sanitized_prompt(
 
     Modifies:
         - Temporarily replaces the provider with a capturing test provider.
+        - Temporarily attaches pytest log capture to the audit logger.
         - Process-local test rate and usage state.
 
     Effects:
         - Verifies detected PII is replaced before provider forwarding.
         - Verifies safe PII response headers describe the action without raw values.
+        - Verifies audit output contains only PII count/type metadata, never the value.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure policy and provider state.
+        - caplog: pytest log-capture fixture.
         - gateway_api_key: Raw test gateway key for the configured client.
 
     Outputs:
-        - None. Assertions determine whether the provider receives only sanitized content.
+        - None. Assertions determine whether egress and audit handling are safe.
     """
     _configure_chat_policy(monkeypatch)
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "test-client:redact")
     capturing_provider = CapturingProvider()
     monkeypatch.setattr(main, "provider", capturing_provider)
+    caplog.set_level(logging.INFO, logger="secure_ai_gateway.audit")
 
     client = TestClient(main.app)
-    response = client.post(
-        "/v1/chat/completions",
-        headers={"Authorization": f"Bearer {gateway_api_key}"},
-        json={
-            "model": "mock-model",
-            "messages": [
-                {
-                    "role": "user",
-                    "content": "Email me at alice@example.com",
-                }
-            ],
-        },
-    )
+    audit_logger.addHandler(caplog.handler)
+    try:
+        response = client.post(
+            "/v1/chat/completions",
+            headers={"Authorization": f"Bearer {gateway_api_key}"},
+            json={
+                "model": "mock-model",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Email me at alice@example.com",
+                    }
+                ],
+            },
+        )
+    finally:
+        audit_logger.removeHandler(caplog.handler)
 
     assert response.status_code == 200
     assert response.headers["X-PII-Action"] == "redacted"
@@ -169,6 +181,17 @@ def test_redact_policy_forwards_only_sanitized_prompt(
     forwarded = capturing_provider.request.messages[0].content
     assert forwarded == "Email me at [REDACTED_EMAIL]"
     assert "alice@example.com" not in forwarded
+
+    pii_records = [
+        record.message
+        for record in caplog.records
+        if record.name == "secure_ai_gateway.audit" and '"event":"pii_policy"' in record.message
+    ]
+    assert len(pii_records) == 1
+    assert '"outcome":"redact"' in pii_records[0]
+    assert '"pii_detected_count":1' in pii_records[0]
+    assert '"pii_types":"email"' in pii_records[0]
+    assert "alice@example.com" not in "\n".join(record.message for record in caplog.records)
 
 
 def test_deny_policy_blocks_pii_before_provider(
