@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timezone
 from decimal import Decimal
 
@@ -47,13 +48,13 @@ def test_usage_ledger_enforces_and_resets_daily_budget() -> None:
     RME
 
     Requires:
-        - The usage ledger accepts an injectable UTC clock.
+        - The in-memory usage ledger accepts an injectable UTC clock.
 
     Modifies:
         - Process-local usage state inside the test ledger.
 
     Effects:
-        - Records token and cost usage.
+        - Records token and cost usage through the async ledger interface.
         - Verifies exhausted budgets block subsequent requests.
         - Verifies a new UTC day resets usage.
 
@@ -70,25 +71,27 @@ def test_usage_ledger_enforces_and_resets_daily_budget() -> None:
         cost_limit_daily_usd=Decimal("1.00"),
     )
 
-    initial = ledger.check("client-a", budget)
+    initial = asyncio.run(ledger.check("client-a", budget))
     assert initial.allowed is True
     assert initial.tokens_remaining_daily == 10
 
-    recorded = ledger.record(
-        "client-a",
-        budget,
-        total_tokens=10,
-        cost_usd=Decimal("0.25"),
+    recorded = asyncio.run(
+        ledger.record(
+            "client-a",
+            budget,
+            total_tokens=10,
+            cost_usd=Decimal("0.25"),
+        )
     )
     assert recorded.allowed is False
     assert recorded.reason == "token_budget_exceeded"
     assert recorded.tokens_used_daily == 10
 
-    denied = ledger.check("client-a", budget)
+    denied = asyncio.run(ledger.check("client-a", budget))
     assert denied.allowed is False
 
     now[0] = datetime(2026, 9, 10, 0, 0, tzinfo=timezone.utc)
-    reset = ledger.check("client-a", budget)
+    reset = asyncio.run(ledger.check("client-a", budget))
     assert reset.allowed is True
     assert reset.tokens_used_daily == 0
     assert reset.cost_used_daily_usd == Decimal("0")
@@ -107,7 +110,7 @@ def test_chat_blocks_request_after_daily_token_budget_is_consumed(
 
     Modifies:
         - Temporarily sets a five-token daily budget for the test client.
-        - Process-local usage totals through gateway requests.
+        - In-memory test usage totals through gateway requests.
 
     Effects:
         - Verifies the request that reaches the budget is returned successfully.
@@ -160,7 +163,7 @@ def test_chat_fails_closed_without_usage_budget_policy(
         - Verifies a protected request is not forwarded without usage-budget policy.
 
     Inputs:
-        - monkeypatch: pytest environment fixture.
+        - monkeypatch: pytest fixture used to modify the environment.
         - gateway_api_key: Raw API key for the configured test client.
 
     Outputs:
