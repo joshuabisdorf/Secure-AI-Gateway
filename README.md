@@ -1,6 +1,6 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, rate limiting, usage budgets, sensitive-data controls, prompt-injection controls, tool permissions, provider routing, audit logging, request correlation, and security evaluation before requests reach an upstream model.
+Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, rate limiting, usage budgets, sensitive-data controls, prompt-injection controls, tool exposure and execution authorization, provider routing, audit logging, request correlation, and security evaluation around upstream model use.
 
 ## Current capabilities
 
@@ -20,6 +20,7 @@ Implemented:
 - deterministic prompt-injection `audit`, `deny`, and `off` policies
 - synthetic system-prompt leakage evaluation with disposable canaries
 - least-privilege function-tool exposure authorization
+- execution-time tool authorization with authoritative JSON Schemas, risk labels, short-lived signed tickets, and one-time replay protection
 - OpenAI-compatible function `tools`, `tool_choice`, tool-result messages, and assistant `tool_calls`
 - versioned named security-policy profiles
 - versioned prompt-injection and semantic-PII benchmarks with precision/recall/FPR/FNR metrics
@@ -28,7 +29,7 @@ Implemented:
 - structured one-line JSON audit events with request/client attribution
 - sanitized provider failures
 
-The next security milestone is **execution-time tool authorization**. Observability and deployment infrastructure follow after that control.
+The next milestone is **OpenTelemetry / Prometheus observability**. Kubernetes, Terraform, and cloud deployment follow after the gateway is instrumented.
 
 ## Request path
 
@@ -55,7 +56,27 @@ Secure AI Gateway
   |
   v
 OpenRouter / OpenAI / other provider
+  |
+  | untrusted tool_call, if any
+  v
+Secure AI Gateway
+  |
+  +-- current client tool grant
+  +-- declared-vs-authoritative schema fingerprint
+  +-- exact argument JSON Schema validation
+  +-- risk classification
+  +-- short-lived signed execution ticket
+  v
+Client / executor
 ```
+
+Before a real executor causes a side effect, it must independently call:
+
+```text
+POST /v1/tool-executions/authorize
+```
+
+That endpoint re-authenticates the client/key, verifies the exact ticket/call/arguments/current policy, and consumes the execution ID once. The gateway currently authorizes execution but does not itself implement external side-effecting tools.
 
 The upstream provider credential is held only by the gateway. Clients receive gateway credentials instead.
 
@@ -80,17 +101,35 @@ SAG_ALLOWED_MODELS=openrouter/free
 # Non-secret per-client policy registry.
 SAG_SECURITY_POLICY_FILE=config/security-policies.json
 
+# Needed when executable tool calls are enabled.
+SAG_TOOL_EXECUTION_POLICY_FILE=config/tool-execution-policies.example.json
+SAG_TOOL_EXECUTION_SIGNING_KEY=
+SAG_TOOL_EXECUTION_TTL_SECONDS=120
+SAG_TOOL_EXECUTION_REPLAY_BACKEND=redis
+
 OPENROUTER_API_KEY=your-openrouter-key
 OPENROUTER_BASE_URL=
 ```
 
-Create the ignored local policy registry once:
+Create the ignored local client policy registry once:
 
 ```bash
 cp config/security-policies.example.json config/security-policies.json
 ```
 
-`.env`, `.client.env`, and `config/security-policies.json` are ignored by Git and excluded from the Docker build context.
+For custom executable tools, copy the non-secret execution registry to the ignored local path:
+
+```bash
+cp config/tool-execution-policies.example.json config/tool-execution-policies.json
+```
+
+Generate a local execution-ticket signing key without sharing it:
+
+```bash
+python -c 'import secrets; print(secrets.token_urlsafe(32))'
+```
+
+Put that value in the ignored `.env` only when tool execution tickets are needed. `.env`, `.client.env`, `config/security-policies.json`, and `config/tool-execution-policies.json` are ignored by Git and excluded from the Docker build context.
 
 ## Unified security policy profiles
 
@@ -231,17 +270,45 @@ See `docs/prompt-injection-benchmark.md`.
 
 ## Function-tool authorization
 
+Tool authorization is deliberately split into two independent boundaries.
+
+### Exposure authorization
+
 `profile.allowed_tools` lists exact function names an authenticated client may expose to the model. There is no wildcard grant; an empty list means no tools. A named `tool_choice` must refer to a declared and permitted function.
 
-This control authorizes **tool exposure**, not execution. The gateway currently proxies function definitions and model-generated `tool_calls`; it does not execute them. Model output is untrusted data. The next milestone adds a separate execution-time authorization boundary before any tool side effect is allowed.
-
 See `docs/tool-authorization.md`.
+
+### Execution-time authorization
+
+A returned model `tool_call` is untrusted. For every returned call the gateway verifies:
+
+- the function remains allowed for the authenticated client;
+- the function was declared in the originating request;
+- the client-declared JSON Schema exactly matches the authoritative execution-registry fingerprint;
+- the returned argument string parses as JSON and satisfies the authoritative Draft 2020-12 schema;
+- the execution registry supplies a `read`, `write`, or `destructive` risk classification.
+
+Only then does the gateway attach a short-lived HMAC-signed `execution_token` and trusted `execution_risk` to the returned call.
+
+Immediately before a side effect, a downstream executor must submit that exact call to:
+
+```text
+POST /v1/tool-executions/authorize
+```
+
+The endpoint independently authenticates the current client/key, verifies the ticket and exact argument digest, reloads the current client tool grant and authoritative schema/risk, and atomically consumes the execution ID once. Runtime replay protection is shared through Redis, so multiple gateway replicas cannot authorize the same ticket twice.
+
+The OpenAI-compatible provider adapter strips gateway-only execution tokens/risk labels from later assistant-message history before sending it upstream.
+
+Risk labels are metadata for least-privilege executor design and future approval workflows; they do not themselves grant downstream permissions. The executor must still use appropriately scoped credentials and should require stronger approval for high-impact/destructive operations.
+
+See `docs/tool-execution-authorization.md`.
 
 ## Other security controls
 
 A requested model must pass both `SAG_ALLOWED_MODELS` and the client profile's `allowed_models` grant. Redis provides distributed fixed-window per-client quotas. PostgreSQL stores client/key records and UTC-day usage totals. Usage budgets are checked before provider work and provider-reported usage is recorded after completion.
 
-The audit layer intentionally omits raw gateway keys, prompts/messages, matched injection fragments, detected PII values, provider credentials, function arguments, tool-result content, and upstream response bodies.
+The audit layer intentionally omits raw gateway keys, prompts/messages, matched injection fragments, detected PII values, provider credentials, execution-ticket contents, function arguments, tool-result content, and upstream response bodies.
 
 The live system-prompt leakage evaluator uses only synthetic protected text and disposable canaries:
 
@@ -261,7 +328,9 @@ docker compose ps
 curl -i http://127.0.0.1:8000/health
 ```
 
-The gateway container runs as a non-root user with a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, a small writable `/tmp`, and a read-only policy-file mount. The local spaCy model is installed during the image build; no first-request model download is required.
+The gateway container runs as a non-root user with a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, a small writable `/tmp`, and a read-only client-policy-file mount. The local spaCy model and tracked example tool-execution registry are installed during the image build; no first-request model download is required.
+
+Ordinary requests work without an execution signing key. If a permitted model call returns an executable tool call, ticket issuance fails closed until `SAG_TOOL_EXECUTION_SIGNING_KEY` is configured.
 
 For routine shutdown, preserve persistent state:
 
@@ -284,7 +353,7 @@ Semantic PII benchmark
 Docker build
 ```
 
-The workflow is `.github/workflows/ci.yml`. It grants only `contents: read`, requires no provider/database/Redis secrets, and makes no live LLM calls.
+The workflow is `.github/workflows/ci.yml`. It grants only `contents: read`, requires no provider/database/Redis secrets, and makes no live LLM calls. Execution-time tool authorization tests use the mock provider, an in-memory replay store, and a test-only signing key.
 
 Run the equivalent gates locally with:
 
@@ -351,8 +420,13 @@ Secure-AI-Gateway/
 │   ├── providers/
 │   ├── pii.py
 │   ├── semantic_pii.py
+│   ├── tool_authorization.py
+│   ├── tool_execution.py
+│   ├── tool_execution_api.py
 │   └── ...
-├── config/security-policies.example.json
+├── config/
+│   ├── security-policies.example.json
+│   └── tool-execution-policies.example.json
 ├── db/migrations/
 ├── docker/entrypoint.sh
 ├── docs/
@@ -362,7 +436,8 @@ Secure-AI-Gateway/
 │   ├── security-policy-profiles.md
 │   ├── semantic-pii.md
 │   ├── system-prompt-leakage.md
-│   └── tool-authorization.md
+│   ├── tool-authorization.md
+│   └── tool-execution-authorization.md
 ├── evals/datasets/
 │   ├── prompt_injection_v1.json
 │   └── semantic_pii_v1.json
@@ -398,14 +473,14 @@ Secure-AI-Gateway/
 - [x] structured audit logging and request correlation
 - [x] versioned configurable security-policy profiles
 
-### LLM security controls
+### LLM / agent security controls
 
 - [x] structured PII detection/redaction
 - [x] semantic PII detection/evaluation
 - [x] deterministic prompt-injection detection
 - [x] system-prompt leakage tests
 - [x] least-privilege function-tool exposure authorization
-- [ ] execution-time tool authorization
+- [x] execution-time tool authorization
 
 ### Evaluation and infrastructure
 
