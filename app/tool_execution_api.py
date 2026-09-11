@@ -1,3 +1,4 @@
+import binascii
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -106,12 +107,13 @@ async def authorize_tool_execution(
     Effects:
         - Re-authenticates execution context independently of model output.
         - Verifies HMAC ticket integrity, expiry, identity, exact arguments, schema, and risk class.
+        - Rejects malformed ticket encoding as a controlled authorization denial.
         - Re-checks current per-client tool authorization so revoked tools cannot execute on stale tickets.
         - Consumes each execution authorization exactly once before returning allow.
         - Never logs or returns raw tool arguments or execution-ticket contents.
 
     Inputs:
-        - authorization_request: Exact gateway-returned tool call including execution token.
+        - authorization_request: Exact gateway-returned tool call including execution token/risk.
         - http_request: HTTP request with correlation context.
         - outgoing_response: Response used for safe authorization headers.
         - principal: Current independently authenticated client identity.
@@ -161,6 +163,25 @@ async def authorize_tool_execution(
             tool_name=exc.tool_name or tool_call.function.name,
             tool_call_id=tool_call.id,
             risk=exc.risk,
+        )
+    except binascii.Error:
+        _deny_execution(
+            request_id=request_id,
+            principal=principal,
+            reason="invalid_execution_ticket",
+            tool_name=tool_call.function.name,
+            tool_call_id=tool_call.id,
+        )
+
+    if tool_call.execution_risk != ticket.risk:
+        _deny_execution(
+            request_id=request_id,
+            principal=principal,
+            reason="tool_execution_risk_mismatch",
+            tool_name=ticket.tool_name,
+            tool_call_id=ticket.tool_call_id,
+            risk=ticket.risk,
+            source_request_id=ticket.source_request_id,
         )
 
     try:
