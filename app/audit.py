@@ -46,6 +46,10 @@ def emit_audit_event(
     tool_requested_count: int | None = None,
     tool_requested_names: str | None = None,
     tool_denied_names: str | None = None,
+    tool_call_id: str | None = None,
+    tool_execution_id: str | None = None,
+    tool_execution_risk: str | None = None,
+    source_request_id: str | None = None,
 ) -> None:
     """
     RME
@@ -59,9 +63,9 @@ def emit_audit_event(
 
     Effects:
         - Emits one JSON audit record to application stderr.
-        - Omits prompt content, detected PII values, credentials, tool arguments,
-          and tool outputs from the audit record.
-        - Records prompt-injection and tool-authorization metadata only as safe labels/names.
+        - Omits prompt content, detected PII values, credentials, execution tickets,
+          tool arguments, and tool outputs from the audit record.
+        - Records prompt-injection and tool-authorization metadata only as safe labels/names/IDs.
 
     Inputs:
         - request_id: Correlation identifier for the request.
@@ -94,6 +98,10 @@ def emit_audit_event(
         - tool_requested_count: Optional number of distinct function tools exposed.
         - tool_requested_names: Optional comma-separated validated function names.
         - tool_denied_names: Optional comma-separated function names denied by policy.
+        - tool_call_id: Optional provider-issued tool-call identifier.
+        - tool_execution_id: Optional gateway-issued one-time execution identifier.
+        - tool_execution_risk: Optional read/write/destructive risk classification.
+        - source_request_id: Optional chat request that produced the tool call.
 
     Outputs:
         - None.
@@ -132,6 +140,10 @@ def emit_audit_event(
         "tool_requested_count": tool_requested_count,
         "tool_requested_names": tool_requested_names,
         "tool_denied_names": tool_denied_names,
+        "tool_call_id": tool_call_id,
+        "tool_execution_id": tool_execution_id,
+        "tool_execution_risk": tool_execution_risk,
+        "source_request_id": source_request_id,
     }
     for field, value in optional_fields.items():
         if value is not None:
