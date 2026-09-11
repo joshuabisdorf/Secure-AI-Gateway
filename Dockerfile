@@ -26,6 +26,7 @@ COPY --from=builder /opt/venv /opt/venv
 COPY app ./app
 COPY db ./db
 COPY config/security-policies.example.json ./config/security-policies.example.json
+COPY config/tool-execution-policies.example.json ./config/tool-execution-policies.example.json
 COPY docker/entrypoint.sh /usr/local/bin/sag-entrypoint
 
 RUN chmod 0555 /usr/local/bin/sag-entrypoint \
