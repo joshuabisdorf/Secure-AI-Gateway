@@ -8,6 +8,7 @@ __pycache__
 .env
 .client.env
 config/security-policies.json
+config/tool-execution-policies.json
 *.log
 .DS_Store
 Thumbs.db
