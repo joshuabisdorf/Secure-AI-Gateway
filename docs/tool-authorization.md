@@ -1,14 +1,16 @@
 # Tool authorization
 
-Secure AI Gateway applies least-privilege authorization to function tools before they are exposed to an upstream model.
+Secure AI Gateway applies least-privilege authorization to function tools both **before model exposure** and **again before execution**.
 
-## Security boundary
+This document describes the exposure boundary. See `docs/tool-execution-authorization.md` for the independent execution-time boundary.
+
+## Exposure security boundary
 
 A model request can contain function definitions in `tools` and can optionally select a tool through `tool_choice`. Those definitions are capabilities: exposing a powerful function to a model gives the model an opportunity to request that capability.
 
 The gateway therefore authorizes tool exposure against the authenticated client identity before the request reaches rate, model, PII, prompt-injection, usage-budget, or provider execution.
 
-This milestone does **not** execute tools. A returned model `tool_call` is a request to an application/executor, not trusted authorization. Any future executor must independently authenticate the calling context, validate arguments, and re-check that the specific tool/action is still authorized before causing a side effect.
+A returned model `tool_call` is still untrusted. Before a downstream executor can act, the gateway now validates the exact returned function/schema/arguments, issues a short-lived execution ticket, and requires a second authorization decision through `/v1/tool-executions/authorize`.
 
 ## Configuration
 
@@ -26,17 +28,11 @@ Grant individual functions by name:
 SAG_CLIENT_ALLOWED_TOOLS=agent-a:search,agent-a:calculator,agent-b:lookup_ticket
 ```
 
-A client may expose only functions named in its allowlist. There is no wildcard grant.
+When unified security-policy profiles are enabled, `profile.allowed_tools` is the normal source of these grants. A client may expose only functions named in its allowlist. There is no wildcard grant.
 
 ## Request behavior
 
-A client with:
-
-```dotenv
-SAG_CLIENT_ALLOWED_TOOLS=agent-a:calculator
-```
-
-may submit:
+A client with a `calculator` grant may submit:
 
 ```json
 {
@@ -87,7 +83,7 @@ A named `tool_choice` must also name a tool declared in the same request. This p
 
 ## Audit behavior
 
-Tool authorization emits safe metadata such as validated tool names and counts. It deliberately does not log function arguments, tool-result content, prompt text, or provider response bodies.
+Tool exposure authorization emits safe metadata such as validated tool names and counts. It deliberately does not log function arguments, tool-result content, prompt text, or provider response bodies.
 
 Example:
 
@@ -103,12 +99,30 @@ Example:
 }
 ```
 
+Execution-time audit additionally records safe tool-call/execution IDs and risk labels, but still omits arguments and ticket contents.
+
 ## OpenAI-compatible proxying
 
-The chat request/response models now support function `tools`, named/string `tool_choice`, assistant `tool_calls`, and tool-result messages. Authorized tool definitions are forwarded by the OpenAI-compatible provider adapter and returned tool calls are normalized back through the gateway response schema.
+The chat request/response models support function `tools`, named/string `tool_choice`, assistant `tool_calls`, and tool-result messages. Authorized tool definitions are forwarded by the OpenAI-compatible provider adapter and returned tool calls are normalized back through the gateway response schema.
 
-Only function tools are supported in this milestone. Provider-native built-in tools, MCP tools, and actual tool execution require separate policy and execution boundaries rather than being implicitly accepted through this allowlist.
+A returned call that passes execution preparation receives gateway-only `execution_token` and `execution_risk` fields. Those fields are stripped from subsequent assistant-message history before any request is sent back to OpenAI/OpenRouter.
+
+Only function tools are supported. Provider-native built-in tools and MCP tools require their own capability and execution policies rather than being implicitly accepted through this allowlist.
 
 ## Design principle
 
-Tool names are permissions, not instructions. Model output is untrusted data. A model asking to call an authorized tool does not itself authorize a real-world action; execution-time authorization remains mandatory.
+Tool names are permissions, not instructions. Model output is untrusted data. A model asking to call an authorized tool does not itself authorize a real-world action.
+
+The complete path is therefore:
+
+```text
+client identity
+    -> exposure authorization
+    -> model tool selection
+    -> returned-call/schema/argument validation
+    -> short-lived execution ticket
+    -> execution-time re-authorization
+    -> downstream side effect
+```
+
+See `docs/tool-execution-authorization.md` for ticket binding, replay protection, schema authority, risk classification, and the executor contract.
