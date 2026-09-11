@@ -15,6 +15,10 @@ services:
       SAG_USAGE_LEDGER_BACKEND: postgres
       SAG_RATE_LIMIT_BACKEND: redis
       SAG_SEMANTIC_PII_BACKEND: ${SAG_SEMANTIC_PII_BACKEND:-spacy}
+      SAG_TOOL_EXECUTION_POLICY_FILE: /app/config/tool-execution-policies.example.json
+      SAG_TOOL_EXECUTION_SIGNING_KEY: ${SAG_TOOL_EXECUTION_SIGNING_KEY:-}
+      SAG_TOOL_EXECUTION_TTL_SECONDS: ${SAG_TOOL_EXECUTION_TTL_SECONDS:-120}
+      SAG_TOOL_EXECUTION_REPLAY_BACKEND: redis
       SAG_ALLOWED_MODELS: ${SAG_ALLOWED_MODELS:-}
       SAG_SECURITY_POLICY_FILE: /app/config/security-policies.json
       DATABASE_URL: postgresql://sag:${POSTGRES_PASSWORD:-sag_dev_password}@postgres:5432/secure_ai_gateway
