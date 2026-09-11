@@ -3,8 +3,38 @@ import os
 import httpx
 from pydantic import ValidationError
 
-from app.models import ChatCompletionRequest, ChatCompletionResponse
+from app.models import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.providers.base import Provider, ProviderConfigurationError, ProviderError
+
+
+def _serialize_message(message: ChatMessage) -> dict[str, object]:
+    """
+    RME
+
+    Requires:
+        - message is a validated gateway chat message.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Serializes OpenAI-compatible message fields for upstream transport.
+        - Removes gateway-only execution authorization tickets/risk labels from tool-call history.
+
+    Inputs:
+        - message: Gateway chat message.
+
+    Outputs:
+        - Provider-safe message payload.
+    """
+    payload = message.model_dump(exclude_none=True)
+    tool_calls = payload.get("tool_calls")
+    if isinstance(tool_calls, list):
+        for tool_call in tool_calls:
+            if isinstance(tool_call, dict):
+                tool_call.pop("execution_token", None)
+                tool_call.pop("execution_risk", None)
+    return payload
 
 
 class OpenAIProvider(Provider):
@@ -74,6 +104,7 @@ class OpenAIProvider(Provider):
 
         Effects:
             - Sends messages and optional authorized function tools/tool choice upstream.
+            - Strips gateway-only execution authorization metadata before transport.
             - Converts the upstream response, including function tool calls, into gateway models.
             - Converts upstream failures into non-secret ProviderError reasons.
 
@@ -85,9 +116,7 @@ class OpenAIProvider(Provider):
         """
         payload: dict[str, object] = {
             "model": request.model,
-            "messages": [
-                message.model_dump(exclude_none=True) for message in request.messages
-            ],
+            "messages": [_serialize_message(message) for message in request.messages],
             "stream": False,
         }
         if request.tools is not None:
