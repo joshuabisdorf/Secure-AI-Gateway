@@ -3,6 +3,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 _tool_name_pattern = r"^[A-Za-z0-9_-]{1,64}$"
+ToolRisk = Literal["read", "write", "destructive"]
 
 
 class ToolFunction(BaseModel):
@@ -38,6 +39,8 @@ class ToolCall(BaseModel):
     id: str
     type: Literal["function"] = "function"
     function: ToolCallFunction
+    execution_token: str | None = Field(default=None, max_length=4096)
+    execution_risk: ToolRisk | None = None
 
 
 class ChatMessage(BaseModel):
@@ -80,3 +83,15 @@ class ChatCompletionResponse(BaseModel):
     model: str
     choices: list[ChatChoice]
     usage: ChatUsage | None = None
+
+
+class ToolExecutionAuthorizationRequest(BaseModel):
+    tool_call: ToolCall
+
+
+class ToolExecutionAuthorizationResponse(BaseModel):
+    authorized: Literal[True] = True
+    execution_id: str
+    source_request_id: str
+    tool_name: str = Field(pattern=_tool_name_pattern)
+    risk: ToolRisk
