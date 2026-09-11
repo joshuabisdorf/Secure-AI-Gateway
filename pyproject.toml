@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "fastapi",
     "httpx",
+    "jsonschema>=4.23,<5",
     "psycopg[binary,pool]>=3.2,<4",
     "redis>=8.1,<9",
     "spacy>=3.8.16,<3.9",
