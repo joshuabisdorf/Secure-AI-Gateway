@@ -24,6 +24,16 @@ from app.rate_limit import (
     build_rate_limiter,
     get_client_rate_limit,
 )
+from app.tool_authorization import get_client_allowed_tools
+from app.tool_execution import (
+    ToolExecutionRejected,
+    ToolExecutionUnavailable,
+    prepare_tool_execution_response,
+)
+from app.tool_execution_api import (
+    router as tool_execution_router,
+    tool_execution_replay_store,
+)
 from app.usage_budget import (
     UsageBudgetDecision,
     UsageLedgerUnavailable,
@@ -46,7 +56,7 @@ async def lifespan(_: FastAPI):
         - Configured persistent resources may own async connection pools.
 
     Modifies:
-        - Client-registry, rate-limiter, and usage-ledger connection-pool state during shutdown.
+        - Client-registry, rate-limiter, usage-ledger, and tool-replay connection-pool state during shutdown.
 
     Effects:
         - Leaves backend connections lazy during startup.
@@ -60,7 +70,12 @@ async def lifespan(_: FastAPI):
     """
     yield
 
-    for resource in (client_registry, rate_limiter, usage_ledger):
+    for resource in (
+        client_registry,
+        rate_limiter,
+        usage_ledger,
+        tool_execution_replay_store,
+    ):
         close = getattr(resource, "close", None)
         if close is not None:
             await close()
@@ -71,6 +86,7 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+app.include_router(tool_execution_router)
 
 
 def resolve_request_id(candidate: str | None) -> str:
@@ -204,8 +220,9 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid database-backed gateway API key.
-        - Rate-limit, model, PII, prompt-injection, and daily usage-budget policies are configured.
+        - Rate-limit, model, PII, prompt-injection, tool, and daily usage-budget policies are configured.
         - Redis rate-limit state and PostgreSQL usage accounting are available.
+        - Tool execution registry/signing state is required only when a provider returns tool calls.
 
     Modifies:
         - Shared per-client rate-limit state in Redis.
@@ -217,10 +234,12 @@ async def chat_completion(
     Effects:
         - Applies authentication and distributed per-client request throttling.
         - Enforces model authorization and per-client PII policy.
-        - Redacts detected structured PII before later content inspection/provider forwarding.
+        - Redacts detected structured/semantic PII before later inspection/provider forwarding.
         - Audits or denies explicit prompt-injection indicators according to client policy.
         - Reads durable accumulated usage before provider forwarding.
         - Records provider-reported usage atomically after successful completion.
+        - Treats model-generated tool calls as untrusted output and validates them against current
+          client authorization plus the authoritative execution schema before issuing short-lived tickets.
         - Fails closed when required policy or shared state is unavailable.
 
     Inputs:
@@ -230,7 +249,7 @@ async def chat_completion(
         - principal: Authenticated client identity supplied by dependency injection.
 
     Outputs:
-        - An OpenAI-style chat-completion response with optional usage data.
+        - An OpenAI-style chat-completion response with optional usage/tool execution metadata.
     """
     request_id = http_request.state.request_id
 
@@ -613,6 +632,73 @@ async def chat_completion(
             include_cost=usage.cost is not None,
         ),
     )
+
+    try:
+        allowed_tools = get_client_allowed_tools(principal.client_id)
+        prepared_tool_response = prepare_tool_execution_response(
+            provider_response,
+            provider_request,
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            source_request_id=request_id,
+            allowed_tools=allowed_tools,
+        )
+    except HTTPException as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="tool_execution_ticket",
+            outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=str(exc.detail),
+        )
+        raise
+    except ToolExecutionUnavailable as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="tool_execution_ticket",
+            outcome="error",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=exc.reason,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Tool execution authorization is unavailable.",
+        ) from exc
+    except ToolExecutionRejected as exc:
+        emit_audit_event(
+            request_id=request_id,
+            event="tool_execution_ticket",
+            outcome="deny",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            reason=exc.reason,
+            tool_requested_names=exc.tool_name,
+            tool_execution_risk=exc.risk,
+        )
+        raise HTTPException(
+            status_code=502,
+            detail="Upstream provider returned an unauthorized tool call.",
+        ) from exc
+
+    provider_response = prepared_tool_response.response
+    outgoing_response.headers["X-Tool-Execution-Ticket-Count"] = str(
+        len(prepared_tool_response.executions)
+    )
+    for execution in prepared_tool_response.executions:
+        emit_audit_event(
+            request_id=request_id,
+            event="tool_execution_ticket",
+            outcome="issued",
+            client_id=principal.client_id,
+            key_id=principal.key_id,
+            tool_requested_names=execution.tool_name,
+            tool_call_id=execution.tool_call_id,
+            tool_execution_id=execution.execution_id,
+            tool_execution_risk=execution.risk,
+            source_request_id=request_id,
+        )
 
     latency_ms = (perf_counter() - http_request.state.started_at) * 1000
     emit_audit_event(
