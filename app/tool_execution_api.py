@@ -1,4 +1,5 @@
 import binascii
+import re
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
@@ -22,6 +23,8 @@ from app.tool_execution import (
 
 router = APIRouter()
 tool_execution_replay_store = build_runtime_tool_execution_replay_store()
+_execution_token_pattern = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
+_max_execution_token_chars = 4096
 
 
 @router.get("/metrics", include_in_schema=False)
@@ -112,6 +115,32 @@ def _deny_execution(
     )
 
 
+def _is_canonical_execution_token(token: str) -> bool:
+    """
+    RME
+
+    Requires:
+        - token is untrusted caller-controlled execution-ticket text.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Rejects padding, whitespace, punctuation, extra segments, and oversized ticket text
+          before the Base64 decoder is reached.
+
+    Inputs:
+        - token: Candidate gateway execution ticket.
+
+    Outputs:
+        - True only for the gateway's unpadded URL-safe Base64 two-segment encoding.
+    """
+    return (
+        len(token) <= _max_execution_token_chars
+        and _execution_token_pattern.fullmatch(token) is not None
+    )
+
+
 @router.post(
     "/v1/tool-executions/authorize",
     response_model=ToolExecutionAuthorizationResponse,
@@ -136,7 +165,8 @@ async def authorize_tool_execution(
 
     Effects:
         - Re-authenticates execution context independently of model output.
-        - Verifies HMAC ticket integrity, expiry, identity, exact arguments, schema, and risk class.
+        - Verifies canonical ticket encoding, HMAC integrity, expiry, identity, exact arguments,
+          schema, and risk class.
         - Rejects malformed ticket encoding as a controlled authorization denial.
         - Re-checks current per-client tool authorization so revoked tools cannot execute on stale tickets.
         - Consumes each execution authorization exactly once before returning allow.
@@ -159,6 +189,14 @@ async def authorize_tool_execution(
             request_id=request_id,
             principal=principal,
             reason="missing_execution_ticket",
+            tool_name=tool_call.function.name,
+            tool_call_id=tool_call.id,
+        )
+    if not _is_canonical_execution_token(token):
+        _deny_execution(
+            request_id=request_id,
+            principal=principal,
+            reason="invalid_execution_ticket",
             tool_name=tool_call.function.name,
             tool_call_id=tool_call.id,
         )
