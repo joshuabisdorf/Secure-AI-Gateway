@@ -1,0 +1,95 @@
+name: Release container
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  container:
+    name: Build and publish public container
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Derive immutable image tags
+        id: image
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          SHORT_SHA="${GITHUB_SHA:0:12}"
+          {
+            echo "image=$IMAGE"
+            echo "sha_tag=sha-$SHORT_SHA"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Log in to GitHub Container Registry
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" \
+            | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build immutable image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
+            .
+
+      - name: Smoke-test built image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            --entrypoint python \
+            "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
+            -c 'import app.main; print("container_import=OK")'
+
+      - name: Publish immutable image
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker push "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}"
+
+      - name: Publish release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_TAG="${GITHUB_REF_NAME,,}"
+          docker tag \
+            "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
+            "${{ steps.image.outputs.image }}:${RELEASE_TAG}"
+          docker push "${{ steps.image.outputs.image }}:${RELEASE_TAG}"
+
+      - name: Summary
+        shell: bash
+        run: |
+          {
+            echo '## Zero-cost container release'
+            echo
+            echo 'Published using the repository GITHUB_TOKEN; no AWS account or cloud infrastructure is required.'
+            echo
+            echo '```text'
+            echo '${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
