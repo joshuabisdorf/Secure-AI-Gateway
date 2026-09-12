@@ -2,6 +2,25 @@
 
 Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, rate limiting, usage budgets, sensitive-data controls, prompt-injection controls, tool exposure and execution authorization, provider routing, audit logging, observability, and security evaluation around upstream model use.
 
+## Cost policy
+
+This project is maintained under a **zero-cost-by-default** constraint.
+
+Normal development, verification, release packaging, and portfolio completion do not require an AWS account, paid cloud infrastructure, a billing method, or paid LLM calls.
+
+The required verified path uses:
+
+- local Python development;
+- Docker and Docker Compose;
+- local kind Kubernetes;
+- GitHub Actions within the account's included allowance;
+- GitHub Container Registry for the public release image;
+- the deterministic mock provider for routine runtime verification.
+
+The AWS Terraform/Kubernetes implementation is an **optional paid reference architecture**. It may remain un-applied and runtime-untested indefinitely without blocking the roadmap.
+
+See `docs/cost-policy.md`.
+
 ## Current capabilities
 
 Implemented:
@@ -23,12 +42,13 @@ Implemented:
 - Prometheus metrics with bounded labels and OpenTelemetry OTLP/HTTP tracing
 - hardened Dockerized local stack with PostgreSQL, Redis, Prometheus, and OpenTelemetry Collector
 - two-replica Kubernetes gateway deployment with backend-aware readiness, explicit migration Job, PodDisruptionBudget, and hardened pod security
-- local kind workflow that verifies Redis/PostgreSQL security state across different gateway replicas
-- Terraform AWS foundation for protected remote state, VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, IAM-authenticated Valkey, KMS, Secrets Manager, and EKS Pod Identity
-- guarded AWS deployment workflow with separate gateway/migration Pod Identities, Secrets Manager runtime loading, least-privilege PostgreSQL runtime role provisioning, immutable ECR image publishing, and private-by-default Kubernetes services
+- local kind workflow that verifies shared Redis/PostgreSQL security state across different gateway replicas
+- zero-cost GitHub Container Registry release workflow using the repository `GITHUB_TOKEN`
+- Terraform AWS reference foundation for protected remote state, VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, IAM-authenticated Valkey, KMS, Secrets Manager, and EKS Pod Identity
+- guarded optional AWS deployment workflow with separate gateway/migration Pod Identities, Secrets Manager runtime loading, least-privilege PostgreSQL runtime role provisioning, immutable ECR images, and private-by-default Kubernetes services
 - GitHub Actions gates for pytest, both security benchmarks, Docker/Compose and deployment shell syntax, Kubernetes local/cloud manifest schemas, and Terraform validation
 
-The AWS cloud deployment implementation is ready for account-specific preflight and live verification. The next milestone after a verified AWS deployment is **production/adversarial hardening**.
+The next required milestone is **production/adversarial hardening**. Paid AWS runtime verification is optional and is not a prerequisite.
 
 ## Security request path
 
@@ -82,26 +102,7 @@ cp .env.example .env
 cp config/security-policies.example.json config/security-policies.json
 ```
 
-A typical OpenRouter development configuration uses:
-
-```dotenv
-SAG_PROVIDER=openrouter
-SAG_CLIENT_REGISTRY_BACKEND=postgres
-SAG_USAGE_LEDGER_BACKEND=postgres
-SAG_RATE_LIMIT_BACKEND=redis
-SAG_SEMANTIC_PII_BACKEND=spacy
-SAG_TOOL_EXECUTION_REPLAY_BACKEND=redis
-SAG_SECURITY_POLICY_FILE=config/security-policies.json
-SAG_TOOL_EXECUTION_POLICY_FILE=config/tool-execution-policies.example.json
-SAG_ALLOWED_MODELS=openrouter/free
-
-POSTGRES_PASSWORD=sag_dev_password
-DATABASE_URL=postgresql://sag:sag_dev_password@127.0.0.1:5432/secure_ai_gateway
-REDIS_URL=redis://127.0.0.1:6379/0
-
-SAG_TOOL_EXECUTION_SIGNING_KEY=
-OPENROUTER_API_KEY=
-```
+Routine free verification should use the mock provider. A live OpenRouter/OpenAI configuration is optional and may incur provider charges depending on the selected provider/model.
 
 Never commit `.env`, `.client.env`, `.k8s-client.env`, `.aws-client.env`, Terraform state/private variable files, or raw provider/gateway credentials.
 
@@ -155,31 +156,53 @@ The gateway Deployment includes:
 
 Kubernetes replicas set `SAG_RUN_MIGRATIONS=false`; schema changes are owned by the separate `k8s/migration` Job.
 
-For local kind testing:
+For the authoritative free runtime verification:
 
 ```bash
 bash scripts/k8s-local-up.sh
 bash scripts/k8s-verify.sh
 ```
 
-The bootstrap script creates runtime Secret material from ignored `.env` and writes the generated Kubernetes client credential to ignored `.k8s-client.env`. The verification script sends requests directly to two different gateway pods and verifies shared Redis rate-limit state, shared PostgreSQL usage state, per-pod Prometheus targets, and OTLP tracing.
+The verification script sends requests directly to two different gateway pods and verifies shared Redis rate-limit state, shared PostgreSQL usage state, 32-character trace IDs, two healthy Prometheus targets, and OTLP tracing.
 
 The local Kubernetes stack deliberately uses the mock provider, so this verification makes no real LLM provider call.
 
 See `docs/kubernetes.md`.
 
+## Zero-cost container release
+
+`.github/workflows/release.yml` builds, smoke-tests, and publishes the container through GitHub Actions to:
+
+```text
+ghcr.io/joshuabisdorf/secure-ai-gateway
+```
+
+The workflow publishes an immutable `sha-*` image. A `v*` Git tag also publishes the matching version tag.
+
+It uses only:
+
+```yaml
+permissions:
+  contents: read
+  packages: write
+```
+
+No AWS credentials, Docker Hub credentials, provider API keys, or Terraform apply are involved.
+
+Because this repository is public and the image is published through the repository workflow, the release path is designed to use public GitHub Packages rather than paid hosting infrastructure.
+
+See `docs/cloud-deployment.md` and `docs/cost-policy.md`.
+
 ## Terraform
 
-The Terraform AWS foundation is split into two independent roots:
+The Terraform AWS reference is split into two roots:
 
 ```text
 terraform/bootstrap  protected S3/KMS remote-state foundation
-terraform/aws        application cloud infrastructure
+terraform/aws        optional application cloud infrastructure
 ```
 
 The AWS root defines a VPC with public/private/isolated data subnets, NAT egress, a private-by-default EKS control plane, managed worker nodes, ECR, KMS, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, Secrets Manager containers, and separate EKS Pod Identity roles for gateway runtime and database migration.
-
-Runtime provider credentials and the tool-execution signing key are not accepted as Terraform variables. Terraform creates Secret containers only; runtime secret values are populated during the guarded cloud-deployment stage. RDS owns its generated administrative password in Secrets Manager. The migration identity can read that administrative secret to apply schema changes and provision a distinct restricted `sag_runtime` database login; gateway pods can read the runtime database secret but not the RDS administrative secret.
 
 Terraform validation is side-effect free:
 
@@ -191,43 +214,36 @@ terraform -chdir=terraform/aws init -backend=false -input=false
 terraform -chdir=terraform/aws validate
 ```
 
-Do not run `terraform apply` merely to validate the repository: an apply creates AWS resources and can incur charges.
+This reference architecture is statically validated in CI but is not required to be applied. Do not run `terraform apply` merely to validate the repository.
 
 See `docs/terraform.md`.
 
-## AWS cloud deployment
+## Optional AWS reference deployment
 
-The cloud workflow keeps the gateway private by default: it creates no Kubernetes Ingress or public `LoadBalancer`. Gateway, Prometheus, and OTLP Services remain cluster-internal, and development verification uses `kubectl port-forward`.
+The optional AWS cloud workflow keeps the gateway private by default and creates no Kubernetes Ingress or public `LoadBalancer`.
 
-Cloud Redis-compatible connections use TLS plus ElastiCache IAM authentication through the AWS SDK credential chain supplied by EKS Pod Identity. Rate limiting uses a portable atomic Lua operation that works across local Redis and managed Valkey; readiness and execution-ticket replay use the same shared client/authentication path.
+The architecture supports:
 
-Start with the non-mutating account preflight:
+- TLS plus ElastiCache IAM authentication;
+- separate runtime and migration Pod Identity roles;
+- an RDS administrative migration identity and restricted `sag_runtime` login;
+- Secrets Manager runtime loading;
+- ECR image publishing;
+- private Prometheus and OTLP services;
+- cross-replica AWS runtime verification.
 
-```bash
-bash scripts/aws-cloud-preflight.sh
-```
+This path can create billable AWS services and is **not part of the required zero-cost project path**.
 
-The preflight validates the active AWS identity, Terraform configuration, cloud Kubernetes render, state-bootstrap plan, EKS administrator-role configuration, and workstation/API access posture. It does **not** apply AWS resources.
-
-The guarded apply/deploy phases are separate:
-
-```text
-bootstrap-plan   inspect S3/KMS state-foundation plan
-bootstrap-apply  create state foundation (explicit confirmation required)
-plan             inspect main AWS infrastructure plan
-infra-apply      create billable AWS infrastructure (explicit confirmation required)
-deploy           publish image, configure runtime, migrate DB, roll out gateway
-```
-
-Both apply phases require the local safety acknowledgement `SAG_CONFIRM_AWS_APPLY=YES`. In particular, `infra-apply` creates billable EKS/EC2/NAT/RDS/ElastiCache resources and should only be run after reviewing the authenticated plan.
-
-After deployment:
+Any AWS apply operation requires both explicit guards:
 
 ```bash
-bash scripts/aws-cloud-verify.sh
+SAG_ALLOW_BILLABLE_AWS=YES
+SAG_CONFIRM_AWS_APPLY=YES
 ```
 
-The verifier sends authenticated requests to two distinct gateway pods and fails unless shared Valkey quota decreases across replicas, shared RDS usage increases across replicas, both trace IDs are present, Prometheus sees two healthy gateway targets, OTLP export is observed, and both gateway replicas are ready. The initial cloud runtime deliberately uses the mock provider, so this verification does not make an upstream LLM call.
+The deployment phase also requires `SAG_ALLOW_BILLABLE_AWS=YES` because it assumes a running paid environment.
+
+The non-mutating AWS preflight remains available for someone who intentionally wants to inspect the design against a real AWS account, but AWS signup/authentication is not a project prerequisite.
 
 See `docs/cloud-deployment.md`.
 
@@ -299,7 +315,7 @@ System prompts are not treated as a secrecy or authorization boundary.
 
 ## Continuous integration
 
-GitHub Actions runs six independent gates:
+GitHub Actions runs six independent CI gates:
 
 ```text
 Pytest
@@ -310,7 +326,9 @@ Kubernetes manifests
 Terraform
 ```
 
-The Kubernetes gate renders both `k8s/ci` and `k8s/cloud`, rejects tracked `Secret` objects, and schema-validates both deployment targets. The Docker gate checks cloud deployment shell syntax before building the image. The Terraform gate enforces formatting and validates both Terraform roots with remote backends disabled. CI grants only `contents: read`, receives no AWS credentials, and does not create cloud resources.
+The Kubernetes gate renders both `k8s/ci` and `k8s/cloud`, rejects tracked `Secret` objects, and schema-validates both deployment targets. The Docker gate checks optional AWS deployment shell syntax before building the image. The Terraform gate enforces formatting and validates both Terraform roots with remote backends disabled. CI receives no AWS credentials and does not create cloud resources.
+
+The separate `Release container` workflow handles the zero-cost GHCR publishing path and has only package-write permission in addition to repository read access.
 
 Run the main equivalent checks locally with:
 
@@ -335,7 +353,9 @@ See `docs/continuous-integration.md`.
 
 ```text
 Secure-AI-Gateway/
-├── .github/workflows/ci.yml
+├── .github/workflows/
+│   ├── ci.yml
+│   └── release.yml
 ├── app/
 │   ├── aws_migrate.py
 │   ├── aws_runtime.py
@@ -354,6 +374,7 @@ Secure-AI-Gateway/
 ├── docs/
 │   ├── cloud-deployment.md
 │   ├── continuous-integration.md
+│   ├── cost-policy.md
 │   ├── docker.md
 │   ├── kubernetes.md
 │   ├── observability.md
@@ -423,8 +444,9 @@ Secure-AI-Gateway/
 - [x] GitHub Actions CI
 - [x] OpenTelemetry / Prometheus
 - [x] Kubernetes
-- [x] Terraform
-- [ ] cloud deployment (implementation complete; live AWS verification pending)
+- [x] Terraform reference architecture
+- [x] zero-cost container release workflow
+- [x] optional AWS deployment design (reference-only; paid runtime verification not required)
 - [ ] production/adversarial hardening
 
 ## Function documentation convention
