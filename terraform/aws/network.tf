@@ -25,9 +25,9 @@ resource "aws_subnet" "public" {
   map_public_ip_on_launch = false
 
   tags = {
-    Name                                      = "${local.name}-public-${each.key}"
-    "kubernetes.io/role/elb"                  = "1"
-    "kubernetes.io/cluster/${local.name}"     = "shared"
+    Name                                  = "${local.name}-public-${each.key}"
+    "kubernetes.io/role/elb"              = "1"
+    "kubernetes.io/cluster/${local.name}" = "shared"
   }
 }
 
@@ -39,9 +39,9 @@ resource "aws_subnet" "private" {
   cidr_block        = each.value
 
   tags = {
-    Name                                      = "${local.name}-private-${each.key}"
-    "kubernetes.io/role/internal-elb"         = "1"
-    "kubernetes.io/cluster/${local.name}"     = "shared"
+    Name                                  = "${local.name}-private-${each.key}"
+    "kubernetes.io/role/internal-elb"     = "1"
+    "kubernetes.io/cluster/${local.name}" = "shared"
   }
 }
 
@@ -91,7 +91,7 @@ resource "aws_nat_gateway" "gateway" {
   for_each = aws_eip.nat
 
   allocation_id = each.value.id
-  subnet_id = var.nat_gateway_mode == "per_az" ? aws_subnet.public[each.key].id : aws_subnet.public[local.azs[0]].id
+  subnet_id     = var.nat_gateway_mode == "per_az" ? aws_subnet.public[each.key].id : aws_subnet.public[local.azs[0]].id
 
   tags = {
     Name = "${local.name}-nat-${each.key}"
