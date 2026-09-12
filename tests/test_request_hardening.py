@@ -144,7 +144,7 @@ def test_request_body_limit_rejects_streamed_oversize() -> None:
     assert b"Request body too large" in sent[1]["body"]
 
 
-def test_request_body_limit_allows_bounded_stream() -> None:
+def test_request_body_limit_allows_bounded_stream_and_adds_security_headers() -> None:
     sent: list[dict[str, object]] = []
     chunks = iter(
         [
@@ -176,3 +176,34 @@ def test_request_body_limit_allows_bounded_stream() -> None:
     asyncio.run(middleware(scope, receive, send))
 
     assert sent[0]["status"] == 204
+    headers = dict(sent[0]["headers"])
+    assert headers[b"cache-control"] == b"no-store"
+    assert headers[b"x-content-type-options"] == b"nosniff"
+    assert headers[b"x-frame-options"] == b"DENY"
+
+
+def test_production_boundary_blocks_api_docs() -> None:
+    inner_called = False
+    sent: list[dict[str, object]] = []
+
+    async def inner(scope, receive, send) -> None:
+        nonlocal inner_called
+        inner_called = True
+
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message: dict[str, object]) -> None:
+        sent.append(message)
+
+    middleware = RequestBodyLimitMiddleware(
+        inner,
+        max_body_bytes=1_024,
+        block_api_docs=True,
+    )
+    scope = {"type": "http", "path": "/openapi.json", "headers": []}
+
+    asyncio.run(middleware(scope, receive, send))
+
+    assert inner_called is False
+    assert sent[0]["status"] == 404
