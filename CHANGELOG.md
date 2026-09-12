@@ -19,20 +19,25 @@ All notable project changes are summarized here. The project has not yet publish
 ### Verification and delivery
 
 - Docker Compose local stack.
+- Clean-run zero-cost end-to-end portfolio demo in CI.
+- Runtime resilience smoke test covering Redis/PostgreSQL fail-closed behavior and telemetry independence.
 - Two-replica kind/Kubernetes verification.
 - Terraform AWS reference architecture with explicit billable-resource guard.
 - Public GHCR release workflow with anonymous-pull verification.
-- Bandit and `pip-audit` CI security gates.
+- Bandit, CodeQL, and `pip-audit` security analysis.
 - CycloneDX Python dependency SBOM generation in CI.
-- SHA-pinned GitHub Actions and Dependabot maintenance policy.
-- Zero-cost deterministic end-to-end portfolio demo.
+- SHA-pinned GitHub Actions.
+- Dependabot maintenance for Python, GitHub Actions, and Docker dependencies.
 
-### Documentation
+### Documentation and developer experience
 
+- Reviewer-focused README with architecture and execution-authorization diagrams.
 - Threat/security review and residual-risk record.
 - Cost policy separating the free verified path from optional paid AWS architecture.
-- Release checklist and developer Make targets.
+- Reliability/failure-injection documentation.
+- Architecture decision records for execution-time tool authorization and the zero-cost required path.
+- `CONTRIBUTING.md`, release checklist, `.editorconfig`, and developer Make targets.
 
 ## Planned v1.0.0
 
-`v1.0.0` is reserved for the first portfolio release after the release checklist is completed, including local `make check` and `make demo` verification on the intended release commit.
+`v1.0.0` is reserved for the first portfolio release after the release checklist is completed. The remaining owner decision is primarily software licensing (or an explicit choice to remain unlicensed), followed by the deliberate release tag.

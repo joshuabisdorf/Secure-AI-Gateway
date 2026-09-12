@@ -16,9 +16,10 @@ A reviewer can use this repository to inspect or verify:
 - prompt-injection audit/deny policy with a versioned regression benchmark;
 - least-privilege tool exposure and independent execution-time authorization;
 - sensitive-data-minimized JSON audit events, Prometheus metrics, and OpenTelemetry traces;
+- fail-closed runtime behavior when security-critical Redis/PostgreSQL state disappears;
 - hardened Docker/Kubernetes runtime configuration;
 - Terraform for an optional private AWS/EKS/RDS/Valkey design;
-- CI security analysis, dependency audit, benchmarks, clean end-to-end demo, manifest validation, Terraform validation, and public container delivery.
+- CI security analysis, CodeQL, dependency audit/SBOM generation, benchmarks, clean end-to-end and resilience tests, manifest validation, Terraform validation, and public container delivery.
 
 The gateway **does not execute external side-effecting tools**. A model-generated tool call is untrusted output; the gateway only issues and verifies authorization for a downstream executor.
 
@@ -49,6 +50,12 @@ For the primary local quality gates:
 ```bash
 make install
 make check
+```
+
+For controlled dependency failure injection:
+
+```bash
+make resilience
 ```
 
 For the full two-replica kind verification:
@@ -125,13 +132,13 @@ sequenceDiagram
 | HTTP runtime | API docs hidden by default; no-store/CSP/referrer/MIME/frame headers; server banner and proxy headers disabled in container default |
 | Container | Non-root, read-only root filesystem, dropped capabilities, no-new-privileges |
 | Kubernetes | Two replicas, readiness/liveness/startup checks, PDB, resource bounds, `RuntimeDefault` seccomp, no privilege escalation |
-| Supply chain | SHA-pinned Actions, Dependabot, Bandit, `pip-audit`, CycloneDX dependency SBOM generation, immutable GHCR SHA tags |
+| Supply chain | SHA-pinned Actions, Dependabot for Python/Actions/Docker, Bandit, CodeQL, `pip-audit`, CycloneDX dependency SBOM generation, immutable GHCR SHA tags |
 
-See [`SECURITY.md`](SECURITY.md), [`docs/production-hardening.md`](docs/production-hardening.md), and [`docs/security-review.md`](docs/security-review.md).
+See [`SECURITY.md`](SECURITY.md), [`docs/production-hardening.md`](docs/production-hardening.md), [`docs/security-review.md`](docs/security-review.md), and the [`docs/adr/`](docs/adr/) decision records.
 
 ## Current verification status
 
-The repository currently has eight independent CI gates:
+The main CI workflow currently has nine independent gates:
 
 ```text
 Pytest
@@ -140,6 +147,7 @@ Prompt-injection benchmark
 Semantic PII benchmark
 Docker build
 End-to-end demo
+Resilience smoke
 Kubernetes manifests
 Terraform
 ```
@@ -147,6 +155,10 @@ Terraform
 Security analysis runs Bandit, audits installed Python dependencies with `pip-audit`, and generates/parses a CycloneDX JSON dependency SBOM. Third-party GitHub Actions are pinned to immutable commit SHAs.
 
 `End-to-end demo` runs `make demo` on a fresh GitHub-hosted Ubuntu runner and proves the zero-cost mock-provider security path before cleaning up the Compose stack.
+
+`Resilience smoke` stops and restores Redis and PostgreSQL to prove security-critical shared state fails closed, then stops the OpenTelemetry Collector to prove telemetry export is not an authorization dependency. See [`docs/reliability.md`](docs/reliability.md).
+
+A separate SHA-pinned CodeQL workflow analyzes Python with the `security-extended` query suite and uploads code-scanning results for the public repository.
 
 The separate `Release container` workflow builds and smoke-tests an immutable GHCR image, publishes it, logs out of GHCR, pulls the image anonymously, and smoke-tests the public image again.
 
@@ -210,11 +222,14 @@ make evals               enforce prompt-injection and semantic-PII baselines
 make security            Bandit + dependency audit
 make check               test + evals + security
 make demo                zero-cost end-to-end demo
+make resilience          inject backend/telemetry outages and verify behavior
 make up / make down      Docker Compose lifecycle, preserving volumes
 make kind-up             build/start local kind environment
 make kind-verify         verify two-replica kind security state
 make terraform-validate  side-effect-free Terraform validation
 ```
+
+Contribution/security-development guidance is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Kubernetes
 
@@ -256,15 +271,16 @@ See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/ter
 ├── app/                         gateway/security implementation
 ├── config/                      tracked policy examples and demo policy
 ├── db/migrations/               PostgreSQL migrations
-├── docs/                        design, operations, demo, hardening, security review
+├── docs/                        design, ADRs, operations, demo, reliability, hardening
 ├── evals/datasets/              versioned security regression corpora
 ├── k8s/                         base/local/CI/cloud/migration Kustomize targets
 ├── observability/               Prometheus and OTel configuration
-├── scripts/                     demo, kind, and optional AWS helpers
+├── scripts/                     demo, resilience, kind, and optional AWS helpers
 ├── terraform/                   bootstrap + AWS reference roots
 ├── tests/                       unit/integration/adversarial tests
-├── .github/workflows/           CI and public container release
+├── .github/workflows/           CI, CodeQL, and public container release
 ├── CHANGELOG.md
+├── CONTRIBUTING.md
 ├── Makefile
 ├── Dockerfile
 ├── compose.yaml
@@ -273,7 +289,7 @@ See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/ter
 
 ## Roadmap
 
-### Completed foundation
+### Completed foundation and maturation
 
 - [x] FastAPI/OpenAI-compatible gateway and provider abstraction
 - [x] PostgreSQL client/key identity, revocation, and rotation
@@ -286,13 +302,14 @@ See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/ter
 - [x] Terraform AWS reference architecture
 - [x] zero-cost public GHCR release path
 - [x] production/adversarial hardening
-- [x] security/dependency analysis and automated dependency maintenance
-- [x] portfolio demo and release-readiness documentation
-- [x] clean-run zero-cost demo verification in CI
+- [x] security/dependency analysis, SBOM generation, CodeQL, and automated dependency maintenance
+- [x] clean-run portfolio demo verification in CI
+- [x] Redis/PostgreSQL/telemetry failure-injection verification in CI
+- [x] reviewer-focused documentation, final security review, release checklist, and ADRs
 
 ### Remaining before `v1.0.0`
 
-- [ ] optionally run `make demo` and `make check` once more on the final release commit locally
+- [ ] optionally run `make demo`, `make resilience`, and `make check` once more on the final release commit locally
 - [ ] deliberately select a software license, or explicitly choose to remain unlicensed
 - [ ] create the `v1.0.0` tag only after [`docs/release-checklist.md`](docs/release-checklist.md) is satisfied
 

@@ -13,13 +13,14 @@ Use this checklist for the first portfolio `v1.0.0` release.
 
 ## Verification
 
-- [ ] `make install`
-- [ ] `make check`
-- [ ] `make demo`
-- [ ] `make kind-up && make kind-verify` when kind is available.
+- [ ] `make check` passes on the intended release state.
+- [ ] `End-to-end demo` is green on the release commit.
+- [ ] `Resilience smoke` is green on the release commit.
+- [ ] CodeQL Python analysis is green on the release commit.
+- [ ] `make kind-up && make kind-verify` has passed for the current Kubernetes architecture when kind is available.
 - [ ] Terraform validation is green in CI.
-- [ ] GitHub CI is green on the release commit.
-- [ ] Security analysis is green on the release commit.
+- [ ] All primary GitHub CI gates are green on the release commit.
+- [ ] Optionally repeat `make demo` and `make resilience` locally as a final workstation smoke test.
 
 ## Release artifact
 
