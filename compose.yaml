@@ -23,7 +23,7 @@ services:
       SAG_SECURITY_POLICY_FILE: /app/config/security-policies.json
       SAG_OTEL_ENABLED: ${SAG_OTEL_ENABLED:-true}
       OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-secure-ai-gateway}
-      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
       DATABASE_URL: postgresql://sag:${POSTGRES_PASSWORD:-sag_dev_password}@postgres:5432/secure_ai_gateway
       REDIS_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
