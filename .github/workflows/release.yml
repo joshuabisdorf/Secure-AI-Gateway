@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Derive immutable image tags
         id: image
@@ -64,7 +64,7 @@ jobs:
           docker run --rm \
             --entrypoint python \
             "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
-            -c 'import app.main; print("container_import=OK")'
+            -c 'import app.server; print("production_server_import=OK")'
 
       - name: Publish immutable image
         shell: bash
@@ -94,7 +94,7 @@ jobs:
           docker run --rm \
             --entrypoint python \
             "$IMAGE_REF" \
-            -c 'import app.main; print("anonymous_public_pull=OK")'
+            -c 'import app.server; print("anonymous_public_pull=OK")'
 
       - name: Summary
         shell: bash
