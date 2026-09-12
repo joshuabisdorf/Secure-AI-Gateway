@@ -69,9 +69,9 @@ resource "aws_db_instance" "gateway" {
 
   parameter_group_name = aws_db_parameter_group.gateway.name
 
-  backup_retention_period = 7
-  copy_tags_to_snapshot    = true
-  auto_minor_version_upgrade = true
+  backup_retention_period             = 7
+  copy_tags_to_snapshot               = true
+  auto_minor_version_upgrade          = true
   iam_database_authentication_enabled = true
 
   deletion_protection       = var.protect_data
@@ -148,7 +148,7 @@ resource "aws_elasticache_replication_group" "gateway" {
 
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  kms_key_id                  = aws_kms_key.platform.arn
+  kms_key_id                 = aws_kms_key.platform.arn
 
   snapshot_retention_limit = var.protect_data ? 7 : 1
   snapshot_window          = "03:00-04:00"
