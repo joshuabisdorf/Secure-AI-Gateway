@@ -25,11 +25,16 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "bandit==1.9.4",
+    "pip-audit==2.10.1",
     "pytest",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
