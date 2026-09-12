@@ -1,3 +1,8 @@
+output "aws_region" {
+  description = "AWS region containing the Secure AI Gateway environment."
+  value       = var.aws_region
+}
+
 output "vpc_id" {
   description = "VPC ID for the environment."
   value       = aws_vpc.gateway.id
@@ -43,6 +48,11 @@ output "postgres_port" {
   value       = aws_db_instance.gateway.port
 }
 
+output "postgres_database_name" {
+  description = "Gateway PostgreSQL database name."
+  value       = aws_db_instance.gateway.db_name
+}
+
 output "postgres_master_secret_arn" {
   description = "RDS-managed administrative secret ARN. This is not intended for gateway runtime use."
   value       = try(aws_db_instance.gateway.master_user_secret[0].secret_arn, null)
@@ -58,6 +68,11 @@ output "valkey_port" {
   value       = aws_elasticache_replication_group.gateway.port
 }
 
+output "valkey_replication_group_id" {
+  description = "ElastiCache replication-group name used when signing IAM authentication tokens."
+  value       = aws_elasticache_replication_group.gateway.replication_group_id
+}
+
 output "valkey_iam_user_id" {
   description = "ElastiCache IAM-authenticated user ID expected by the gateway cloud runtime."
   value       = aws_elasticache_user.gateway.user_id
@@ -66,6 +81,11 @@ output "valkey_iam_user_id" {
 output "gateway_workload_role_arn" {
   description = "IAM role associated with the sag-gateway Kubernetes service account through EKS Pod Identity."
   value       = aws_iam_role.gateway_workload.arn
+}
+
+output "migration_workload_role_arn" {
+  description = "IAM role associated with the sag-migration Kubernetes service account through EKS Pod Identity."
+  value       = aws_iam_role.migration_workload.arn
 }
 
 output "runtime_secret_arns" {
