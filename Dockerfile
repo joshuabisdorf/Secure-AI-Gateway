@@ -9,7 +9,9 @@ COPY pyproject.toml ./
 COPY app ./app
 
 RUN python -m venv /opt/venv \
-    && /opt/venv/bin/python -m pip install .
+    && /opt/venv/bin/python -m pip install . \
+    && /opt/venv/bin/python -m pip uninstall -y setuptools \
+    && /opt/venv/bin/python -m pip uninstall -y pip
 
 FROM python:3.13.15-slim-bookworm AS runtime
 
@@ -19,7 +21,12 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 WORKDIR /app
 
-RUN groupadd --system --gid 10001 sag \
+RUN apt-get update \
+    && apt-get install --only-upgrade -y --no-install-recommends libpcre2-8-0 \
+    && rm -rf /var/lib/apt/lists/* \
+    && /usr/local/bin/python -m pip uninstall -y setuptools \
+    && /usr/local/bin/python -m pip uninstall -y pip \
+    && groupadd --system --gid 10001 sag \
     && useradd --system --uid 10001 --gid sag --home-dir /home/sag --create-home sag
 
 COPY --from=builder /opt/venv /opt/venv
