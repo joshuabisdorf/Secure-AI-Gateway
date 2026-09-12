@@ -134,3 +134,35 @@ jobs:
         with:
           manifests: rendered-kubernetes.yaml
           kubeconformOpts: -kubernetes-version=1.37.0
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.2"
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive terraform
+
+      - name: Initialize state bootstrap configuration
+        run: terraform -chdir=terraform/bootstrap init -backend=false -input=false
+
+      - name: Validate state bootstrap configuration
+        run: terraform -chdir=terraform/bootstrap validate -no-color
+
+      - name: Initialize AWS environment configuration
+        run: terraform -chdir=terraform/aws init -backend=false -input=false
+
+      - name: Validate AWS environment configuration
+        run: terraform -chdir=terraform/aws validate -no-color
