@@ -3,6 +3,8 @@ name: Release container
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v*"
 
@@ -81,6 +83,19 @@ jobs:
             "${{ steps.image.outputs.image }}:${RELEASE_TAG}"
           docker push "${{ steps.image.outputs.image }}:${RELEASE_TAG}"
 
+      - name: Verify anonymous public pull
+        shell: bash
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}"
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          docker image rm "$IMAGE_REF" >/dev/null
+          docker pull "$IMAGE_REF" >/dev/null
+          docker run --rm \
+            --entrypoint python \
+            "$IMAGE_REF" \
+            -c 'import app.main; print("anonymous_public_pull=OK")'
+
       - name: Summary
         shell: bash
         run: |
@@ -88,6 +103,7 @@ jobs:
             echo '## Zero-cost container release'
             echo
             echo 'Published using the repository GITHUB_TOKEN; no AWS account or cloud infrastructure is required.'
+            echo 'The workflow logged out of GHCR and successfully pulled the image anonymously, proving public package access.'
             echo
             echo '```text'
             echo '${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}'
