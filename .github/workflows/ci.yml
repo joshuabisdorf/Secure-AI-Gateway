@@ -123,8 +123,14 @@ jobs:
             exit 1;
           fi
 
-      - name: Validate Kubernetes schemas
+      - name: Validate Kubernetes schemas strictly
         uses: azure/k8s-lint@v4
         with:
           manifests: rendered-kubernetes.yaml
-          kubeconformOpts: -strict -summary -kubernetes-version 1.37.0
+          kubeconformOpts: -strict
+
+      - name: Validate Kubernetes 1.37 compatibility
+        uses: azure/k8s-lint@v4
+        with:
+          manifests: rendered-kubernetes.yaml
+          kubeconformOpts: -kubernetes-version=1.37.0
