@@ -2,6 +2,7 @@ import binascii
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from prometheus_client import CONTENT_TYPE_LATEST
 
 from app.api_keys import Principal
 from app.audit import emit_audit_event
@@ -10,6 +11,7 @@ from app.models import (
     ToolExecutionAuthorizationRequest,
     ToolExecutionAuthorizationResponse,
 )
+from app.observability import metrics_payload
 from app.tool_authorization import get_client_allowed_tools
 from app.tool_execution import (
     ToolExecutionRejected,
@@ -20,6 +22,34 @@ from app.tool_execution import (
 
 router = APIRouter()
 tool_execution_replay_store = build_tool_execution_replay_store()
+
+
+@router.get("/metrics", include_in_schema=False)
+def prometheus_metrics() -> Response:
+    """
+    RME
+
+    Requires:
+        - The endpoint is exposed only on a trusted/internal network boundary in production.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Serializes the dedicated Secure AI Gateway Prometheus registry.
+        - Does not expose prompts, credentials, client IDs, request IDs, model names, tool names,
+          tool arguments, or tool results as metric labels.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - Prometheus text exposition response.
+    """
+    return Response(
+        content=metrics_payload(),
+        headers={"Content-Type": CONTENT_TYPE_LATEST},
+    )
 
 
 def _deny_execution(
