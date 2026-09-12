@@ -11,7 +11,7 @@ Implemented:
 - structured high-entropy gateway API keys with SHA-256 verification
 - PostgreSQL-backed client/key registry, immediate key revocation, and atomic rotation
 - deployment-wide model ceiling plus per-client model grants
-- Redis-backed distributed per-client rate limiting
+- Redis/Valkey-backed distributed per-client rate limiting
 - per-client UTC-day token/cost budgets with PostgreSQL persistence
 - structured and local semantic/contextual PII detection with redact/deny policies
 - deterministic prompt-injection audit/deny/off policies and versioned benchmark
@@ -25,9 +25,10 @@ Implemented:
 - two-replica Kubernetes gateway deployment with backend-aware readiness, explicit migration Job, PodDisruptionBudget, and hardened pod security
 - local kind workflow that verifies Redis/PostgreSQL security state across different gateway replicas
 - Terraform AWS foundation for protected remote state, VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, IAM-authenticated Valkey, KMS, Secrets Manager, and EKS Pod Identity
-- GitHub Actions gates for pytest, both security benchmarks, Docker/Compose, Kubernetes manifest schemas, and Terraform validation
+- guarded AWS deployment workflow with separate gateway/migration Pod Identities, Secrets Manager runtime loading, least-privilege PostgreSQL runtime role provisioning, immutable ECR image publishing, and private-by-default Kubernetes services
+- GitHub Actions gates for pytest, both security benchmarks, Docker/Compose and deployment shell syntax, Kubernetes local/cloud manifest schemas, and Terraform validation
 
-The next infrastructure milestone is **cloud deployment**, followed by production/adversarial hardening.
+The AWS cloud deployment implementation is ready for account-specific preflight and live verification. The next milestone after a verified AWS deployment is **production/adversarial hardening**.
 
 ## Security request path
 
@@ -42,7 +43,7 @@ Secure AI Gateway
   +-- constant-time key-hash verification
   +-- named client security profile
   +-- function-tool exposure authorization
-  +-- Redis per-client rate limit
+  +-- Redis/Valkey per-client rate limit
   +-- deployment-wide + client model authorization
   +-- structured + semantic PII controls
   +-- prompt-injection inspection
@@ -102,7 +103,7 @@ SAG_TOOL_EXECUTION_SIGNING_KEY=
 OPENROUTER_API_KEY=
 ```
 
-Never commit `.env`, `.client.env`, `.k8s-client.env`, Terraform state/private variable files, or raw provider/gateway credentials.
+Never commit `.env`, `.client.env`, `.k8s-client.env`, `.aws-client.env`, Terraform state/private variable files, or raw provider/gateway credentials.
 
 Validate local policy with:
 
@@ -176,9 +177,9 @@ terraform/bootstrap  protected S3/KMS remote-state foundation
 terraform/aws        application cloud infrastructure
 ```
 
-The AWS root defines a VPC with public/private/isolated data subnets, NAT egress, a private-by-default EKS control plane, managed worker nodes, ECR, KMS, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, Secrets Manager containers, and an EKS Pod Identity role for the gateway workload.
+The AWS root defines a VPC with public/private/isolated data subnets, NAT egress, a private-by-default EKS control plane, managed worker nodes, ECR, KMS, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, Secrets Manager containers, and separate EKS Pod Identity roles for gateway runtime and database migration.
 
-Runtime provider credentials and the tool-execution signing key are not accepted as Terraform variables. Terraform creates Secret containers only; secret values are populated during the cloud-deployment stage. RDS owns its generated administrative password in Secrets Manager, and the gateway must receive a separate least-privilege database identity before production use.
+Runtime provider credentials and the tool-execution signing key are not accepted as Terraform variables. Terraform creates Secret containers only; runtime secret values are populated during the guarded cloud-deployment stage. RDS owns its generated administrative password in Secrets Manager. The migration identity can read that administrative secret to apply schema changes and provision a distinct restricted `sag_runtime` database login; gateway pods can read the runtime database secret but not the RDS administrative secret.
 
 Terraform validation is side-effect free:
 
@@ -190,9 +191,45 @@ terraform -chdir=terraform/aws init -backend=false -input=false
 terraform -chdir=terraform/aws validate
 ```
 
-Do not run `terraform apply` merely to validate the repository: an apply creates billable AWS resources. Actual account/Region planning and deployment are the next milestone.
+Do not run `terraform apply` merely to validate the repository: an apply creates AWS resources and can incur charges.
 
 See `docs/terraform.md`.
+
+## AWS cloud deployment
+
+The cloud workflow keeps the gateway private by default: it creates no Kubernetes Ingress or public `LoadBalancer`. Gateway, Prometheus, and OTLP Services remain cluster-internal, and development verification uses `kubectl port-forward`.
+
+Cloud Redis-compatible connections use TLS plus ElastiCache IAM authentication through the AWS SDK credential chain supplied by EKS Pod Identity. Rate limiting uses a portable atomic Lua operation that works across local Redis and managed Valkey; readiness and execution-ticket replay use the same shared client/authentication path.
+
+Start with the non-mutating account preflight:
+
+```bash
+bash scripts/aws-cloud-preflight.sh
+```
+
+The preflight validates the active AWS identity, Terraform configuration, cloud Kubernetes render, state-bootstrap plan, EKS administrator-role configuration, and workstation/API access posture. It does **not** apply AWS resources.
+
+The guarded apply/deploy phases are separate:
+
+```text
+bootstrap-plan   inspect S3/KMS state-foundation plan
+bootstrap-apply  create state foundation (explicit confirmation required)
+plan             inspect main AWS infrastructure plan
+infra-apply      create billable AWS infrastructure (explicit confirmation required)
+deploy           publish image, configure runtime, migrate DB, roll out gateway
+```
+
+Both apply phases require the local safety acknowledgement `SAG_CONFIRM_AWS_APPLY=YES`. In particular, `infra-apply` creates billable EKS/EC2/NAT/RDS/ElastiCache resources and should only be run after reviewing the authenticated plan.
+
+After deployment:
+
+```bash
+bash scripts/aws-cloud-verify.sh
+```
+
+The verifier sends authenticated requests to two distinct gateway pods and fails unless shared Valkey quota decreases across replicas, shared RDS usage increases across replicas, both trace IDs are present, Prometheus sees two healthy gateway targets, OTLP export is observed, and both gateway replicas are ready. The initial cloud runtime deliberately uses the mock provider, so this verification does not make an upstream LLM call.
+
+See `docs/cloud-deployment.md`.
 
 ## Observability
 
@@ -273,7 +310,7 @@ Kubernetes manifests
 Terraform
 ```
 
-The Kubernetes gate renders `k8s/ci`, rejects tracked `Secret` objects, and schema-validates the rendered resources. The Terraform gate enforces formatting and validates both Terraform roots with remote backends disabled. CI grants only `contents: read`, receives no AWS credentials, and does not create cloud resources.
+The Kubernetes gate renders both `k8s/ci` and `k8s/cloud`, rejects tracked `Secret` objects, and schema-validates both deployment targets. The Docker gate checks cloud deployment shell syntax before building the image. The Terraform gate enforces formatting and validates both Terraform roots with remote backends disabled. CI grants only `contents: read`, receives no AWS credentials, and does not create cloud resources.
 
 Run the main equivalent checks locally with:
 
@@ -284,6 +321,7 @@ python -m app.evals.semantic_pii_benchmark --enforce-baseline --show-errors
 docker compose config --quiet
 docker build --tag secure-ai-gateway:ci .
 kubectl kustomize k8s/ci >/tmp/sag-kubernetes-rendered.yaml
+kubectl kustomize k8s/cloud >/tmp/sag-cloud-kubernetes-rendered.yaml
 terraform fmt -check -recursive terraform
 terraform -chdir=terraform/bootstrap init -backend=false -input=false
 terraform -chdir=terraform/bootstrap validate
@@ -299,10 +337,14 @@ See `docs/continuous-integration.md`.
 Secure-AI-Gateway/
 ├── .github/workflows/ci.yml
 ├── app/
+│   ├── aws_migrate.py
+│   ├── aws_runtime.py
 │   ├── evals/
 │   ├── policies/
 │   ├── providers/
 │   ├── readiness.py
+│   ├── redis_client.py
+│   ├── redis_replay.py
 │   ├── semantic_pii.py
 │   ├── tool_execution.py
 │   └── ...
@@ -310,6 +352,7 @@ Secure-AI-Gateway/
 ├── db/migrations/
 ├── docker/entrypoint.sh
 ├── docs/
+│   ├── cloud-deployment.md
 │   ├── continuous-integration.md
 │   ├── docker.md
 │   ├── kubernetes.md
@@ -320,10 +363,14 @@ Secure-AI-Gateway/
 ├── k8s/
 │   ├── base/
 │   ├── ci/
+│   ├── cloud/
 │   ├── local/
 │   └── migration/
 ├── observability/
 ├── scripts/
+│   ├── aws-cloud-deploy.sh
+│   ├── aws-cloud-preflight.sh
+│   ├── aws-cloud-verify.sh
 │   ├── k8s-local-up.sh
 │   └── k8s-verify.sh
 ├── terraform/
@@ -353,7 +400,7 @@ Secure-AI-Gateway/
 - [x] PostgreSQL persistent client/key registry
 - [x] key revocation and atomic rotation
 - [x] global/per-client model authorization
-- [x] Redis-backed distributed rate limiting
+- [x] Redis/Valkey-backed distributed rate limiting
 - [x] daily token/cost budgets
 - [x] persistent PostgreSQL usage accounting
 - [x] structured audit logging and request correlation
@@ -377,7 +424,7 @@ Secure-AI-Gateway/
 - [x] OpenTelemetry / Prometheus
 - [x] Kubernetes
 - [x] Terraform
-- [ ] cloud deployment
+- [ ] cloud deployment (implementation complete; live AWS verification pending)
 - [ ] production/adversarial hardening
 
 ## Function documentation convention
