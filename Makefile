@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: help install test evals security check demo up down kind-up kind-verify terraform-validate
+.PHONY: help install test evals security check demo resilience up down kind-up kind-verify terraform-validate
 
 help:
 	@printf '%s\n' \
@@ -10,6 +10,7 @@ help:
 	  'security            Run Bandit and dependency audit' \
 	  'check               Run test + evals + security' \
 	  'demo                Run the zero-cost end-to-end portfolio demo' \
+	  'resilience          Inject Redis/PostgreSQL/telemetry outages and verify behavior' \
 	  'up                  Start the Docker Compose stack' \
 	  'down                Stop the Docker Compose stack without deleting volumes' \
 	  'kind-up             Build/start the local kind environment' \
@@ -34,6 +35,9 @@ check: test evals security
 
 demo:
 	bash scripts/demo.sh
+
+resilience:
+	bash scripts/resilience-smoke.sh
 
 up:
 	docker compose up -d --build

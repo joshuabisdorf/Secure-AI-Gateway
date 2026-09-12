@@ -143,6 +143,7 @@ jobs:
         run: >-
           bash -n
           scripts/demo.sh
+          scripts/resilience-smoke.sh
           scripts/k8s-local-up.sh
           scripts/k8s-verify.sh
           scripts/aws-cloud-preflight.sh
@@ -174,6 +175,22 @@ jobs:
         run: make demo
 
       - name: Stop demo stack
+        if: always()
+        run: docker compose down
+
+  resilience-smoke:
+    name: Resilience smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Inject shared-backend outages
+        run: make resilience
+
+      - name: Stop resilience stack
         if: always()
         run: docker compose down
 
