@@ -8,6 +8,7 @@ __pycache__
 .env
 .client.env
 .k8s-client.env
+.aws-client.env
 config/security-policies.json
 config/tool-execution-policies.json
 **/.terraform
