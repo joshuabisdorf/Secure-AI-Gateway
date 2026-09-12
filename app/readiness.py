@@ -1,3 +1,4 @@
+import asyncio
 import os
 
 import psycopg
@@ -135,3 +136,37 @@ async def runtime_ready() -> tuple[bool, tuple[str, ...]]:
             unavailable.append("redis")
 
     return (not unavailable, tuple(unavailable))
+
+
+def main() -> None:
+    """
+    RME
+
+    Requires:
+        - Runtime backend environment variables describe the current deployment.
+
+    Modifies:
+        - Short-lived backend connection state and terminal output.
+
+    Effects:
+        - Runs the backend readiness checks for Kubernetes exec probes.
+        - Exits zero when required backends and schema are ready, nonzero otherwise.
+        - Prints only safe component names and never prints connection strings or credentials.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - Process exit status and a metadata-only readiness message.
+    """
+    ready, unavailable = asyncio.run(runtime_ready())
+    if ready:
+        print("READY")
+        return
+
+    print("NOT_READY components=" + ",".join(unavailable))
+    raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
