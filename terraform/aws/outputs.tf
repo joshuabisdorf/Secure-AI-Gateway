@@ -73,6 +73,6 @@ output "runtime_secret_arns" {
   value = {
     provider_credentials = aws_secretsmanager_secret.provider_credentials.arn
     database_credentials = aws_secretsmanager_secret.database_credentials.arn
-    tool_signing_key      = aws_secretsmanager_secret.tool_signing_key.arn
+    tool_signing_key     = aws_secretsmanager_secret.tool_signing_key.arn
   }
 }
