@@ -1,6 +1,6 @@
 # Continuous integration
 
-Secure AI Gateway uses GitHub Actions for deterministic security, application, infrastructure, and release checks on `main` and pull requests.
+Secure AI Gateway uses GitHub Actions for deterministic security, application, infrastructure, demo, and release checks on `main` and pull requests.
 
 Required CI workflow:
 
@@ -16,7 +16,7 @@ Public container release workflow:
 
 ## Zero-cost boundary
 
-The required CI path does not need provider keys, AWS credentials, a Kubernetes cluster, Redis/PostgreSQL services, or paid infrastructure. Tests use the deterministic mock provider and injected/in-memory substitutes where appropriate. Terraform runs only format/init-without-backend/validate. No required workflow runs `terraform apply`.
+The required CI path does not need provider keys, AWS credentials, a Kubernetes cluster supplied by the user, or paid infrastructure. Unit/security tests use the deterministic mock provider and injected/in-memory substitutes where appropriate. The end-to-end demo starts only local Docker services on the GitHub-hosted runner. Terraform runs only format/init-without-backend/validate. No required workflow runs `terraform apply`.
 
 The release workflow publishes to public GHCR using the repository `GITHUB_TOKEN` and then verifies an anonymous pull. It does not use AWS, Docker Hub, or provider credentials.
 
@@ -31,7 +31,7 @@ permissions:
 
 Third-party GitHub Actions are pinned to immutable full commit SHAs. Dependabot proposes controlled Python and Actions updates.
 
-## Seven CI gates
+## Eight CI gates
 
 ### Pytest
 
@@ -80,11 +80,23 @@ docker build --tag secure-ai-gateway:ci .
 
 No image is pushed by this CI job.
 
+### End-to-end demo
+
+A fresh GitHub-hosted Ubuntu runner executes:
+
+```bash
+make demo
+```
+
+The demo starts the Compose PostgreSQL, Redis, Prometheus, OpenTelemetry Collector, and gateway services and uses only the deterministic mock provider. It creates a temporary PostgreSQL-backed client and verifies authenticated chat, persistent usage accounting, PII redaction, prompt-injection detection, execution-ticket issuance, execution-time authorization, replay denial, distributed rate limiting, and Prometheus metrics. The temporary key is revoked by script cleanup, and CI always runs `docker compose down` after the demo.
+
+No AWS account, provider API key, or paid model call is involved.
+
 ### Kubernetes manifests
 
 CI renders both `k8s/ci` and `k8s/cloud`, rejects rendered Kubernetes `Secret` objects, validates schemas strictly, and checks Kubernetes 1.37 compatibility. It does not create a cluster.
 
-The free runtime proof remains the local kind workflow:
+The free distributed-runtime proof remains the local kind workflow:
 
 ```bash
 make kind-up
@@ -136,6 +148,7 @@ Security analysis
 Prompt-injection benchmark
 Semantic PII benchmark
 Docker build
+End-to-end demo
 Kubernetes manifests
 Terraform
 ```
