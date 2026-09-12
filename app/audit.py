@@ -2,6 +2,8 @@ import json
 import logging
 from datetime import datetime, timezone
 
+from app.observability import observe_audit_event
+
 
 audit_logger = logging.getLogger("secure_ai_gateway.audit")
 audit_logger.setLevel(logging.INFO)
@@ -60,9 +62,12 @@ def emit_audit_event(
 
     Modifies:
         - The process logging stream through the audit logger.
+        - Best-effort bounded Prometheus counters derived from sanitized metadata.
 
     Effects:
         - Emits one JSON audit record to application stderr.
+        - Derives metrics only from already-sanitized audit metadata.
+        - Observability failures do not interrupt authorization or audit logging.
         - Omits prompt content, detected PII values, credentials, execution tickets,
           tool arguments, and tool outputs from the audit record.
         - Records prompt-injection and tool-authorization metadata only as safe labels/names/IDs.
@@ -151,5 +156,11 @@ def emit_audit_event(
 
     if latency_ms is not None:
         payload["latency_ms"] = round(latency_ms, 3)
+
+    try:
+        observe_audit_event(payload)
+    except Exception:
+        # Telemetry is never part of an allow/deny decision. Audit logging remains authoritative.
+        pass
 
     audit_logger.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
