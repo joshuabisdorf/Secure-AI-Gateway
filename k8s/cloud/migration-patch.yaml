@@ -1,0 +1,22 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: sag-migrate
+  namespace: secure-ai-gateway
+spec:
+  template:
+    spec:
+      serviceAccountName: sag-migration
+      containers:
+        - name: migrate
+          imagePullPolicy: Always
+          command:
+            - python
+            - -m
+            - app.aws_migrate
+          args: []
+          envFrom:
+            - configMapRef:
+                name: sag-gateway-config
+            - configMapRef:
+                name: sag-cloud-runtime
