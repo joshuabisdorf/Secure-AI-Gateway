@@ -24,9 +24,10 @@ Implemented:
 - hardened Dockerized local stack with PostgreSQL, Redis, Prometheus, and OpenTelemetry Collector
 - two-replica Kubernetes gateway deployment with backend-aware readiness, explicit migration Job, PodDisruptionBudget, and hardened pod security
 - local kind workflow that verifies Redis/PostgreSQL security state across different gateway replicas
-- GitHub Actions gates for pytest, both security benchmarks, Docker/Compose, and Kubernetes manifest schemas
+- Terraform AWS foundation for protected remote state, VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, IAM-authenticated Valkey, KMS, Secrets Manager, and EKS Pod Identity
+- GitHub Actions gates for pytest, both security benchmarks, Docker/Compose, Kubernetes manifest schemas, and Terraform validation
 
-The next infrastructure milestone is **Terraform**, followed by cloud deployment and production/adversarial hardening.
+The next infrastructure milestone is **cloud deployment**, followed by production/adversarial hardening.
 
 ## Security request path
 
@@ -101,7 +102,7 @@ SAG_TOOL_EXECUTION_SIGNING_KEY=
 OPENROUTER_API_KEY=
 ```
 
-Never commit `.env`, `.client.env`, `.k8s-client.env`, or raw provider/gateway credentials.
+Never commit `.env`, `.client.env`, `.k8s-client.env`, Terraform state/private variable files, or raw provider/gateway credentials.
 
 Validate local policy with:
 
@@ -165,6 +166,33 @@ The bootstrap script creates runtime Secret material from ignored `.env` and wri
 The local Kubernetes stack deliberately uses the mock provider, so this verification makes no real LLM provider call.
 
 See `docs/kubernetes.md`.
+
+## Terraform
+
+The Terraform AWS foundation is split into two independent roots:
+
+```text
+terraform/bootstrap  protected S3/KMS remote-state foundation
+terraform/aws        application cloud infrastructure
+```
+
+The AWS root defines a VPC with public/private/isolated data subnets, NAT egress, a private-by-default EKS control plane, managed worker nodes, ECR, KMS, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, Secrets Manager containers, and an EKS Pod Identity role for the gateway workload.
+
+Runtime provider credentials and the tool-execution signing key are not accepted as Terraform variables. Terraform creates Secret containers only; secret values are populated during the cloud-deployment stage. RDS owns its generated administrative password in Secrets Manager, and the gateway must receive a separate least-privilege database identity before production use.
+
+Terraform validation is side-effect free:
+
+```bash
+terraform fmt -check -recursive terraform
+terraform -chdir=terraform/bootstrap init -backend=false -input=false
+terraform -chdir=terraform/bootstrap validate
+terraform -chdir=terraform/aws init -backend=false -input=false
+terraform -chdir=terraform/aws validate
+```
+
+Do not run `terraform apply` merely to validate the repository: an apply creates billable AWS resources. Actual account/Region planning and deployment are the next milestone.
+
+See `docs/terraform.md`.
 
 ## Observability
 
@@ -234,7 +262,7 @@ System prompts are not treated as a secrecy or authorization boundary.
 
 ## Continuous integration
 
-GitHub Actions runs five independent gates:
+GitHub Actions runs six independent gates:
 
 ```text
 Pytest
@@ -242,9 +270,10 @@ Prompt-injection benchmark
 Semantic PII benchmark
 Docker build
 Kubernetes manifests
+Terraform
 ```
 
-The Kubernetes gate renders `k8s/ci`, rejects tracked `Secret` objects, and schema-validates the rendered resources. CI grants only `contents: read` and requires no provider/database/Redis/telemetry/Kubernetes runtime secrets.
+The Kubernetes gate renders `k8s/ci`, rejects tracked `Secret` objects, and schema-validates the rendered resources. The Terraform gate enforces formatting and validates both Terraform roots with remote backends disabled. CI grants only `contents: read`, receives no AWS credentials, and does not create cloud resources.
 
 Run the main equivalent checks locally with:
 
@@ -255,6 +284,11 @@ python -m app.evals.semantic_pii_benchmark --enforce-baseline --show-errors
 docker compose config --quiet
 docker build --tag secure-ai-gateway:ci .
 kubectl kustomize k8s/ci >/tmp/sag-kubernetes-rendered.yaml
+terraform fmt -check -recursive terraform
+terraform -chdir=terraform/bootstrap init -backend=false -input=false
+terraform -chdir=terraform/bootstrap validate
+terraform -chdir=terraform/aws init -backend=false -input=false
+terraform -chdir=terraform/aws validate
 ```
 
 See `docs/continuous-integration.md`.
@@ -280,6 +314,7 @@ Secure-AI-Gateway/
 │   ├── docker.md
 │   ├── kubernetes.md
 │   ├── observability.md
+│   ├── terraform.md
 │   └── ...
 ├── evals/datasets/
 ├── k8s/
@@ -291,6 +326,9 @@ Secure-AI-Gateway/
 ├── scripts/
 │   ├── k8s-local-up.sh
 │   └── k8s-verify.sh
+├── terraform/
+│   ├── aws/
+│   └── bootstrap/
 ├── tests/
 ├── Dockerfile
 ├── compose.yaml
@@ -338,7 +376,7 @@ Secure-AI-Gateway/
 - [x] GitHub Actions CI
 - [x] OpenTelemetry / Prometheus
 - [x] Kubernetes
-- [ ] Terraform
+- [x] Terraform
 - [ ] cloud deployment
 - [ ] production/adversarial hardening
 
