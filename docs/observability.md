@@ -125,10 +125,10 @@ Tracing is controlled by:
 ```dotenv
 SAG_OTEL_ENABLED=true
 OTEL_SERVICE_NAME=secure-ai-gateway
-OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://127.0.0.1:4318/v1/traces
 ```
 
-Compose supplies those values automatically unless overridden. Host-run development defaults tracing off in `.env.example` so starting Uvicorn does not assume a collector exists.
+For direct host-run development, the endpoint points to the collector published on `127.0.0.1:4318`. Compose intentionally overrides the gateway container's OTLP endpoint to `http://otel-collector:4318/v1/traces` because loopback inside the gateway container does not reach the collector service. Host-run development defaults tracing off in `.env.example` so starting Uvicorn does not assume a collector exists.
 
 The gateway uses the OpenTelemetry SDK and OTLP/HTTP exporter. It accepts standard incoming W3C trace context and creates:
 
