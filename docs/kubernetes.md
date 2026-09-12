@@ -33,8 +33,10 @@ k8s/
 │   ├── config.yaml
 │   ├── gateway.yaml
 │   ├── kustomization.yaml
-│   ├── migration-job.yaml
 │   └── namespace.yaml
+├── migration/
+│   ├── job.yaml
+│   └── kustomization.yaml
 ├── ci/
 │   └── kustomization.yaml
 └── local/
@@ -44,7 +46,7 @@ k8s/
     └── observability.yaml
 ```
 
-`k8s/base` contains the replicated gateway workload and non-secret security configuration. `k8s/local` adds PostgreSQL, Redis, Prometheus, and the OpenTelemetry Collector. `k8s/ci` renders the local stack plus the migration Job for schema validation.
+`k8s/base` contains the replicated gateway workload and non-secret security configuration. `k8s/migration` contains the explicit database migration Job. `k8s/local` adds PostgreSQL, Redis, Prometheus, and the OpenTelemetry Collector. `k8s/ci` renders the local stack plus the migration component for schema validation.
 
 ## ConfigMap and Secret boundary
 
@@ -108,7 +110,7 @@ Kubernetes gateway replicas receive:
 SAG_RUN_MIGRATIONS=false
 ```
 
-so schema ownership is removed from application-pod startup. `k8s/base/migration-job.yaml` is the explicit migration Job. The local bootstrap script deletes/recreates that Job, waits for it to complete, and only then waits for the gateway Deployment to become available.
+so schema ownership is removed from application-pod startup. `k8s/migration` is the explicit migration Kustomize component. The local bootstrap script deletes/recreates that Job, waits for it to complete, and only then waits for the gateway Deployment to become available.
 
 This prevents two gateway replicas from racing to own migration sequencing and provides a deployment point that can later become a pre-deploy cloud/CD step.
 
@@ -163,12 +165,12 @@ The script:
 4. creates the runtime Kubernetes Secret from `.env`;
 5. applies the base/local Kustomize manifests;
 6. waits for PostgreSQL, Redis, and the collector;
-7. runs the dedicated migration Job;
+7. runs the dedicated migration Job from `k8s/migration`;
 8. waits for both gateway replicas and Prometheus;
 9. creates or rotates the `local-dev` gateway API key inside PostgreSQL;
 10. writes the raw client credential to ignored `.k8s-client.env` with mode `0600`.
 
-Do not commit or paste `.k8s-client.env`.
+Do not commit or paste `.k8s-client.env`. It is also excluded from the Docker build context.
 
 ## Multi-replica verification
 
