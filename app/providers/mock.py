@@ -11,11 +11,13 @@ from app.models import (
     ToolCallFunction,
 )
 from app.providers.base import Provider
+from app.providers.observed import observe_provider_chat
 
 
 class MockProvider(Provider):
     name = "mock"
 
+    @observe_provider_chat
     async def chat_completion(
         self,
         request: ChatCompletionRequest,
@@ -27,12 +29,13 @@ class MockProvider(Provider):
             - request is a validated chat-completion request.
 
         Modifies:
-            - Nothing.
+            - Process-local provider metrics and trace state through instrumentation.
 
         Effects:
             - Produces a deterministic non-network model response for testing.
             - Emits an empty-object function call when a named tool_choice is requested.
             - Includes deterministic token and zero-cost usage accounting.
+            - Records provider latency/success metadata without prompt or response content.
 
         Inputs:
             - request: The requested model, messages, and optional named tool choice.
