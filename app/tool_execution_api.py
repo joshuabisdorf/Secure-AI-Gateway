@@ -12,16 +12,16 @@ from app.models import (
     ToolExecutionAuthorizationResponse,
 )
 from app.observability import metrics_payload
+from app.redis_replay import build_runtime_tool_execution_replay_store
 from app.tool_authorization import get_client_allowed_tools
 from app.tool_execution import (
     ToolExecutionRejected,
     ToolExecutionUnavailable,
-    build_tool_execution_replay_store,
     verify_execution_ticket,
 )
 
 router = APIRouter()
-tool_execution_replay_store = build_tool_execution_replay_store()
+tool_execution_replay_store = build_runtime_tool_execution_replay_store()
 
 
 @router.get("/metrics", include_in_schema=False)
