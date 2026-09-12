@@ -1,69 +1,73 @@
+from collections.abc import Awaitable, Callable
+from functools import wraps
 from time import perf_counter
+from typing import Any, TypeVar
 
 from opentelemetry.trace import Status, StatusCode
 
-from app.models import ChatCompletionRequest, ChatCompletionResponse
 from app.observability import observe_provider_request, provider_trace
-from app.providers.base import Provider
+
+_Result = TypeVar("_Result")
 
 
-class ObservedProvider(Provider):
-    """Provider decorator that adds bounded metrics and tracing."""
+def observe_provider_chat(
+    method: Callable[[Any, Any], Awaitable[_Result]],
+) -> Callable[[Any, Any], Awaitable[_Result]]:
+    """
+    RME
 
-    def __init__(self, delegate: Provider) -> None:
+    Requires:
+        - method is an async provider instance method.
+        - The provider instance exposes a non-secret name attribute.
+
+    Modifies:
+        - Process-local provider metrics and trace state when the wrapped method runs.
+
+    Effects:
+        - Preserves the concrete provider object type and original method metadata.
+        - Records provider request latency and success/error counts.
+        - Creates a child client span without recording prompts, responses, or credentials.
+        - Preserves provider return values and exceptions unchanged.
+
+    Inputs:
+        - method: Async provider chat-completion method to instrument.
+
+    Outputs:
+        - Instrumented async provider method with the same call contract.
+    """
+
+    @wraps(method)
+    async def wrapped(self: Any, request: Any) -> _Result:
         """
         RME
 
         Requires:
-            - delegate is a configured provider implementation.
+            - self is a provider instance accepted by the decorated method.
+            - request is a value accepted by the decorated method.
 
         Modifies:
-            - Nothing outside this wrapper instance.
-
-        Effects:
-            - Preserves the provider name while retaining the delegate for calls.
-
-        Inputs:
-            - delegate: Provider implementation to instrument.
-
-        Outputs:
-            - Initialized ObservedProvider.
-        """
-        self._delegate = delegate
-        self.name = delegate.name
-
-    async def chat_completion(
-        self,
-        request: ChatCompletionRequest,
-    ) -> ChatCompletionResponse:
-        """
-        RME
-
-        Requires:
-            - request is a validated chat-completion request.
-
-        Modifies:
-            - Provider-specific state in the delegate.
+            - Provider-specific state through the decorated method.
             - Process-local provider metrics and trace state.
 
         Effects:
-            - Records provider latency and success/error counts.
-            - Creates a child client span without recording prompts, responses, or credentials.
-            - Preserves delegate exceptions unchanged for existing gateway error handling.
+            - Measures one exact provider call.
+            - Records exception metadata on the trace without changing the exception.
 
         Inputs:
-            - request: Normalized gateway chat request.
+            - self: Concrete provider instance.
+            - request: Provider request passed through unchanged.
 
         Outputs:
-            - Delegate provider response.
+            - Exact result returned by the decorated method.
         """
+        provider_name = getattr(self, "name", "unknown")
         started_at = perf_counter()
-        with provider_trace(self.name) as span:
+        with provider_trace(provider_name) as span:
             try:
-                response = await self._delegate.chat_completion(request)
+                response = await method(self, request)
             except Exception as exc:
                 observe_provider_request(
-                    self.name,
+                    provider_name,
                     "error",
                     perf_counter() - started_at,
                 )
@@ -72,8 +76,10 @@ class ObservedProvider(Provider):
                 raise
 
             observe_provider_request(
-                self.name,
+                provider_name,
                 "success",
                 perf_counter() - started_at,
             )
             return response
+
+    return wrapped
