@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sag-gateway
+  namespace: secure-ai-gateway
+spec:
+  template:
+    spec:
+      serviceAccountName: sag-gateway
+      containers:
+        - name: gateway
+          imagePullPolicy: Always
+          command:
+            - python
+            - -m
+            - app.aws_runtime
+            - --
+            - sag-entrypoint
+            - uvicorn
+            - app.main:app
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+          envFrom:
+            - configMapRef:
+                name: sag-gateway-config
+            - configMapRef:
+                name: sag-cloud-runtime
