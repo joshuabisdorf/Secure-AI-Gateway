@@ -35,10 +35,10 @@ resource "aws_ecr_lifecycle_policy" "gateway" {
         rulePriority = 2
         description  = "Retain the newest 50 tagged images"
         selection = {
-          tagStatus   = "tagged"
+          tagStatus     = "tagged"
           tagPrefixList = ["v", "sha-"]
-          countType   = "imageCountMoreThan"
-          countNumber = 50
+          countType     = "imageCountMoreThan"
+          countNumber   = 50
         }
         action = {
           type = "expire"
