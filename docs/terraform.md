@@ -1,6 +1,10 @@
-# Terraform AWS foundation
+# Terraform AWS reference architecture
 
-Secure AI Gateway includes Terraform for an AWS cloud foundation. This milestone defines and validates infrastructure as code but does **not** apply it to an AWS account. Actual cloud deployment, runtime secret population, Kubernetes workload rollout, DNS/TLS, and internet exposure remain separate deployment work.
+Secure AI Gateway includes Terraform for a production-style AWS target, but the project itself is maintained under a zero-cost-by-default constraint.
+
+Terraform therefore serves as a **reference architecture plus static validation target**. Applying it to AWS is optional and is not required for normal development, CI, release, portfolio completion, or runtime verification.
+
+See `docs/cost-policy.md`.
 
 ## Toolchain
 
@@ -37,39 +41,27 @@ terraform/
     └── versions.tf
 ```
 
-`terraform/bootstrap` owns only the Terraform state bucket and its encryption key. `terraform/aws` owns the application infrastructure. Separating them prevents the state store from being managed by the state it contains.
+`terraform/bootstrap` owns only the Terraform state bucket and its encryption key. `terraform/aws` owns the optional application infrastructure. Separating them prevents the state store from being managed by the state it contains.
 
-## State bootstrap
+## State bootstrap design
 
-The bootstrap stack creates:
+The bootstrap stack defines:
 
 - an S3 bucket with public access blocked;
 - bucket-owner-enforced object ownership;
 - versioning for state recovery;
-- customer-managed KMS encryption with automatic key rotation;
-- a bucket policy that denies non-TLS access.
+- customer-managed KMS encryption with key rotation;
+- a bucket policy denying non-TLS access.
 
-The S3 bucket and KMS key use `prevent_destroy = true`. Removing the state store therefore requires an intentional source change rather than an ordinary `terraform destroy`.
+The S3 bucket and KMS key use `prevent_destroy = true`.
 
 Terraform's native S3 lockfile is used instead of DynamoDB locking. No AWS credentials, backend credentials, or bucket names are committed to the repository.
 
-Example bootstrap flow:
-
-```bash
-cd terraform/bootstrap
-cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars and choose a globally unique state bucket name.
-terraform init
-terraform plan
-terraform apply
-terraform output -raw backend_init_example
-```
-
-The generated `terraform.tfvars` is ignored by Git.
+This design is statically validated in CI. Creating the bucket/key is optional and leaves the zero-cost project path.
 
 ## AWS environment architecture
 
-The AWS root creates:
+The AWS root models:
 
 ```text
 Internet
@@ -94,59 +86,52 @@ EKS workload role --> Secrets Manager
 EKS workload role --> Valkey IAM authentication
 ```
 
-The data subnets do not receive a default internet route. RDS and ElastiCache are not publicly accessible and accept traffic only from the EKS cluster security group.
+The data subnets do not receive a default internet route. RDS and ElastiCache are private and accept traffic only from the EKS cluster security group.
 
 ## EKS
 
 The EKS cluster uses Kubernetes API authentication mode `API`; it does not depend on the legacy `aws-auth` ConfigMap. Cluster-creator admin permissions are disabled. An optional `eks_admin_role_arn` can be granted cluster-admin access through an EKS access entry and AWS-managed EKS access policy.
 
-The Kubernetes API is private by default. `eks_public_access_cidrs = []` means no public API endpoint. A public endpoint is created only when trusted CIDRs are explicitly configured.
+The Kubernetes API is private by default. `eks_public_access_cidrs = []` means no public endpoint.
 
-Control-plane API, audit, authenticator, controller-manager, and scheduler logs are enabled. Kubernetes Secrets receive envelope encryption with the environment KMS key. The cluster opts into EKS standard support rather than silently remaining on paid extended support.
+Control-plane API, audit, authenticator, controller-manager, and scheduler logs are enabled. Kubernetes Secrets receive envelope encryption with the environment KMS key. The cluster opts into standard support.
 
-Managed worker nodes run in private subnets. The node role receives the EKS worker, ECR pull-only, and VPC CNI policies required for the current managed-node model.
+Managed worker nodes run in private subnets.
 
 ## Workload identity
 
-The Terraform root creates an EKS Pod Identity role for:
+The Terraform root defines EKS Pod Identity roles for separate runtime and migration responsibilities.
 
-```text
-namespace:       secure-ai-gateway
-service account: sag-gateway
-```
+The gateway role can read only its runtime Secrets Manager containers and authenticate to the configured IAM-enabled Valkey service.
 
-The role is intentionally narrow. It can:
+The migration role can read the RDS administrative bootstrap credential and runtime database credential needed to apply migrations and provision the restricted application login.
 
-- read the three runtime Secret containers;
-- decrypt those Secrets through Secrets Manager;
-- authenticate to the gateway Valkey replication group as the configured ElastiCache IAM user.
-
-The Pod Identity Agent add-on is provisioned with the cluster. The Kubernetes `sag-gateway` ServiceAccount itself is created during the cloud-deployment milestone, not by Terraform.
+The Kubernetes ServiceAccounts and Pod Identity associations are represented by the optional cloud deployment target in `k8s/cloud`.
 
 ## PostgreSQL
 
-RDS PostgreSQL is deployed only into isolated data subnets with storage encryption and forced SSL. Terraform enables IAM database authentication for future runtime hardening.
+RDS PostgreSQL is modeled only in isolated data subnets with storage encryption and forced SSL.
 
-The administrative RDS password is generated and managed by RDS/Secrets Manager using the environment KMS key; no master password variable is accepted by this Terraform root.
+The administrative password is generated and managed by RDS/Secrets Manager. No master password variable is accepted by the Terraform root.
 
-The gateway must not run permanently with the RDS administrative credential. The cloud-deployment stage is responsible for creating/rotating a least-privilege application database identity and populating the dedicated `database-credentials` Secret container.
+The optional cloud migration stage provisions a separate restricted `sag_runtime` login; gateway pods are not intended to use the RDS administrative identity.
 
-`protect_data = true` enables RDS deletion protection, retains automated backups, and requires a final snapshot. The development example leaves it false so a disposable environment can be destroyed deliberately.
+`protect_data = true` enables deletion protection, retained automated backups, and a final snapshot. The development example leaves it false only for a deliberately disposable reference environment.
 
 ## Valkey
 
-The ElastiCache replication group uses:
+The ElastiCache design uses:
 
-- Valkey rather than an older Redis OSS engine;
-- two cache nodes with automatic failover and Multi-AZ enabled;
+- Valkey;
+- two cache nodes with automatic failover and Multi-AZ;
 - isolated data subnets;
-- at-rest encryption using the environment KMS key;
+- at-rest KMS encryption;
 - TLS in transit;
 - RBAC with an IAM-authenticated gateway user.
 
-IAM authentication avoids storing a long-lived Valkey password. Tokens are short-lived and must be generated/refreshed by the cloud runtime. The existing local Redis configuration remains unchanged; IAM/TLS client integration belongs to the cloud-deployment milestone.
+The application-side IAM/TLS integration is implemented and covered by offline tests with injected fake AWS credentials; a live ElastiCache environment is not required.
 
-## Runtime Secrets
+## Runtime secrets
 
 Terraform creates only Secret **containers** for:
 
@@ -156,93 +141,77 @@ Terraform creates only Secret **containers** for:
 <environment>/tool-execution-signing-key
 ```
 
-It does not create Secret versions or accept provider API keys/tool signing keys as Terraform variables. This prevents those runtime secret values from being deliberately written into Terraform configuration or state during this milestone.
+It does not accept provider API keys or the tool signing key as Terraform variables.
 
-The cloud-deployment stage will populate and consume these secrets using an approved runtime mechanism.
+The optional AWS runtime loader resolves those values in memory. Routine free verification uses the mock provider and local ignored configuration instead.
 
 ## ECR
 
-The ECR repository uses:
+The optional ECR repository design uses immutable tags, KMS encryption, scan-on-push, and lifecycle cleanup.
 
-- immutable image tags;
-- KMS encryption;
-- scan-on-push;
-- lifecycle cleanup for old images.
+The maintained free release path does **not** require ECR. Public release images are published with `.github/workflows/release.yml` to GitHub Container Registry.
 
-`ecr_force_delete` defaults to false so destroying infrastructure does not silently delete a non-empty image repository.
-
-## NAT topology and cost
+## NAT topology and cost boundary
 
 `nat_gateway_mode` supports:
 
 ```text
-single  -> one NAT gateway, lower development cost, one zonal egress dependency
+single  -> one NAT gateway, lower reference-environment cost
 per_az  -> one NAT gateway per Availability Zone, higher availability and cost
 ```
 
-The development example uses `single`. A persistent/production environment should normally use `per_az`, enable RDS Multi-AZ, and set `protect_data = true` after reviewing expected AWS charges.
+This is a design tradeoff only. Neither option is required to be deployed for the project.
 
-## Initializing the AWS root
+The optional AWS architecture contains services that can incur charges even with very little application traffic. For that reason it is not part of the default verified path.
 
-After the bootstrap stack exists, initialize the application root using the partial S3 backend values printed by `backend_init_example`.
-
-For example:
-
-```bash
-cd terraform/aws
-cp dev.tfvars.example dev.tfvars
-
-terraform init -reconfigure \
-  -backend-config="bucket=YOUR_STATE_BUCKET" \
-  -backend-config="region=us-east-1" \
-  -backend-config="key=secure-ai-gateway/dev/terraform.tfstate" \
-  -backend-config="use_lockfile=true" \
-  -backend-config="encrypt=true" \
-  -backend-config="kms_key_id=YOUR_STATE_KMS_KEY_ARN"
-
-terraform plan -var-file=dev.tfvars
-```
-
-Do not run `terraform apply` until the AWS account, region, cost profile, EKS access path, and runtime secret strategy have been reviewed for the target deployment.
-
-## AWS authentication
-
-Do not put AWS access keys in `.tf`, `.tfvars`, backend arguments, or repository secrets unless a later CI/CD design explicitly requires them.
-
-For interactive work, use AWS IAM Identity Center, an assumable role, or another short-lived credential source supported by the AWS SDK credential chain. `eks_admin_role_arn` should likewise reference a role intended for temporary/federated access rather than a long-lived IAM user.
-
-## Local validation
+## Free local validation
 
 With Terraform installed:
 
 ```bash
 terraform fmt -check -recursive terraform
-
 terraform -chdir=terraform/bootstrap init -backend=false -input=false
 terraform -chdir=terraform/bootstrap validate
-
 terraform -chdir=terraform/aws init -backend=false -input=false
 terraform -chdir=terraform/aws validate
 ```
 
-These commands download provider schemas but do not create AWS resources and do not require provider API keys used by the gateway.
+These commands download provider schemas but do not create AWS resources.
 
-## CI
+CI performs the same validation with no AWS credentials.
 
-GitHub Actions installs Terraform 1.16.2 and runs format, initialization with backends disabled, and validation for both Terraform roots. CI does not run `plan` or `apply` and receives no AWS credentials.
+## Optional AWS inspection
 
-This deliberately keeps pull-request validation side-effect free. A later cloud-deployment workflow can use GitHub OIDC to assume a narrowly scoped deployment role rather than storing long-lived AWS access keys.
+Someone who deliberately wants to inspect the reference architecture against a real AWS account may run the non-mutating preflight:
 
-## Current boundary
+```bash
+bash scripts/aws-cloud-preflight.sh
+```
 
-Terraform now defines the cloud foundation, but the following are intentionally **not** claimed by this milestone:
+AWS signup/authentication is not a project prerequisite.
 
-- an AWS account has been modified;
-- the gateway image has been pushed to ECR;
-- Kubernetes manifests have been adapted/applied to EKS;
-- runtime Secret values have been populated;
-- the gateway has IAM-authenticated Valkey or cloud database client integration enabled;
-- ingress, TLS certificates, DNS, WAF, or a public load balancer exist;
-- production alerts, backups, restore exercises, or disaster recovery have been validated.
+## Paid apply guard
 
-Those are deployment/hardening concerns and are the next milestones after Terraform validation.
+Any Terraform apply operation requires both explicit environment acknowledgements:
+
+```bash
+SAG_ALLOW_BILLABLE_AWS=YES
+SAG_CONFIRM_AWS_APPLY=YES
+```
+
+The deployment phase also requires `SAG_ALLOW_BILLABLE_AWS=YES` because it assumes and uses an already-running paid AWS environment.
+
+CI never sets either variable.
+
+## Verification claims
+
+The repository may claim that the Terraform architecture is:
+
+- formatted;
+- provider-schema validated;
+- represented by schema-validated Kubernetes cloud manifests;
+- covered by offline application tests for AWS secret loading and Valkey IAM token construction.
+
+Unless someone deliberately deploys and verifies the AWS environment, the repository must **not** claim that EKS/RDS/ElastiCache runtime behavior has been live-tested.
+
+That reference-only status does not block the roadmap. The required next milestone after the zero-cost release path is production/adversarial hardening.
