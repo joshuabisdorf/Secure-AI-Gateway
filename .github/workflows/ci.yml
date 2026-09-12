@@ -98,3 +98,33 @@ jobs:
 
       - name: Build gateway image
         run: docker build --tag secure-ai-gateway:ci .
+
+  kubernetes-manifests:
+    name: Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.37.0
+
+      - name: Render Kustomize manifests
+        run: kubectl kustomize k8s/ci > rendered-kubernetes.yaml
+
+      - name: Reject committed Kubernetes Secret objects
+        run: >-
+          if grep -q '^kind: Secret$' rendered-kubernetes.yaml; then
+            echo 'Kubernetes Secret objects must be created from ignored runtime configuration.' >&2;
+            exit 1;
+          fi
+
+      - name: Validate Kubernetes schemas
+        uses: azure/k8s-lint@v4
+        with:
+          manifests: rendered-kubernetes.yaml
+          kubeconformOpts: -strict -summary -kubernetes-version 1.37.0
