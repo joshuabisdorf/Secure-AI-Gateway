@@ -12,9 +12,9 @@ The workflow also supports manual `workflow_dispatch` runs.
 
 ## Security posture
 
-CI intentionally does not require provider, PostgreSQL, Redis, or gateway-client secrets.
+CI intentionally does not require provider, PostgreSQL, Redis, gateway-client, or telemetry secrets.
 
-The test suite forces the mock provider plus in-memory rate-limit and usage-accounting backends. The prompt-injection benchmark and semantic PII benchmark are fully offline. The semantic PII job runs the local spaCy model installed with the project; message text is not sent to a remote classifier. The Docker job builds the production image but does not start it or make provider calls.
+The test suite forces the mock provider plus in-memory rate-limit, usage-accounting, and tool-replay backends, and explicitly disables OTLP export. The prompt-injection benchmark and semantic PII benchmark are fully offline. The semantic PII job runs the local spaCy model installed with the project; message text is not sent to a remote classifier. The Docker job validates Compose configuration and builds the production image but does not start the stack or make provider calls.
 
 The workflow grants only:
 
@@ -35,7 +35,7 @@ The `Pytest` job installs the project with development dependencies under Python
 pytest -q
 ```
 
-This covers authentication, policy enforcement, rate limiting, usage budgets, structured and semantic PII handling, prompt-injection detection, system-prompt leakage evaluation logic, security-policy profiles, tool authorization, and provider normalization without calling real upstream providers.
+This covers authentication, policy enforcement, rate limiting, usage budgets, structured and semantic PII handling, prompt-injection detection, system-prompt leakage evaluation logic, security-policy profiles, exposure/execution-time tool authorization, provider normalization, and observability privacy/cardinality behavior without calling real upstream providers or telemetry collectors.
 
 ### Prompt-injection benchmark
 
@@ -65,13 +65,19 @@ Both benchmark gates are curated regression tests. Their passing thresholds and 
 
 ### Docker build
 
-The `Docker build` job runs a clean image build from the committed Dockerfile:
+The `Docker build` job first validates the full Compose graph:
+
+```bash
+docker compose config --quiet
+```
+
+It then runs a clean image build from the committed Dockerfile:
 
 ```bash
 docker build --tag secure-ai-gateway:ci .
 ```
 
-It validates that the production image, including the pinned local semantic PII model, remains buildable independently of a developer workstation. It does not push an image or require registry credentials.
+This validates that the gateway image, Prometheus/collector service configuration references, and pinned local semantic PII model remain reproducible independently of a developer workstation. CI does not start or push the images and requires no registry credentials.
 
 ## Concurrency
 
