@@ -1,4 +1,6 @@
 import hmac
+from collections.abc import AsyncIterator
+from time import perf_counter
 
 from fastapi import HTTPException, Request, Response, Security, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -8,16 +10,22 @@ from app.api_keys import Principal, hash_api_key, parse_key_id
 from app.audit import emit_audit_event
 from app.client_registry import ClientRegistryUnavailable, build_client_registry
 from app.models import ChatCompletionRequest
+from app.observability import (
+    bounded_route,
+    finish_request_span,
+    observe_http_request,
+    request_trace,
+)
 from app.tool_authorization import authorize_request_tools, get_client_allowed_tools
 
 bearer_scheme = HTTPBearer(auto_error=False)
 client_registry = build_client_registry()
 
 
-async def authenticate_api_key(
+async def _authenticate_api_key_once(
     request: Request,
     response: Response,
-    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials | None,
 ) -> Principal:
     """
     RME
@@ -36,7 +44,7 @@ async def authenticate_api_key(
         - Resolves a structured gateway API key to an active client identity.
         - Compares a one-way hash of the presented key with the stored hash.
         - For valid chat request bodies, enforces least-privilege function-tool exposure.
-        - Leaves invalid request-body handling to FastAPI's normal schema validation.
+        - Leaves invalid/non-chat request-body handling to the endpoint's normal validation.
         - Records decisions without logging credentials, tool arguments, or tool outputs.
 
     Inputs:
@@ -173,3 +181,69 @@ async def authenticate_api_key(
         tool_requested_names=requested_names,
     )
     return principal
+
+
+async def authenticate_api_key(
+    request: Request,
+    response: Response,
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+) -> AsyncIterator[Principal]:
+    """
+    RME
+
+    Requires:
+        - Request middleware has assigned a safe request ID.
+        - A usable client registry and applicable authorization policy are configured.
+
+    Modifies:
+        - Authentication/tool-authorization state described by _authenticate_api_key_once.
+        - Protected-request Prometheus metrics and optional OpenTelemetry span state.
+        - X-Trace-ID response header when tracing is enabled and produces a valid trace context.
+
+    Effects:
+        - Authenticates and authorizes the request before yielding the principal to the endpoint.
+        - Measures the complete protected endpoint lifetime, including endpoint errors.
+        - Extracts standard incoming trace context without recording arbitrary headers.
+        - Uses only bounded route/method/status labels in Prometheus.
+
+    Inputs:
+        - request: Incoming protected HTTP request.
+        - response: FastAPI response object.
+        - credentials: Bearer credentials extracted by FastAPI security handling.
+
+    Outputs:
+        - Yields the authenticated Principal exactly once.
+    """
+    route = bounded_route(request.url.path)
+    started_at = perf_counter()
+    status_code = status.HTTP_200_OK
+    request_id = request.state.request_id
+
+    with request_trace(
+        method=request.method,
+        route=route,
+        request_id=request_id,
+        headers=request.headers,
+    ) as span:
+        span_context = span.get_span_context()
+        if span_context.is_valid:
+            response.headers["X-Trace-ID"] = f"{span_context.trace_id:032x}"
+
+        try:
+            principal = await _authenticate_api_key_once(request, response, credentials)
+            yield principal
+        except HTTPException as exc:
+            status_code = exc.status_code
+            raise
+        except Exception as exc:
+            status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            span.record_exception(exc)
+            raise
+        finally:
+            observe_http_request(
+                request.method,
+                route,
+                status_code,
+                perf_counter() - started_at,
+            )
+            finish_request_span(span, status_code)
