@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sag-gateway-config
+  namespace: secure-ai-gateway
+data:
+  SAG_PROVIDER: mock
+  SAG_CLIENT_REGISTRY_BACKEND: postgres
+  SAG_USAGE_LEDGER_BACKEND: postgres
+  SAG_RATE_LIMIT_BACKEND: redis
+  SAG_SEMANTIC_PII_BACKEND: spacy
+  SAG_TOOL_EXECUTION_POLICY_FILE: /app/runtime-config/tools/tool-execution-policies.json
+  SAG_TOOL_EXECUTION_TTL_SECONDS: "120"
+  SAG_TOOL_EXECUTION_REPLAY_BACKEND: redis
+  SAG_ALLOWED_MODELS: openrouter/free
+  SAG_SECURITY_POLICY_FILE: /app/runtime-config/security/security-policies.json
+  SAG_OTEL_ENABLED: "true"
+  SAG_RUN_MIGRATIONS: "false"
+  OTEL_SERVICE_NAME: secure-ai-gateway
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://sag-otel-collector:4318/v1/traces
+  REDIS_URL: redis://sag-redis:6379/0
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sag-security-policy
+  namespace: secure-ai-gateway
+data:
+  security-policies.json: |
+    {
+      "version": 1,
+      "profiles": {
+        "local-default": {
+          "allowed_models": ["openrouter/free"],
+          "requests_per_minute": 10,
+          "daily_budget": {
+            "tokens": 50000,
+            "cost_usd": "1.00"
+          },
+          "pii_action": "redact",
+          "prompt_injection_action": "audit",
+          "allowed_tools": []
+        },
+        "high-security": {
+          "allowed_models": ["openrouter/free"],
+          "requests_per_minute": 5,
+          "daily_budget": {
+            "tokens": 25000,
+            "cost_usd": "0.50"
+          },
+          "pii_action": "deny",
+          "prompt_injection_action": "deny",
+          "allowed_tools": []
+        }
+      },
+      "clients": {
+        "local-dev": "local-default"
+      }
+    }
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sag-tool-execution-policy
+  namespace: secure-ai-gateway
+data:
+  tool-execution-policies.json: |
+    {
+      "version": 1,
+      "tools": {
+        "status_check": {
+          "risk": "read",
+          "parameters": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": false
+          }
+        },
+        "send_message": {
+          "risk": "write",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "recipient": {"type": "string", "minLength": 1, "maxLength": 320},
+              "body": {"type": "string", "minLength": 1, "maxLength": 10000}
+            },
+            "required": ["recipient", "body"],
+            "additionalProperties": false
+          }
+        },
+        "delete_record": {
+          "risk": "destructive",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "record_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"}
+            },
+            "required": ["record_id"],
+            "additionalProperties": false
+          }
+        }
+      }
+    }
