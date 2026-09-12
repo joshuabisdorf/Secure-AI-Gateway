@@ -77,7 +77,7 @@ kubectl -n "$NAMESPACE" rollout status statefulset/sag-redis --timeout=180s
 kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector --timeout=180s
 
 kubectl -n "$NAMESPACE" delete job sag-migrate --ignore-not-found >/dev/null
-kubectl apply -f k8s/base/migration-job.yaml >/dev/null
+kubectl apply -k k8s/migration >/dev/null
 kubectl -n "$NAMESPACE" wait \
   --for=condition=complete \
   job/sag-migrate \
