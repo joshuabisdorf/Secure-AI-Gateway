@@ -96,6 +96,13 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
+      - name: Validate deployment shell syntax
+        run: >-
+          bash -n
+          scripts/aws-cloud-preflight.sh
+          scripts/aws-cloud-deploy.sh
+          scripts/aws-cloud-verify.sh
+
       - name: Build gateway image
         run: docker build --tag secure-ai-gateway:ci .
 
@@ -114,25 +121,31 @@ jobs:
           version: v1.37.0
 
       - name: Render Kustomize manifests
-        run: kubectl kustomize k8s/ci > rendered-kubernetes.yaml
+        run: |
+          kubectl kustomize k8s/ci > rendered-kubernetes.yaml
+          kubectl kustomize k8s/cloud > rendered-cloud-kubernetes.yaml
 
       - name: Reject committed Kubernetes Secret objects
         run: >-
-          if grep -q '^kind: Secret$' rendered-kubernetes.yaml; then
-            echo 'Kubernetes Secret objects must be created from ignored runtime configuration.' >&2;
+          if grep -q '^kind: Secret$' rendered-kubernetes.yaml rendered-cloud-kubernetes.yaml; then
+            echo 'Kubernetes Secret objects must not be committed in rendered deployment targets.' >&2;
             exit 1;
           fi
 
       - name: Validate Kubernetes schemas strictly
         uses: azure/k8s-lint@v4
         with:
-          manifests: rendered-kubernetes.yaml
+          manifests: |
+            rendered-kubernetes.yaml
+            rendered-cloud-kubernetes.yaml
           kubeconformOpts: -strict
 
       - name: Validate Kubernetes 1.37 compatibility
         uses: azure/k8s-lint@v4
         with:
-          manifests: rendered-kubernetes.yaml
+          manifests: |
+            rendered-kubernetes.yaml
+            rendered-cloud-kubernetes.yaml
           kubeconformOpts: -kubernetes-version=1.37.0
 
   terraform:
