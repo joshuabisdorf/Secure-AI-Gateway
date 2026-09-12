@@ -1,0 +1,13 @@
+aws_region  = "us-east-1"
+environment = "dev"
+
+# Cost-oriented development defaults. Use per_az and Multi-AZ for a persistent environment.
+nat_gateway_mode = "single"
+postgres_multi_az = false
+protect_data      = false
+
+# Keep the EKS API private unless you intentionally add trusted public CIDRs.
+eks_public_access_cidrs = []
+
+# Optional: use a federated/assumable IAM role, not a long-lived IAM user.
+# eks_admin_role_arn = "arn:aws:iam::123456789012:role/secure-ai-gateway-admin"
