@@ -103,6 +103,12 @@ jobs:
           scripts/aws-cloud-deploy.sh
           scripts/aws-cloud-verify.sh
 
+      - name: Enforce billable AWS opt-in guard
+        run: |
+          grep -Fq 'SAG_ALLOW_BILLABLE_AWS' scripts/aws-cloud-deploy.sh
+          grep -Fq 'SAG_CONFIRM_AWS_APPLY' scripts/aws-cloud-deploy.sh
+          grep -Fq 'require_billable_aws_opt_in' scripts/aws-cloud-deploy.sh
+
       - name: Build gateway image
         run: docker build --tag secure-ai-gateway:ci .
 
