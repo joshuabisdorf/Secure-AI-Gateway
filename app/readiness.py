@@ -2,8 +2,9 @@ import asyncio
 import os
 
 import psycopg
-import redis.asyncio as redis
 from redis.exceptions import RedisError
+
+from app.redis_client import RedisClientConfigurationError, build_redis_client
 
 
 async def _postgres_ready(database_url: str) -> bool:
@@ -52,26 +53,31 @@ async def _redis_ready(redis_url: str) -> bool:
     RME
 
     Requires:
-        - redis_url identifies the configured Redis backend.
+        - redis_url identifies the configured shared Redis/Valkey backend.
 
     Modifies:
-        - A short-lived Redis client connection.
+        - A short-lived shared-backend client connection.
 
     Effects:
-        - Pings Redis using bounded connect/read timeouts.
+        - Pings Redis/Valkey using bounded connect/read timeouts.
+        - Uses the same local or ElastiCache IAM/TLS authentication path as runtime controls.
         - Returns False instead of exposing backend exception details.
 
     Inputs:
-        - redis_url: Redis connection URL.
+        - redis_url: Redis-compatible connection URL.
 
     Outputs:
-        - True only when Redis responds successfully.
+        - True only when the configured shared backend responds successfully.
     """
-    client = redis.Redis.from_url(
-        redis_url,
-        socket_connect_timeout=2,
-        socket_timeout=2,
-    )
+    try:
+        client = build_redis_client(
+            redis_url,
+            socket_connect_timeout=2,
+            socket_timeout=2,
+        )
+    except RedisClientConfigurationError:
+        return False
+
     try:
         return bool(await client.ping())
     except (OSError, RedisError):
@@ -92,7 +98,7 @@ def _postgres_required() -> bool:
 
 
 def _redis_required() -> bool:
-    """Return whether any configured runtime control requires Redis."""
+    """Return whether any configured runtime control requires Redis/Valkey."""
     return any(
         value.strip().lower() == "redis"
         for value in (
