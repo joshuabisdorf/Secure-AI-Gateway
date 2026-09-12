@@ -1,208 +1,169 @@
-# AWS cloud deployment
+# Cloud deployment and zero-cost release path
 
-The AWS deployment path connects the validated Terraform foundation to the Kubernetes gateway without committing credentials or making the gateway public by default.
+Secure AI Gateway is maintained under a zero-cost-by-default project policy. Normal development, verification, release packaging, and portfolio completion must not require paid cloud infrastructure or an AWS account.
 
-This workflow is intentionally staged. Repository CI never runs `terraform plan`, `terraform apply`, `aws eks update-kubeconfig`, ECR pushes, or Kubernetes deployment against an AWS account.
+The repository therefore has two distinct paths:
 
-## Architecture
+1. a **free verified path** built on local Docker/kind, GitHub Actions, and GitHub Container Registry;
+2. an **optional paid AWS reference architecture** that is statically validated but does not need to be deployed.
 
-The development cloud target uses:
+See `docs/cost-policy.md` for the project-wide rule.
 
-- Amazon EKS for the two-replica gateway deployment;
-- Amazon ECR for immutable `sha-*` gateway images;
-- Amazon RDS for PostgreSQL client/key and daily-usage state;
-- Amazon ElastiCache for Valkey distributed rate-limit and execution-ticket replay state;
-- AWS KMS for Terraform state and application data-service encryption;
-- AWS Secrets Manager for runtime database credentials, provider credentials, and the execution-ticket signing key;
-- EKS Pod Identity for short-lived AWS credentials inside gateway and migration pods;
-- cluster-internal Prometheus and OpenTelemetry Collector deployments;
-- an S3 backend using Terraform native S3 lockfiles.
+## Free verified path
 
-No public Kubernetes `LoadBalancer` or Ingress is created. The gateway Service, Prometheus, and OTLP receiver remain `ClusterIP` resources. Development verification uses `kubectl port-forward`.
+The required path uses:
 
-## Runtime identities
+- local Python development;
+- Docker and Docker Compose;
+- local kind Kubernetes with two gateway replicas;
+- PostgreSQL and Redis containers for distributed-state verification;
+- Prometheus and OpenTelemetry Collector locally;
+- deterministic mock-provider requests;
+- GitHub Actions for CI;
+- GitHub Container Registry for public release images published from this public repository.
+
+No AWS account, cloud billing profile, LLM provider credential, or paid hosting service is required for this path.
+
+### Container release
+
+`.github/workflows/release.yml` builds the gateway container on GitHub-hosted Actions, smoke-tests the built image, and publishes an immutable `sha-*` tag to:
+
+```text
+ghcr.io/joshuabisdorf/secure-ai-gateway
+```
+
+A release tag such as `v0.1.0` also publishes the corresponding lowercase version tag.
+
+The workflow uses the repository `GITHUB_TOKEN` with only:
+
+```yaml
+permissions:
+  contents: read
+  packages: write
+```
+
+It does not use AWS credentials, Docker Hub credentials, provider API keys, or Terraform.
+
+The image is linked to this repository through its OCI source metadata and the workflow publishing context.
+
+### Free runtime verification
+
+The local kind workflow remains the authoritative runtime verification path:
+
+```bash
+bash scripts/k8s-local-up.sh
+bash scripts/k8s-verify.sh
+```
+
+It verifies:
+
+- two independent gateway replicas;
+- shared Redis rate-limit state;
+- shared PostgreSQL usage state;
+- 32-character trace IDs;
+- two healthy Prometheus gateway targets;
+- OpenTelemetry trace export;
+- mock-provider operation without upstream provider spend.
+
+This proves the distributed runtime behavior without requiring a hosted Kubernetes control plane.
+
+## Optional AWS reference architecture
+
+The following resources are retained as a production-style architecture/reference implementation:
+
+- `terraform/bootstrap`;
+- `terraform/aws`;
+- `k8s/cloud`;
+- `scripts/aws-cloud-preflight.sh`;
+- `scripts/aws-cloud-deploy.sh`;
+- `scripts/aws-cloud-verify.sh`.
+
+The AWS design includes:
+
+- Amazon EKS for the two-replica gateway;
+- ECR for immutable gateway images;
+- RDS PostgreSQL for client/key and usage state;
+- ElastiCache Valkey for distributed rate limiting and execution-ticket replay;
+- KMS for encryption;
+- Secrets Manager for runtime secrets;
+- EKS Pod Identity for short-lived workload credentials;
+- private-by-default Kubernetes services;
+- a protected S3 Terraform backend.
+
+This path demonstrates how the gateway would map onto managed AWS services, but deploying it is **not required** and should not be represented as runtime-verified unless someone deliberately chooses to pay for and test it.
+
+## Runtime identities in the AWS reference
 
 Two service accounts have separate Pod Identity roles.
 
-`sag-gateway` can:
+`sag-gateway` can read only its runtime database/signing/provider secret containers and connect to the configured IAM-authenticated Valkey service.
 
-- read the runtime database secret;
-- read the execution-ticket signing-key secret;
-- read the optional provider-credential secret;
-- decrypt those secrets through the platform KMS key;
-- call `elasticache:Connect` for the configured Valkey replication group and IAM user.
+`sag-migration` can read only the RDS administrative bootstrap secret and runtime database credential needed to apply schema changes and provision the restricted runtime database login.
 
-`sag-migration` can:
-
-- read the RDS-managed master-user secret;
-- read the runtime database secret;
-- decrypt those database bootstrap secrets.
-
-The migration role cannot read provider credentials or the execution-ticket signing key and does not receive Valkey connect permission. Gateway pods cannot read the RDS master-user secret.
+Gateway pods cannot read the RDS master-user secret. The migration role does not receive provider-secret or Valkey runtime permissions.
 
 ## PostgreSQL privilege split
 
-The migration Job runs `python -m app.aws_migrate` with the RDS administrative credential. It applies the versioned migrations, then creates or rotates a `sag_runtime` PostgreSQL login with only runtime data-plane grants:
+The AWS migration Job runs `python -m app.aws_migrate` with the RDS administrative credential. It applies the versioned migrations, then creates or rotates a restricted `sag_runtime` login with runtime data-plane grants.
 
-- database `CONNECT`;
-- schema `USAGE`;
-- `SELECT`, `INSERT`, `UPDATE`, and `DELETE` on tables;
-- sequence `USAGE`, `SELECT`, and `UPDATE`;
-- matching default privileges for future migration-owned tables and sequences.
-
-The gateway Deployment resolves only the `sag_runtime` credential into `DATABASE_URL` and requires TLS (`sslmode=require`). It does not run schema migrations.
+The gateway Deployment resolves only the `sag_runtime` credential into `DATABASE_URL`, requires TLS, and does not own schema migrations.
 
 ## Valkey IAM authentication
 
-Cloud Redis-compatible connections use `SAG_REDIS_AUTH_MODE=elasticache_iam` and a `rediss://` URL. The gateway uses the AWS SDK default credential chain supplied by EKS Pod Identity to generate SigV4 ElastiCache connect tokens. Tokens are cached for less than their maximum lifetime and regenerated for new connections.
+Cloud Redis-compatible connections use `SAG_REDIS_AUTH_MODE=elasticache_iam` and a `rediss://` URL. The gateway uses the AWS SDK credential chain supplied by EKS Pod Identity to generate ElastiCache IAM authentication tokens.
 
-The same client factory is used by:
+The same Redis/Valkey client factory is used by:
 
 - distributed rate limiting;
 - execution-ticket replay protection;
 - Kubernetes readiness checks.
 
-The distributed rate limiter uses a one-key Lua transaction based on `GET`, `SET`, `TTL`, and `INCR`, avoiding Redis-version-specific commands that are not portable to Valkey.
+The distributed limiter uses a portable one-key Lua transaction rather than Redis-version-specific commands.
 
 ## Secret handling
 
-No Kubernetes `Secret` object is committed in the cloud overlay. Deployment-time configuration contains only non-secret endpoints, AWS region, resource names, and Secrets Manager IDs.
+No Kubernetes `Secret` object is committed in the cloud overlay. Deployment-time configuration contains only endpoints, AWS region/resource identifiers, and Secrets Manager IDs.
 
-Gateway secret values are loaded in memory by `python -m app.aws_runtime` immediately before it executes the normal gateway entrypoint. Secret values are not written into Kubernetes manifests or printed by the loader.
+Runtime secret values are loaded in memory immediately before the normal gateway entrypoint. They are not written into committed Kubernetes manifests.
 
-The deployment script creates an initial runtime database password and execution-ticket signing key only when those Terraform-created Secrets Manager containers do not already have a value. Temporary JSON files are mode `0600` and removed on script exit.
+The optional AWS verification path uses the mock provider, so it does not require a live LLM provider call.
 
-Provider credentials are not populated by the initial cloud deployment. The cloud verification path uses the deterministic mock provider and therefore makes no upstream LLM request.
+## AWS preflight is optional
 
-## EKS API access
-
-Terraform keeps the EKS API private-only when `eks_public_access_cidrs` is empty. This is the secure default.
-
-A workstation outside the VPC cannot use `kubectl` against a private-only endpoint. For a short-lived development environment, an alternative is to explicitly add the workstation's current public IPv4 address as a single `/32` entry in ignored `terraform/aws/dev.tfvars`. A persistent environment should use a private network path such as VPN or a controlled administrative host instead of broadly opening the API.
-
-An EKS administrator role must also be configured with `eks_admin_role_arn`; cluster creator administrator permissions are intentionally disabled.
-
-## Preflight
-
-Prerequisites:
-
-- AWS CLI authenticated with a role that can provision the Terraform resources;
-- Terraform 1.16.2;
-- Docker;
-- kubectl;
-- jq;
-- curl;
-- OpenSSL.
-
-Run:
+If someone deliberately wants to inspect the AWS design against a real AWS account, the non-mutating preflight is:
 
 ```bash
 bash scripts/aws-cloud-preflight.sh
 ```
 
-The preflight is non-mutating with respect to AWS resources. It:
+It may authenticate to AWS and generate Terraform plans, but it does not create AWS resources.
 
-- verifies the active AWS identity;
-- creates ignored local Terraform variable files when missing;
-- proposes an EKS administrator role ARN when the caller is role-based;
-- reports the workstation public `/32` when available;
-- checks Terraform formatting and validation;
-- renders the cloud Kustomize overlay and rejects tracked Kubernetes Secrets;
-- generates a Terraform bootstrap plan.
+This step is **not** part of the required project setup and should be skipped when preserving the zero-cost constraint.
 
-It finishes with `aws_resources_created=0`.
+## Paid AWS apply guard
 
-Review the reported identity, region, bootstrap plan, EKS administrator role, and API access path before any apply.
+Any command capable of creating or modifying the optional AWS runtime must leave the free path explicitly.
 
-## Apply phases
-
-The apply commands require an explicit environment acknowledgement:
+Both environment variables are required for Terraform apply operations:
 
 ```bash
+export SAG_ALLOW_BILLABLE_AWS=YES
 export SAG_CONFIRM_AWS_APPLY=YES
 ```
 
-That variable is only a local safety guard; it is not a credential.
+`SAG_ALLOW_BILLABLE_AWS=YES` acknowledges that the operator is intentionally leaving the project's zero-cost path. `SAG_CONFIRM_AWS_APPLY=YES` confirms the specific Terraform apply action.
 
-### 1. Remote-state foundation
+The deployment phase also requires `SAG_ALLOW_BILLABLE_AWS=YES` because it assumes an already-running billable AWS environment and may push/use billable services.
 
-Review again:
+CI never sets either variable.
 
-```bash
-bash scripts/aws-cloud-deploy.sh bootstrap-plan
-```
+## Verification language
 
-Then explicitly create the S3/KMS state foundation:
+Use these terms precisely:
 
-```bash
-SAG_CONFIRM_AWS_APPLY=YES bash scripts/aws-cloud-deploy.sh bootstrap-apply
-```
+- **CI-verified**: exercised by GitHub Actions;
+- **locally verified**: exercised on Docker/kind;
+- **release-verified**: built, smoke-tested, and published by the GHCR release workflow;
+- **AWS reference-only**: Terraform/Kubernetes design is statically validated, but no claim is made that paid AWS runtime behavior was executed.
 
-### 2. Application infrastructure
-
-After the state foundation exists:
-
-```bash
-bash scripts/aws-cloud-deploy.sh plan
-```
-
-This initializes `terraform/aws` against the encrypted S3 backend and prints the proposed AWS changes. Review this plan before continuing because EKS, EC2/NAT, RDS, and ElastiCache create billable resources.
-
-Apply only after that review:
-
-```bash
-SAG_CONFIRM_AWS_APPLY=YES bash scripts/aws-cloud-deploy.sh infra-apply
-```
-
-### 3. Application deployment
-
-Once Terraform finishes successfully:
-
-```bash
-bash scripts/aws-cloud-deploy.sh deploy
-```
-
-The deployment phase:
-
-1. reads only non-secret Terraform outputs and secret ARNs;
-2. configures the local kubeconfig for the EKS cluster;
-3. initializes missing Secrets Manager runtime values;
-4. builds an immutable image tagged from the Git commit SHA;
-5. logs into ECR using `aws ecr get-login-password` and pushes the image;
-6. creates deployment-time policy/runtime ConfigMaps;
-7. renders the cloud overlay with the immutable ECR image reference;
-8. runs the dedicated migration Job;
-9. waits for gateway, collector, and Prometheus rollouts;
-10. creates or rotates the `local-dev` gateway client and stores its raw credential only in ignored `.aws-client.env`.
-
-The deploy phase does not create a public gateway endpoint.
-
-## Verification
-
-Run:
-
-```bash
-bash scripts/aws-cloud-verify.sh
-```
-
-The verifier sends authenticated requests directly to two distinct gateway pods. It validates:
-
-- HTTP 200 responses;
-- 32-character trace IDs;
-- cross-replica shared Valkey rate-limit state;
-- cross-replica shared PostgreSQL usage state;
-- two healthy Prometheus gateway targets;
-- OpenTelemetry export to the cluster-local collector;
-- two ready gateway replicas.
-
-The expected final line includes:
-
-```text
-gateway_replicas=2 shared_valkey=true shared_rds=true prometheus=true otel=true public_endpoint=false
-```
-
-## Cost and teardown boundary
-
-`preflight`, `bootstrap-plan`, and application `plan` do not create AWS resources. `bootstrap-apply` creates the state bucket/KMS key. `infra-apply` creates the main billable environment.
-
-Do not run an unreviewed destroy command. The state foundation is intentionally protected from Terraform destroy, and persistent-environment data-protection settings may also prevent destructive operations. Teardown should be handled as an explicit reviewed operation after cloud verification, not bundled into the deployment script.
+The AWS reference may remain untested indefinitely without blocking the roadmap.
