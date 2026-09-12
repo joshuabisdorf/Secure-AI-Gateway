@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sag-security-policy
+  namespace: secure-ai-gateway
+$patch: delete
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sag-tool-execution-policy
+  namespace: secure-ai-gateway
+$patch: delete
