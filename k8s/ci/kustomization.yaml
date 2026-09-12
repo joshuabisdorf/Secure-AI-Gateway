@@ -3,4 +3,4 @@ kind: Kustomization
 namespace: secure-ai-gateway
 resources:
   - ../local
-  - ../base/migration-job.yaml
+  - ../migration
