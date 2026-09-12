@@ -29,7 +29,17 @@ if [ ! -f "$AWS_VARS" ]; then
   exit 2
 fi
 
+require_billable_aws_opt_in() {
+  if [ "${SAG_ALLOW_BILLABLE_AWS:-}" != "YES" ]; then
+    echo "ERROR billable_aws_disabled=true" >&2
+    echo "ERROR explicit_opt_in_required=SAG_ALLOW_BILLABLE_AWS=YES" >&2
+    echo "INFO zero_cost_path=docs/cost-policy.md" >&2
+    exit 2
+  fi
+}
+
 require_apply_confirmation() {
+  require_billable_aws_opt_in
   if [ "${SAG_CONFIRM_AWS_APPLY:-}" != "YES" ]; then
     echo "ERROR explicit_confirmation_required=SAG_CONFIRM_AWS_APPLY=YES" >&2
     exit 2
@@ -109,6 +119,7 @@ case "$MODE" in
     ;;
 
   deploy)
+    require_billable_aws_opt_in
     init_application_backend
 
     REGION="$(terraform -chdir=terraform/aws output -raw aws_region)"
