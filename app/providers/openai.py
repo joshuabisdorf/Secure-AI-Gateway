@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from app.models import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
 from app.providers.base import Provider, ProviderConfigurationError, ProviderError
+from app.providers.observed import observe_provider_chat
 
 
 def _serialize_message(message: ChatMessage) -> dict[str, object]:
@@ -87,6 +88,7 @@ class OpenAIProvider(Provider):
         self._transport = transport
         self._include_usage = include_usage
 
+    @observe_provider_chat
     async def chat_completion(
         self,
         request: ChatCompletionRequest,
@@ -101,12 +103,14 @@ class OpenAIProvider(Provider):
 
         Modifies:
             - Upstream OpenAI-compatible API usage and billing.
+            - Process-local provider metrics and trace state through instrumentation.
 
         Effects:
             - Sends messages and optional authorized function tools/tool choice upstream.
             - Strips gateway-only execution authorization metadata before transport.
             - Converts the upstream response, including function tool calls, into gateway models.
             - Converts upstream failures into non-secret ProviderError reasons.
+            - Records provider latency/success/error metadata without prompt or response content.
 
         Inputs:
             - request: Requested upstream model, messages, and optional authorized tools.
