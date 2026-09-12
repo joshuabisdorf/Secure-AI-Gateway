@@ -18,7 +18,7 @@ A reviewer can use this repository to inspect or verify:
 - sensitive-data-minimized JSON audit events, Prometheus metrics, and OpenTelemetry traces;
 - hardened Docker/Kubernetes runtime configuration;
 - Terraform for an optional private AWS/EKS/RDS/Valkey design;
-- CI security analysis, dependency audit, benchmarks, manifest validation, Terraform validation, and public container delivery.
+- CI security analysis, dependency audit, benchmarks, clean end-to-end demo, manifest validation, Terraform validation, and public container delivery.
 
 The gateway **does not execute external side-effecting tools**. A model-generated tool call is untrusted output; the gateway only issues and verifies authorization for a downstream executor.
 
@@ -39,6 +39,8 @@ secure_ai_gateway_demo=PASS
 provider_calls=mock_only
 billable_cloud_resources=0
 ```
+
+The same command is continuously verified on a clean GitHub-hosted Ubuntu runner as the `End-to-end demo` CI gate.
 
 See [`docs/demo.md`](docs/demo.md).
 
@@ -129,7 +131,7 @@ See [`SECURITY.md`](SECURITY.md), [`docs/production-hardening.md`](docs/producti
 
 ## Current verification status
 
-The repository currently has seven independent CI gates:
+The repository currently has eight independent CI gates:
 
 ```text
 Pytest
@@ -137,11 +139,14 @@ Security analysis
 Prompt-injection benchmark
 Semantic PII benchmark
 Docker build
+End-to-end demo
 Kubernetes manifests
 Terraform
 ```
 
 Security analysis runs Bandit, audits installed Python dependencies with `pip-audit`, and generates/parses a CycloneDX JSON dependency SBOM. Third-party GitHub Actions are pinned to immutable commit SHAs.
+
+`End-to-end demo` runs `make demo` on a fresh GitHub-hosted Ubuntu runner and proves the zero-cost mock-provider security path before cleaning up the Compose stack.
 
 The separate `Release container` workflow builds and smoke-tests an immutable GHCR image, publishes it, logs out of GHCR, pulls the image anonymously, and smoke-tests the public image again.
 
@@ -283,11 +288,11 @@ See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/ter
 - [x] production/adversarial hardening
 - [x] security/dependency analysis and automated dependency maintenance
 - [x] portfolio demo and release-readiness documentation
+- [x] clean-run zero-cost demo verification in CI
 
 ### Remaining before `v1.0.0`
 
-- [ ] run `make demo` on the intended release commit after pulling it locally
-- [ ] run `make check` on the intended release commit
+- [ ] optionally run `make demo` and `make check` once more on the final release commit locally
 - [ ] deliberately select a software license, or explicitly choose to remain unlicensed
 - [ ] create the `v1.0.0` tag only after [`docs/release-checklist.md`](docs/release-checklist.md) is satisfied
 
