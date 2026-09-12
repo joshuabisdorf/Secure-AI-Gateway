@@ -94,41 +94,42 @@ def test_in_memory_rate_limiter_resets_after_window() -> None:
 
 class _FakeRedis:
     def __init__(self) -> None:
-        self.results = [(1, 1), (2, 1), (2, 0)]
-        self.commands: list[tuple[object, ...]] = []
+        self.results = [(1, 1, 60), (2, 1, 41), (2, 0, 41)]
+        self.calls: list[tuple[str, int, tuple[object, ...]]] = []
         self.closed = False
 
-    async def execute_command(self, *args: object) -> object:
-        self.commands.append(args)
+    async def eval(
+        self,
+        script: str,
+        numkeys: int,
+        *keys_and_args: object,
+    ) -> object:
+        self.calls.append((script, numkeys, keys_and_args))
         return self.results.pop(0)
-
-    async def ttl(self, name: str) -> int:
-        assert name == "sag:rate_limit:client-a"
-        return 41
 
     async def aclose(self) -> None:
         self.closed = True
 
 
-def test_redis_rate_limiter_uses_atomic_increx_window() -> None:
+def test_redis_rate_limiter_uses_atomic_portable_window() -> None:
     """
     RME
 
     Requires:
-        - RedisRateLimiter accepts a Redis-compatible deterministic test client.
+        - RedisRateLimiter accepts a deterministic Redis/Valkey-compatible test client.
 
     Modifies:
-        - Fake Redis command history and queued responses.
+        - Fake shared-backend call history and queued responses.
 
     Effects:
         - Verifies allowed and denied distributed rate-limit decisions.
-        - Verifies INCREX uses a bound and expiration without extending the window.
+        - Verifies one-key Lua execution carries the fixed limit/window without relying on Redis-only commands.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether Redis enforcement is configured correctly.
+        - None. Assertions determine whether distributed enforcement is configured correctly.
     """
     fake = _FakeRedis()
     limiter = RedisRateLimiter("redis://unused", client=fake)
@@ -143,17 +144,13 @@ def test_redis_rate_limiter_uses_atomic_increx_window() -> None:
     assert second.remaining == 0
     assert denied.allowed is False
     assert denied.retry_after_seconds == 41
-    assert fake.commands[0] == (
-        "INCREX",
-        "sag:rate_limit:client-a",
-        "BYINT",
-        1,
-        "UBOUND",
-        2,
-        "EX",
-        60,
-        "ENX",
-    )
+
+    script, numkeys, arguments = fake.calls[0]
+    assert numkeys == 1
+    assert arguments == ("sag:rate_limit:client-a", 2, 60)
+    assert "INCR" in script
+    assert "TTL" in script
+    assert "INCREX" not in script
 
     asyncio.run(limiter.close())
     assert fake.closed is True
