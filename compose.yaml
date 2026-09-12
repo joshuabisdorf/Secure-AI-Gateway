@@ -21,6 +21,9 @@ services:
       SAG_TOOL_EXECUTION_REPLAY_BACKEND: redis
       SAG_ALLOWED_MODELS: ${SAG_ALLOWED_MODELS:-}
       SAG_SECURITY_POLICY_FILE: /app/config/security-policies.json
+      SAG_OTEL_ENABLED: ${SAG_OTEL_ENABLED:-true}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-secure-ai-gateway}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:-http://otel-collector:4318/v1/traces}
       DATABASE_URL: postgresql://sag:${POSTGRES_PASSWORD:-sag_dev_password}@postgres:5432/secure_ai_gateway
       REDIS_URL: redis://redis:6379/0
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -75,6 +78,29 @@ services:
       timeout: 5s
       retries: 10
 
+  prometheus:
+    image: prom/prometheus:v3.13.2
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - sag_prometheus_data:/prometheus
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0
+    restart: unless-stopped
+    command:
+      - --config=/etc/otelcol-contrib/config.yaml
+    ports:
+      - "127.0.0.1:4318:4318"
+    volumes:
+      - ./observability/otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+
 volumes:
   sag_postgres_data:
   sag_redis_data:
+  sag_prometheus_data:
