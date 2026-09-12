@@ -10,6 +10,11 @@ __pycache__
 .k8s-client.env
 config/security-policies.json
 config/tool-execution-policies.json
+**/.terraform
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
 *.log
 .DS_Store
 Thumbs.db
