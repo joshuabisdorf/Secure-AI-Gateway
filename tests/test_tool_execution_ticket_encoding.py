@@ -18,7 +18,6 @@ from app import tool_execution_api
         ".abcdef",
         "abcdef.",
         "abc.def.extra",
-        "a" * 4095 + ".b",
     ],
 )
 def test_noncanonical_execution_ticket_is_rejected_before_decode(
@@ -37,8 +36,8 @@ def test_noncanonical_execution_ticket_is_rejected_before_decode(
         - Replaces the verifier with a sentinel that must never be called.
 
     Effects:
-        - Verifies punctuation, padding, whitespace, extra segments, empty segments, and
-          oversized token text fail at the HTTP execution-authorization boundary before decoding.
+        - Verifies punctuation, padding, whitespace, extra segments, and empty segments
+          fail at the HTTP execution-authorization boundary before decoding.
 
     Inputs:
         - monkeypatch: Pytest patch helper.
@@ -74,6 +73,56 @@ def test_noncanonical_execution_ticket_is_rejected_before_decode(
     assert response.status_code == 403
     assert response.json() == {"detail": "Tool execution is not authorized."}
     assert response.headers["X-Tool-Execution-Authorization"] == "denied"
+
+
+def test_oversized_execution_ticket_is_rejected_by_request_schema(
+    monkeypatch,
+    gateway_api_key,
+) -> None:
+    """
+    RME
+
+    Requires:
+        - gateway_api_key authenticates the deterministic test client.
+
+    Modifies:
+        - Replaces the verifier with a sentinel that must never be called.
+
+    Effects:
+        - Verifies the Pydantic request boundary rejects an oversized ticket before
+          execution-ticket verification is reached.
+
+    Inputs:
+        - monkeypatch: Pytest patch helper.
+        - gateway_api_key: Deterministic test client credential.
+
+    Outputs:
+        - None. Assertions determine whether the outer request schema fails closed.
+    """
+    def verifier_must_not_run(*args, **kwargs):
+        raise AssertionError("oversized execution token reached verifier")
+
+    monkeypatch.setattr(
+        tool_execution_api,
+        "verify_execution_ticket",
+        verifier_must_not_run,
+    )
+    client = TestClient(main.app)
+    response = client.post(
+        "/v1/tool-executions/authorize",
+        headers={"Authorization": f"Bearer {gateway_api_key}"},
+        json={
+            "tool_call": {
+                "id": "call_encoding_test",
+                "type": "function",
+                "function": {"name": "status_check", "arguments": "{}"},
+                "execution_token": "a" * 4095 + ".b",
+                "execution_risk": "read",
+            }
+        },
+    )
+
+    assert response.status_code == 422
 
 
 def test_execution_ticket_shape_accepts_only_unpadded_urlsafe_two_segments() -> None:
