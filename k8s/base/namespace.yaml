@@ -4,3 +4,7 @@ metadata:
   name: secure-ai-gateway
   labels:
     app.kubernetes.io/part-of: secure-ai-gateway
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/audit-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/warn-version: latest

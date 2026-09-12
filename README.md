@@ -1,283 +1,153 @@
 # Secure AI Gateway
 
-Secure AI Gateway is a security-focused proxy between applications and LLM providers or local model backends. It centralizes authentication, authorization, rate limiting, usage budgets, sensitive-data controls, prompt-injection controls, tool exposure and execution authorization, provider routing, audit logging, observability, and security evaluation around upstream model use.
+Secure AI Gateway is a security-focused control plane and proxy for LLM applications. It sits between an application and an LLM provider/local backend and centralizes authentication, authorization, rate limiting, usage budgets, PII controls, prompt-injection controls, tool exposure and execution authorization, audit logging, observability, and security regression testing.
 
-## Cost policy
+The project is built under a **zero-cost-by-default** constraint: the complete required development, verification, packaging, and portfolio path uses local tooling, the deterministic mock provider, public GitHub Actions/Packages, Docker, and kind. The AWS implementation is an optional reference architecture and does not need to be applied.
 
-This project is maintained under a **zero-cost-by-default** constraint.
+## What this project demonstrates
 
-Normal development, verification, release packaging, and portfolio completion do not require an AWS account, paid cloud infrastructure, a billing method, or paid LLM calls.
+A reviewer can use this repository to inspect or verify:
 
-The required verified path uses:
+- gateway-issued client identities and high-entropy API keys, with only hashes persisted;
+- PostgreSQL-backed key revocation/rotation and daily usage accounting;
+- distributed Redis/Valkey rate limiting and execution-ticket replay protection;
+- deployment-wide and per-client model authorization;
+- structured plus semantic PII detection with redact/deny policy;
+- prompt-injection audit/deny policy with a versioned regression benchmark;
+- least-privilege tool exposure and independent execution-time authorization;
+- sensitive-data-minimized JSON audit events, Prometheus metrics, and OpenTelemetry traces;
+- hardened Docker/Kubernetes runtime configuration;
+- Terraform for an optional private AWS/EKS/RDS/Valkey design;
+- CI security analysis, dependency audit, benchmarks, manifest validation, Terraform validation, and public container delivery.
 
-- local Python development;
-- Docker and Docker Compose;
-- local kind Kubernetes;
-- GitHub Actions within the account's included allowance;
-- GitHub Container Registry for the public release image;
-- the deterministic mock provider for routine runtime verification.
+The gateway **does not execute external side-effecting tools**. A model-generated tool call is untrusted output; the gateway only issues and verifies authorization for a downstream executor.
 
-The AWS Terraform/Kubernetes implementation is an **optional paid reference architecture**. It may remain un-applied and runtime-untested indefinitely without blocking the roadmap.
+## Five-minute reviewer path
 
-See `docs/cost-policy.md`.
+For the fastest local demonstration:
 
-## Current capabilities
+```bash
+make demo
+```
 
-Implemented:
+The demo uses only the mock provider. It creates a temporary client, proves authenticated chat, usage accounting, PII redaction, prompt-injection detection, signed tool-ticket issuance, execution-time authorization, replay denial, rate limiting, and Prometheus metrics. It does not print the raw client key or execution ticket and revokes the temporary client key on exit.
 
-- FastAPI `/health`, `/metrics`, and OpenAI-style `/v1/chat/completions`
-- deterministic non-network mock provider plus OpenAI and OpenRouter providers
-- structured high-entropy gateway API keys with SHA-256 verification
-- PostgreSQL-backed client/key registry, immediate key revocation, and atomic rotation
-- deployment-wide model ceiling plus per-client model grants
-- Redis/Valkey-backed distributed per-client rate limiting
-- per-client UTC-day token/cost budgets with PostgreSQL persistence
-- structured and local semantic/contextual PII detection with redact/deny policies
-- deterministic prompt-injection audit/deny/off policies and versioned benchmark
-- synthetic system-prompt leakage evaluation with disposable canaries
-- least-privilege function-tool exposure authorization
-- execution-time tool authorization with authoritative JSON Schemas, risk labels, short-lived signed tickets, and distributed one-time replay protection
-- versioned named security-policy profiles
-- structured one-line JSON security audit events with request/client attribution and sensitive-data exclusions
-- Prometheus metrics with bounded labels and OpenTelemetry OTLP/HTTP tracing
-- hardened Dockerized local stack with PostgreSQL, Redis, Prometheus, and OpenTelemetry Collector
-- two-replica Kubernetes gateway deployment with backend-aware readiness, explicit migration Job, PodDisruptionBudget, and hardened pod security
-- local kind workflow that verifies shared Redis/PostgreSQL security state across different gateway replicas
-- zero-cost GitHub Container Registry release workflow using the repository `GITHUB_TOKEN`
-- Terraform AWS reference foundation for protected remote state, VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, IAM-authenticated Valkey, KMS, Secrets Manager, and EKS Pod Identity
-- guarded optional AWS deployment workflow with separate gateway/migration Pod Identities, Secrets Manager runtime loading, least-privilege PostgreSQL runtime role provisioning, immutable ECR images, and private-by-default Kubernetes services
-- GitHub Actions gates for pytest, both security benchmarks, Docker/Compose and deployment shell syntax, Kubernetes local/cloud manifest schemas, and Terraform validation
-
-The next required milestone is **production/adversarial hardening**. Paid AWS runtime verification is optional and is not a prerequisite.
-
-## Security request path
+A successful run ends with:
 
 ```text
-Client
-  |
-  | sag_<key_id>_<secret>
-  v
-Secure AI Gateway
-  |
-  +-- PostgreSQL client/key lookup
-  +-- constant-time key-hash verification
-  +-- named client security profile
-  +-- function-tool exposure authorization
-  +-- Redis/Valkey per-client rate limit
-  +-- deployment-wide + client model authorization
-  +-- structured + semantic PII controls
-  +-- prompt-injection inspection
-  +-- PostgreSQL daily token/cost accounting
-  +-- structured audit + bounded telemetry
-  +-- provider routing
-  |
-  v
-OpenRouter / OpenAI / other provider
-  |
-  | untrusted tool_call, if any
-  v
-Secure AI Gateway
-  |
-  +-- current client tool grant
-  +-- authoritative schema fingerprint
-  +-- exact argument JSON Schema validation
-  +-- risk classification
-  +-- short-lived signed execution ticket
-  v
-Client / executor
-  |
-  | POST /v1/tool-executions/authorize
-  v
-Execution-time re-authentication + one-time replay claim
+secure_ai_gateway_demo=PASS
+provider_calls=mock_only
+billable_cloud_resources=0
 ```
 
-A model-generated tool call is never treated as authorization to execute a side effect. The gateway currently authorizes execution but does not itself implement external side-effecting tools.
+See [`docs/demo.md`](docs/demo.md).
 
-## Local configuration
-
-Create ignored local configuration from the tracked examples:
+For the primary local quality gates:
 
 ```bash
-cp .env.example .env
-cp config/security-policies.example.json config/security-policies.json
+make install
+make check
 ```
 
-Routine free verification should use the mock provider. A live OpenRouter/OpenAI configuration is optional and may incur provider charges depending on the selected provider/model.
-
-Never commit `.env`, `.client.env`, `.k8s-client.env`, `.aws-client.env`, Terraform state/private variable files, or raw provider/gateway credentials.
-
-Validate local policy with:
+For the full two-replica kind verification:
 
 ```bash
-set -a
-source .env
-set +a
-python -m app.policy_cli validate
+make kind-up
+make kind-verify
 ```
 
-## Dockerized local stack
+## Architecture
 
-Build and start the gateway plus shared state and observability services:
-
-```bash
-docker compose up -d --build
-docker compose ps
-curl -i http://127.0.0.1:8000/health
+```mermaid
+flowchart LR
+    A[Application / Client] -->|sag API key| G[Secure AI Gateway]
+    G --> P[(PostgreSQL)]
+    G --> R[(Redis / Valkey)]
+    G --> S[Security policy]
+    G --> O[Prometheus / OpenTelemetry]
+    G --> L[LLM provider or local backend]
+    L -->|untrusted response / tool call| G
+    G -->|signed short-lived execution ticket| E[Client / Tool Executor]
+    E -->|execution authorization request| G
 ```
 
-Prometheus is bound locally at `127.0.0.1:9090`; OTLP/HTTP is bound at `127.0.0.1:4318`. The gateway runs non-root with a read-only root filesystem, all Linux capabilities dropped, `no-new-privileges`, and a bounded writable `/tmp`.
-
-For routine shutdown, preserve persistent data:
-
-```bash
-docker compose down
-```
-
-Do not use `docker compose down -v` unless intentionally deleting persistent PostgreSQL, Redis, and Prometheus data.
-
-See `docs/docker.md` and `docs/observability.md`.
-
-## Kubernetes
-
-The Kustomize deployment runs two gateway replicas behind `sag-gateway`. PostgreSQL and Redis remain shared sources of truth, so authentication, rate limits, usage budgets, and execution-ticket replay state are not replica-local.
-
-The gateway Deployment includes:
-
-- non-root UID/GID 10001;
-- read-only root filesystem;
-- `RuntimeDefault` seccomp;
-- no privilege escalation;
-- all Linux capabilities dropped;
-- disabled service-account token automount;
-- startup/liveness checks on `/health`;
-- backend-aware readiness via `python -m app.readiness`;
-- rolling updates and a PodDisruptionBudget;
-- explicit resource requests/limits.
-
-Kubernetes replicas set `SAG_RUN_MIGRATIONS=false`; schema changes are owned by the separate `k8s/migration` Job.
-
-For the authoritative free runtime verification:
-
-```bash
-bash scripts/k8s-local-up.sh
-bash scripts/k8s-verify.sh
-```
-
-The verification script sends requests directly to two different gateway pods and verifies shared Redis rate-limit state, shared PostgreSQL usage state, 32-character trace IDs, two healthy Prometheus targets, and OTLP tracing.
-
-The local Kubernetes stack deliberately uses the mock provider, so this verification makes no real LLM provider call.
-
-See `docs/kubernetes.md`.
-
-## Zero-cost container release
-
-`.github/workflows/release.yml` builds, smoke-tests, and publishes the container through GitHub Actions to:
+The main request path is:
 
 ```text
-ghcr.io/joshuabisdorf/secure-ai-gateway
+authenticate client
+  -> distributed rate limit
+  -> model authorization
+  -> PII inspection/redaction
+  -> prompt-injection inspection
+  -> persistent usage-budget check
+  -> provider request
+  -> persistent usage record
+  -> untrusted tool-call validation
+  -> signed execution ticket, if applicable
 ```
 
-The workflow publishes an immutable `sha-*` image. A `v*` Git tag also publishes the matching version tag.
+Tool execution is separately mediated:
 
-It uses only:
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant G as Gateway
+    participant M as Model provider
+    participant E as Executor
 
-```yaml
-permissions:
-  contents: read
-  packages: write
+    C->>G: authenticated chat + allowed tool schema
+    G->>M: policy-filtered request
+    M-->>G: untrusted tool_call
+    G->>G: current grant + authoritative schema + arguments
+    G-->>C: tool_call + short-lived signed ticket
+    C->>E: proposed tool call
+    E->>G: POST /v1/tool-executions/authorize
+    G->>G: re-authenticate + verify ticket + re-check policy + one-time replay claim
+    G-->>E: allow once / deny
 ```
 
-No AWS credentials, Docker Hub credentials, provider API keys, or Terraform apply are involved.
+## Security controls
 
-Because this repository is public and the image is published through the repository workflow, the release path is designed to use public GitHub Packages rather than paid hosting infrastructure.
+| Boundary | Control |
+| --- | --- |
+| Client identity | Structured `sag_<key_id>_<secret>` credentials; only SHA-256 digest persisted; constant-time verification |
+| Key lifecycle | PostgreSQL-backed creation, revocation, and atomic rotation |
+| Model access | Deployment ceiling plus per-client exact model grants |
+| Request abuse | Bounded request body, Uvicorn concurrency/keep-alive limits, Redis/Valkey per-client RPM |
+| Usage | Persistent per-client UTC-day token/cost budgets |
+| Sensitive data | Structured and local semantic PII detection with redact/deny policy |
+| Prompt injection | Deterministic audit/deny/off policy plus regression benchmark |
+| Tool exposure | Per-client tool allowlist |
+| Tool execution | Authoritative schema, exact argument hash, risk class, HMAC ticket, expiry, identity binding, current-policy recheck, one-time replay claim |
+| Audit/telemetry | Metadata-only audit events and bounded labels; prompts, credentials, raw PII/tool arguments/results/tickets excluded |
+| HTTP runtime | API docs hidden by default; no-store/CSP/referrer/MIME/frame headers; server banner and proxy headers disabled in container default |
+| Container | Non-root, read-only root filesystem, dropped capabilities, no-new-privileges |
+| Kubernetes | Two replicas, readiness/liveness/startup checks, PDB, resource bounds, `RuntimeDefault` seccomp, no privilege escalation |
+| Supply chain | SHA-pinned Actions, Dependabot, Bandit, `pip-audit`, CycloneDX dependency SBOM generation, immutable GHCR SHA tags |
 
-See `docs/cloud-deployment.md` and `docs/cost-policy.md`.
+See [`SECURITY.md`](SECURITY.md), [`docs/production-hardening.md`](docs/production-hardening.md), and [`docs/security-review.md`](docs/security-review.md).
 
-## Terraform
+## Current verification status
 
-The Terraform AWS reference is split into two roots:
+The repository currently has seven independent CI gates:
 
 ```text
-terraform/bootstrap  protected S3/KMS remote-state foundation
-terraform/aws        optional application cloud infrastructure
+Pytest
+Security analysis
+Prompt-injection benchmark
+Semantic PII benchmark
+Docker build
+Kubernetes manifests
+Terraform
 ```
 
-The AWS root defines a VPC with public/private/isolated data subnets, NAT egress, a private-by-default EKS control plane, managed worker nodes, ECR, KMS, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, Secrets Manager containers, and separate EKS Pod Identity roles for gateway runtime and database migration.
+Security analysis runs Bandit, audits installed Python dependencies with `pip-audit`, and generates/parses a CycloneDX JSON dependency SBOM. Third-party GitHub Actions are pinned to immutable commit SHAs.
 
-Terraform validation is side-effect free:
+The separate `Release container` workflow builds and smoke-tests an immutable GHCR image, publishes it, logs out of GHCR, pulls the image anonymously, and smoke-tests the public image again.
 
-```bash
-terraform fmt -check -recursive terraform
-terraform -chdir=terraform/bootstrap init -backend=false -input=false
-terraform -chdir=terraform/bootstrap validate
-terraform -chdir=terraform/aws init -backend=false -input=false
-terraform -chdir=terraform/aws validate
-```
+## Security evaluation baselines
 
-This reference architecture is statically validated in CI but is not required to be applied. Do not run `terraform apply` merely to validate the repository.
-
-See `docs/terraform.md`.
-
-## Optional AWS reference deployment
-
-The optional AWS cloud workflow keeps the gateway private by default and creates no Kubernetes Ingress or public `LoadBalancer`.
-
-The architecture supports:
-
-- TLS plus ElastiCache IAM authentication;
-- separate runtime and migration Pod Identity roles;
-- an RDS administrative migration identity and restricted `sag_runtime` login;
-- Secrets Manager runtime loading;
-- ECR image publishing;
-- private Prometheus and OTLP services;
-- cross-replica AWS runtime verification.
-
-This path can create billable AWS services and is **not part of the required zero-cost project path**.
-
-Any AWS apply operation requires both explicit guards:
-
-```bash
-SAG_ALLOW_BILLABLE_AWS=YES
-SAG_CONFIRM_AWS_APPLY=YES
-```
-
-The deployment phase also requires `SAG_ALLOW_BILLABLE_AWS=YES` because it assumes a running paid environment.
-
-The non-mutating AWS preflight remains available for someone who intentionally wants to inspect the design against a real AWS account, but AWS signup/authentication is not a project prerequisite.
-
-See `docs/cloud-deployment.md`.
-
-## Observability
-
-Prometheus exposes bounded metric families including:
-
-```text
-sag_http_requests_total
-sag_http_request_duration_seconds
-sag_provider_requests_total
-sag_provider_request_duration_seconds
-sag_security_decisions_total
-sag_pii_findings_total
-sag_prompt_injection_findings_total
-sag_tool_authorization_decisions_total
-sag_usage_tokens_total
-sag_usage_cost_usd_total
-sag_backend_failures_total
-```
-
-Metric labels deliberately exclude client IDs, API-key IDs, request IDs, model names, tool names, prompt content, PII values, execution tickets, tool arguments, and results. OpenTelemetry traces likewise contain only bounded routing/provider metadata plus request correlation metadata, not prompt/response bodies or credentials.
-
-See `docs/observability.md`.
-
-## Security evaluation
-
-Prompt-injection regression gate:
-
-```bash
-python -m app.evals.prompt_injection_benchmark --enforce-baseline --show-errors
-```
-
-The version-1 curated baseline is:
+Prompt-injection curated regression baseline:
 
 ```text
 TP=36  FP=7  TN=13  FN=10
@@ -287,13 +157,7 @@ false_positive_rate=0.3500
 false_negative_rate=0.2174
 ```
 
-Semantic PII regression gate:
-
-```bash
-python -m app.evals.semantic_pii_benchmark --enforce-baseline --show-errors
-```
-
-The introduced version-1 curated baseline is:
+Semantic PII curated regression baseline:
 
 ```text
 TP=32  FP=0  TN=20  FN=0
@@ -303,101 +167,100 @@ false_positive_rate=0.0000
 false_negative_rate=0.0000
 ```
 
-These are scoped regression datasets, not estimates of real-world production accuracy.
+These are small versioned regression corpora, not estimates of real-world production accuracy. Known residual risks are recorded in [`docs/security-review.md`](docs/security-review.md).
 
-Synthetic system-prompt leakage evaluation:
+## Local development
+
+Create ignored local configuration when you want to run the normal configurable stack instead of the self-contained demo:
 
 ```bash
-python -m app.evals.system_prompt_leakage --live --model openrouter/free
+cp .env.example .env
+cp config/security-policies.example.json config/security-policies.json
 ```
 
-System prompts are not treated as a secrecy or authorization boundary.
+Validate policy:
 
-## Continuous integration
+```bash
+set -a
+source .env
+set +a
+python -m app.policy_cli validate
+```
 
-GitHub Actions runs six independent CI gates:
+Start/stop Docker Compose without deleting persistent data:
+
+```bash
+make up
+make down
+```
+
+Do not use `docker compose down -v` unless you intentionally want to delete PostgreSQL, Redis, and Prometheus data.
+
+## Developer commands
 
 ```text
-Pytest
-Prompt-injection benchmark
-Semantic PII benchmark
-Docker build
-Kubernetes manifests
-Terraform
+make install             install project + development/security tooling
+make test                run pytest
+make evals               enforce prompt-injection and semantic-PII baselines
+make security            Bandit + dependency audit
+make check               test + evals + security
+make demo                zero-cost end-to-end demo
+make up / make down      Docker Compose lifecycle, preserving volumes
+make kind-up             build/start local kind environment
+make kind-verify         verify two-replica kind security state
+make terraform-validate  side-effect-free Terraform validation
 ```
 
-The Kubernetes gate renders both `k8s/ci` and `k8s/cloud`, rejects tracked `Secret` objects, and schema-validates both deployment targets. The Docker gate checks optional AWS deployment shell syntax before building the image. The Terraform gate enforces formatting and validates both Terraform roots with remote backends disabled. CI receives no AWS credentials and does not create cloud resources.
+## Kubernetes
 
-The separate `Release container` workflow handles the zero-cost GHCR publishing path and has only package-write permission in addition to repository read access.
-
-Run the main equivalent checks locally with:
+The free authoritative distributed-runtime verification uses kind. It runs two gateway replicas with shared PostgreSQL and Redis, local Prometheus, and an OpenTelemetry Collector.
 
 ```bash
-pytest -q
-python -m app.evals.prompt_injection_benchmark --enforce-baseline --show-errors
-python -m app.evals.semantic_pii_benchmark --enforce-baseline --show-errors
-docker compose config --quiet
-docker build --tag secure-ai-gateway:ci .
-kubectl kustomize k8s/ci >/tmp/sag-kubernetes-rendered.yaml
-kubectl kustomize k8s/cloud >/tmp/sag-cloud-kubernetes-rendered.yaml
-terraform fmt -check -recursive terraform
-terraform -chdir=terraform/bootstrap init -backend=false -input=false
-terraform -chdir=terraform/bootstrap validate
-terraform -chdir=terraform/aws init -backend=false -input=false
-terraform -chdir=terraform/aws validate
+make kind-up
+make kind-verify
 ```
 
-See `docs/continuous-integration.md`.
+The verification sends traffic to different gateway pods and verifies shared Redis rate state, shared PostgreSQL usage, tracing, and two healthy Prometheus targets.
+
+The Kubernetes namespace is configured to warn/audit against the restricted Pod Security profile. Environment-specific NetworkPolicies are intentionally not hard-coded into the shared base because local and optional cloud backends have different network identities; production operators should add policies once concrete service/CIDR identities are known.
+
+See [`docs/kubernetes.md`](docs/kubernetes.md).
+
+## Zero-cost public container release
+
+The release workflow publishes:
+
+```text
+ghcr.io/joshuabisdorf/secure-ai-gateway:sha-<commit>
+```
+
+A `v*` Git tag also publishes the corresponding version tag. No AWS credentials, Docker Hub credentials, provider keys, or Terraform apply are involved.
+
+## Optional AWS reference architecture
+
+Terraform defines protected S3/KMS remote state plus an application architecture with VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, KMS, Secrets Manager, and separate Pod Identity roles for gateway runtime and migration.
+
+This architecture is **reference-only for the required project path**. It may remain unapplied indefinitely. Any repository deployment helper that can create paid AWS resources requires explicit billable-AWS opt-in guards.
+
+See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/terraform.md), and [`docs/cloud-deployment.md`](docs/cloud-deployment.md).
 
 ## Repository layout
 
 ```text
-Secure-AI-Gateway/
-├── .github/workflows/
-│   ├── ci.yml
-│   └── release.yml
-├── app/
-│   ├── aws_migrate.py
-│   ├── aws_runtime.py
-│   ├── evals/
-│   ├── policies/
-│   ├── providers/
-│   ├── readiness.py
-│   ├── redis_client.py
-│   ├── redis_replay.py
-│   ├── semantic_pii.py
-│   ├── tool_execution.py
-│   └── ...
-├── config/
-├── db/migrations/
-├── docker/entrypoint.sh
-├── docs/
-│   ├── cloud-deployment.md
-│   ├── continuous-integration.md
-│   ├── cost-policy.md
-│   ├── docker.md
-│   ├── kubernetes.md
-│   ├── observability.md
-│   ├── terraform.md
-│   └── ...
-├── evals/datasets/
-├── k8s/
-│   ├── base/
-│   ├── ci/
-│   ├── cloud/
-│   ├── local/
-│   └── migration/
-├── observability/
-├── scripts/
-│   ├── aws-cloud-deploy.sh
-│   ├── aws-cloud-preflight.sh
-│   ├── aws-cloud-verify.sh
-│   ├── k8s-local-up.sh
-│   └── k8s-verify.sh
-├── terraform/
-│   ├── aws/
-│   └── bootstrap/
-├── tests/
+.
+├── app/                         gateway/security implementation
+├── config/                      tracked policy examples and demo policy
+├── db/migrations/               PostgreSQL migrations
+├── docs/                        design, operations, demo, hardening, security review
+├── evals/datasets/              versioned security regression corpora
+├── k8s/                         base/local/CI/cloud/migration Kustomize targets
+├── observability/               Prometheus and OTel configuration
+├── scripts/                     demo, kind, and optional AWS helpers
+├── terraform/                   bootstrap + AWS reference roots
+├── tests/                       unit/integration/adversarial tests
+├── .github/workflows/           CI and public container release
+├── CHANGELOG.md
+├── Makefile
 ├── Dockerfile
 ├── compose.yaml
 └── pyproject.toml
@@ -405,51 +268,32 @@ Secure-AI-Gateway/
 
 ## Roadmap
 
-### Gateway foundation
+### Completed foundation
 
-- [x] FastAPI gateway
-- [x] OpenAI-compatible chat-completions route
-- [x] provider abstraction
-- [x] mock provider
-- [x] OpenAI provider
-- [x] OpenRouter provider
+- [x] FastAPI/OpenAI-compatible gateway and provider abstraction
+- [x] PostgreSQL client/key identity, revocation, and rotation
+- [x] model authorization, distributed rate limiting, and persistent usage budgets
+- [x] structured/semantic PII controls
+- [x] prompt-injection detection and security evaluations
+- [x] least-privilege tool exposure and execution-time authorization
+- [x] audit logging, Prometheus, and OpenTelemetry
+- [x] Docker and two-replica Kubernetes/kind verification
+- [x] Terraform AWS reference architecture
+- [x] zero-cost public GHCR release path
+- [x] production/adversarial hardening
+- [x] security/dependency analysis and automated dependency maintenance
+- [x] portfolio demo and release-readiness documentation
 
-### Core security controls
+### Remaining before `v1.0.0`
 
-- [x] per-client identities and high-entropy API keys
-- [x] hashed API-key verification
-- [x] PostgreSQL persistent client/key registry
-- [x] key revocation and atomic rotation
-- [x] global/per-client model authorization
-- [x] Redis/Valkey-backed distributed rate limiting
-- [x] daily token/cost budgets
-- [x] persistent PostgreSQL usage accounting
-- [x] structured audit logging and request correlation
-- [x] versioned configurable security-policy profiles
+- [ ] run `make demo` on the intended release commit after pulling it locally
+- [ ] run `make check` on the intended release commit
+- [ ] deliberately select a software license, or explicitly choose to remain unlicensed
+- [ ] create the `v1.0.0` tag only after [`docs/release-checklist.md`](docs/release-checklist.md) is satisfied
 
-### LLM / agent security controls
+Paid AWS runtime verification is explicitly not a release requirement.
 
-- [x] structured PII detection/redaction
-- [x] semantic PII detection/evaluation
-- [x] deterministic prompt-injection detection
-- [x] system-prompt leakage tests
-- [x] least-privilege function-tool exposure authorization
-- [x] execution-time tool authorization
-
-### Evaluation and infrastructure
-
-- [x] versioned adversarial prompt benchmark
-- [x] versioned semantic PII benchmark
-- [x] Dockerized gateway
-- [x] GitHub Actions CI
-- [x] OpenTelemetry / Prometheus
-- [x] Kubernetes
-- [x] Terraform reference architecture
-- [x] zero-cost container release workflow
-- [x] optional AWS deployment design (reference-only; paid runtime verification not required)
-- [ ] production/adversarial hardening
-
-## Function documentation convention
+## Documentation convention
 
 Project functions use RME-style docstrings:
 
@@ -461,4 +305,4 @@ Project functions use RME-style docstrings:
 
 ## License
 
-No license has been selected yet.
+No software license has been selected yet. That is intentionally left as an explicit owner decision before `v1.0.0` rather than silently choosing legal terms during implementation.

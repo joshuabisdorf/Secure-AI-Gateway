@@ -60,6 +60,25 @@ jobs:
       - name: Audit installed Python dependencies
         run: python -m pip_audit --progress-spinner off --skip-editable
 
+      - name: Generate and validate CycloneDX dependency SBOM
+        run: |
+          python -m pip_audit \
+            --progress-spinner off \
+            --skip-editable \
+            --format cyclonedx-json \
+            --output /tmp/secure-ai-gateway-python.cdx.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('/tmp/secure-ai-gateway-python.cdx.json')
+          document = json.loads(path.read_text(encoding='utf-8'))
+          assert document.get('bomFormat') == 'CycloneDX'
+          components = document.get('components')
+          assert isinstance(components, list) and components
+          print(f"cyclonedx_sbom=OK components={len(components)}")
+          PY
+
   prompt-injection-benchmark:
     name: Prompt-injection benchmark
     runs-on: ubuntu-latest
@@ -120,12 +139,18 @@ jobs:
       - name: Validate Compose configuration
         run: docker compose config --quiet
 
-      - name: Validate deployment shell syntax
+      - name: Validate shell entrypoints
         run: >-
           bash -n
+          scripts/demo.sh
+          scripts/k8s-local-up.sh
+          scripts/k8s-verify.sh
           scripts/aws-cloud-preflight.sh
           scripts/aws-cloud-deploy.sh
           scripts/aws-cloud-verify.sh
+
+      - name: Validate developer task surface
+        run: make help
 
       - name: Enforce billable AWS opt-in guard
         run: |
