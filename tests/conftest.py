@@ -15,6 +15,7 @@ os.environ["SAG_USAGE_LEDGER_BACKEND"] = "memory"
 os.environ["SAG_RATE_LIMIT_BACKEND"] = "memory"
 os.environ["SAG_SEMANTIC_PII_BACKEND"] = "spacy"
 os.environ["SAG_TOOL_EXECUTION_REPLAY_BACKEND"] = "memory"
+os.environ["SAG_OTEL_ENABLED"] = "false"
 os.environ["SAG_TOOL_EXECUTION_SIGNING_KEY"] = (
     "test-only-tool-execution-signing-key-abcdefghijklmnopqrstuvwxyz"
 )
