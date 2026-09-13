@@ -140,7 +140,9 @@ case "$MODE" in
     kubectl version --request-timeout=10s >/dev/null
 
     TMP_DIR="$(mktemp -d)"
-    trap 'rm -rf "$TMP_DIR"' EXIT
+    CLIENT_SECRET_FILE=""
+    GATEWAY_POD=""
+    trap 'if [ -n "${CLIENT_SECRET_FILE:-}" ] && [ -n "${GATEWAY_POD:-}" ]; then kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true; fi; rm -rf "$TMP_DIR"' EXIT
     chmod 700 "$TMP_DIR"
 
     RUNTIME_DB_PASSWORD="$(openssl rand -base64 48 | tr -d '\n')"
@@ -231,14 +233,36 @@ case "$MODE" in
     kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector --timeout=300s
     kubectl -n "$NAMESPACE" rollout status deployment/sag-prometheus --timeout=300s
 
-    CLIENT_METADATA="$(kubectl -n "$NAMESPACE" exec deploy/sag-gateway -- python -m app.clients list)"
+    GATEWAY_POD="$(
+      kubectl -n "$NAMESPACE" get pods \
+        -l app.kubernetes.io/component=gateway \
+        --field-selector=status.phase=Running \
+        -o jsonpath='{.items[0].metadata.name}'
+    )"
+    if [ -z "$GATEWAY_POD" ]; then
+      echo "ERROR gateway_pod_unavailable=true" >&2
+      exit 2
+    fi
+
+    CLIENT_SECRET_FILE="/tmp/sag-cloud-client-key-$$"
+    CLIENT_METADATA="$(kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- python -m app.clients list)"
     if printf '%s\n' "$CLIENT_METADATA" \
         | grep -q 'client_id=local-dev .*client_active=true .*key_active=true'; then
-      CLIENT_OUTPUT="$(kubectl -n "$NAMESPACE" exec deploy/sag-gateway -- python -m app.clients rotate local-dev)"
+      CLIENT_OUTPUT="$(
+        kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+          python -m app.clients rotate local-dev \
+          --api-key-file "$CLIENT_SECRET_FILE"
+      )"
     else
-      CLIENT_OUTPUT="$(kubectl -n "$NAMESPACE" exec deploy/sag-gateway -- python -m app.clients create local-dev)"
+      CLIENT_OUTPUT="$(
+        kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+          python -m app.clients create local-dev \
+          --api-key-file "$CLIENT_SECRET_FILE"
+      )"
     fi
-    CLIENT_KEY="$(printf '%s\n' "$CLIENT_OUTPUT" | sed -n 's/^API key: //p' | tail -n 1)"
+    CLIENT_KEY="$(kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- cat "$CLIENT_SECRET_FILE")"
+    kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE"
+    CLIENT_SECRET_FILE=""
     if [ -z "$CLIENT_KEY" ]; then
       echo "ERROR client_bootstrap_failed=true" >&2
       exit 2
