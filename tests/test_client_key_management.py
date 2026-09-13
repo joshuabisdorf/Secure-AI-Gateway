@@ -111,6 +111,25 @@ class FakeConnection:
 
     @asynccontextmanager
     async def transaction(self):
+        """
+        RME
+
+        Requires:
+            - self.state contains mutable fake database state.
+
+        Modifies:
+            - self.state while the simulated transaction is active.
+
+        Effects:
+            - Restores the original fake database state when the transaction raises.
+            - Preserves mutations when the transaction completes successfully.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - Async context manager yielding control to the simulated transaction body.
+        """
         snapshot = deepcopy(self.state)
         try:
             yield
@@ -247,6 +266,25 @@ def test_rotation_rolls_back_when_secret_delivery_fails(monkeypatch) -> None:
     )
 
     def fail_secret_delivery(secret_file, api_key: str) -> None:
+        """
+        RME
+
+        Requires:
+            - Called in place of write_api_key_secret during the rollback test.
+
+        Modifies:
+            - Nothing.
+
+        Effects:
+            - Raises OSError to simulate a failed credential-delivery write.
+
+        Inputs:
+            - secret_file: Ignored simulated secret destination.
+            - api_key: Ignored candidate replacement credential.
+
+        Outputs:
+            - None; always raises OSError.
+        """
         raise OSError("secret_delivery_failed")
 
     monkeypatch.setattr(clients, "write_api_key_secret", fail_secret_delivery)
