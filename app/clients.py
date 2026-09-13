@@ -484,6 +484,8 @@ async def _run_command(args: argparse.Namespace) -> None:
         if key_id is None:
             raise RuntimeError("generated_invalid_api_key")
         print(f"Client ID: {args.client_id}")
+        # key_id is intentionally public metadata; only the trailing token is secret.
+        # codeql[py/clear-text-logging-sensitive-data]
         print(f"Key ID: {key_id}")
         print(f"API key file: {args.api_key_file}")
         print("Store the secret file securely and delete it after client provisioning.")
