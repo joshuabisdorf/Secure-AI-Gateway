@@ -86,25 +86,47 @@ kubectl -n "$NAMESPACE" wait \
 kubectl -n "$NAMESPACE" rollout status deployment/sag-gateway --timeout=240s
 kubectl -n "$NAMESPACE" rollout status deployment/sag-prometheus --timeout=180s
 
+GATEWAY_POD="$(
+  kubectl -n "$NAMESPACE" get pods \
+    -l app.kubernetes.io/component=gateway \
+    --field-selector=status.phase=Running \
+    -o jsonpath='{.items[0].metadata.name}'
+)"
+if [ -z "$GATEWAY_POD" ]; then
+  echo "ERROR gateway_pod_unavailable" >&2
+  exit 2
+fi
+
+CLIENT_SECRET_FILE="/tmp/sag-client-key-$$"
+trap 'kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true' EXIT
+
 CLIENT_METADATA="$(
-  kubectl -n "$NAMESPACE" exec deploy/sag-gateway -- \
+  kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
     python -m app.clients list
 )"
 
 if printf '%s\n' "$CLIENT_METADATA" \
   | grep -q 'client_id=local-dev .*client_active=true .*key_active=true'; then
   CLIENT_OUTPUT="$(
-    kubectl -n "$NAMESPACE" exec deploy/sag-gateway -- \
-      python -m app.clients rotate local-dev
+    kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+      python -m app.clients rotate local-dev \
+      --api-key-file "$CLIENT_SECRET_FILE"
   )"
 else
   CLIENT_OUTPUT="$(
-    kubectl -n "$NAMESPACE" exec deploy/sag-gateway -- \
-      python -m app.clients create local-dev
+    kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+      python -m app.clients create local-dev \
+      --api-key-file "$CLIENT_SECRET_FILE"
   )"
 fi
 
-CLIENT_KEY="$(printf '%s\n' "$CLIENT_OUTPUT" | sed -n 's/^API key: //p' | tail -n 1)"
+CLIENT_KEY="$(
+  kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+    cat "$CLIENT_SECRET_FILE"
+)"
+kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE"
+trap - EXIT
+
 if [ -z "$CLIENT_KEY" ]; then
   echo "ERROR client_bootstrap_failed" >&2
   exit 2
