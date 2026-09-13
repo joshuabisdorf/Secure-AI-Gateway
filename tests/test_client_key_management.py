@@ -1,5 +1,8 @@
 import asyncio
 from contextlib import asynccontextmanager
+from copy import deepcopy
+
+import pytest
 
 from app.api_keys import ClientKeyRecord
 from app import clients
@@ -108,7 +111,13 @@ class FakeConnection:
 
     @asynccontextmanager
     async def transaction(self):
-        yield
+        snapshot = deepcopy(self.state)
+        try:
+            yield
+        except BaseException:
+            self.state.clear()
+            self.state.update(snapshot)
+            raise
 
 
 async def _fake_connect_factory(state: dict[str, object], database_url: str):
@@ -181,3 +190,75 @@ def test_rotate_revokes_old_key_and_revoke_is_idempotent(monkeypatch) -> None:
 
     changed = asyncio.run(clients.revoke_client_key("postgresql://test", "oldkey"))
     assert changed is False
+
+
+def test_rotation_rolls_back_when_secret_delivery_fails(monkeypatch) -> None:
+    """
+    RME
+
+    Requires:
+        - Key rotation can use a deterministic fake database transaction.
+        - Secret delivery can be forced to fail before prior keys are revoked.
+
+    Modifies:
+        - In-memory fake client/key state during the attempted transaction.
+
+    Effects:
+        - Verifies secret-delivery failure aborts the replacement-key transaction.
+        - Verifies the previously active key remains active and the new key is not retained.
+
+    Inputs:
+        - monkeypatch: pytest fixture used to inject deterministic dependencies.
+
+    Outputs:
+        - None. Assertions determine whether rollback behavior is correct.
+    """
+    state: dict[str, object] = {
+        "client_id": "local-dev",
+        "client_active": True,
+        "keys": {
+            "oldkey": {
+                "client_id": "local-dev",
+                "api_key_sha256": "a" * 64,
+                "is_active": True,
+            }
+        },
+    }
+
+    async def fake_connect(database_url: str):
+        return await _fake_connect_factory(state, database_url)
+
+    monkeypatch.setattr(
+        clients.psycopg.AsyncConnection,
+        "connect",
+        staticmethod(fake_connect),
+    )
+    monkeypatch.setattr(
+        clients,
+        "generate_api_key",
+        lambda client_id: (
+            "sag_newkey_new-secret",
+            ClientKeyRecord(
+                client_id=client_id,
+                key_id="newkey",
+                api_key_sha256="b" * 64,
+            ),
+        ),
+    )
+
+    def fail_secret_delivery(secret_file, api_key: str) -> None:
+        raise OSError("secret_delivery_failed")
+
+    monkeypatch.setattr(clients, "write_api_key_secret", fail_secret_delivery)
+
+    with pytest.raises(OSError, match="secret_delivery_failed"):
+        asyncio.run(
+            clients.rotate_client_keys(
+                "postgresql://test",
+                "local-dev",
+                secret_file=object(),
+            )
+        )
+
+    assert state["keys"]["oldkey"]["is_active"] is True
+    assert "newkey" not in state["keys"]
