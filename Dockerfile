@@ -6,6 +6,7 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 WORKDIR /build
 
 COPY pyproject.toml ./
+COPY LICENSE NOTICE ./
 COPY app ./app
 
 RUN python -m venv /opt/venv \
@@ -34,6 +35,7 @@ COPY app ./app
 COPY db ./db
 COPY config/security-policies.example.json ./config/security-policies.example.json
 COPY config/tool-execution-policies.example.json ./config/tool-execution-policies.example.json
+COPY LICENSE NOTICE ./
 COPY docker/entrypoint.sh /usr/local/bin/sag-entrypoint
 
 RUN chmod 0555 /usr/local/bin/sag-entrypoint \

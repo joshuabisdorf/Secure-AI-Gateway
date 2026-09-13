@@ -19,7 +19,7 @@ All notable project changes are summarized here. The project has not yet publish
 ### Verification and delivery
 
 - Docker Compose local stack.
-- Clean-run zero-cost end-to-end portfolio demo in CI.
+- Clean-run zero-cost end-to-end demo in CI.
 - Runtime resilience smoke test covering Redis/PostgreSQL fail-closed behavior and telemetry independence.
 - Two-replica kind/Kubernetes verification.
 - Terraform AWS reference architecture with explicit billable-resource guard.
@@ -31,18 +31,20 @@ All notable project changes are summarized here. The project has not yet publish
 - Dependabot maintenance for Python, GitHub Actions, and Docker dependencies.
 - Read-only repository preflight covering release-critical files, tracked secret/artifact hygiene, immutable Action refs, and optional full-history sensitive-filename scanning.
 
-### Documentation and developer experience
+### Documentation, licensing, and developer experience
 
-- Reviewer-focused README with architecture and execution-authorization diagrams.
-- Consolidated reviewer architecture/trust-boundary guide.
-- Portfolio evidence guide mapping security claims to reproducible commands and CI evidence.
+- Project README with architecture, request flow, security controls, verification status, local development, and release information written in project-author voice.
+- Consolidated architecture and trust-boundary guide.
+- Reproducible evidence guide mapping security claims to commands and CI evidence.
 - Threat/security review and residual-risk record.
 - Cost policy separating the free verified path from optional paid AWS architecture.
 - Reliability/failure-injection documentation.
-- Architecture decision records for execution-time tool authorization and the zero-cost required path.
+- Architecture decision records for execution-time tool authorization and the zero-cost default path.
 - `CONTRIBUTING.md`, release checklist, `.editorconfig`, and developer Make targets.
 - `make preflight` release/repository hygiene command.
+- Apache License 2.0 licensing with a project `NOTICE` preserving Joshua Bisdorf attribution.
+- Contribution guidance aligned with Apache-2.0 Section 5.
 
 ## Planned v1.0.0
 
-`v1.0.0` is reserved for the first portfolio release after the release checklist is completed. The remaining owner decision is primarily software licensing (or an explicit choice to remain unlicensed), followed by the deliberate release tag.
+`v1.0.0` is reserved for the first stable release after the release checklist is completed. Apache-2.0 has been selected for the project. Remaining work is focused on deeper adversarial/reliability verification, supply-chain and Kubernetes hardening, final security review, and the deliberate release tag.

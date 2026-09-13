@@ -1,6 +1,6 @@
 # Release checklist
 
-Use this checklist for the first portfolio `v1.0.0` release.
+Use this checklist for the first stable `v1.0.0` release.
 
 ## Repository
 
@@ -9,10 +9,10 @@ Use this checklist for the first portfolio `v1.0.0` release.
 - [ ] `SECURITY.md` and `docs/security-review.md` are current.
 - [ ] `CHANGELOG.md` contains the release summary.
 - [ ] `docs/architecture.md` and `docs/portfolio-evidence.md` reflect the final design/evidence path.
+- [ ] `LICENSE` contains the Apache License 2.0 text and `NOTICE` contains the current project attribution.
 - [ ] No secrets, local `.env` files, Terraform state, generated credentials, or Python build/cache artifacts are tracked.
 - [ ] `make preflight` passes on the intended release state.
 - [ ] `python scripts/repo_preflight.py --history` passes from a full clone, confirming no sensitive-looking filenames were committed historically.
-- [ ] A software license has been deliberately selected, or the repository intentionally remains unlicensed.
 
 ## Verification
 

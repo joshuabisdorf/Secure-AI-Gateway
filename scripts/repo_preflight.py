@@ -16,6 +16,8 @@ SECRET_MARKERS = (
 )
 REQUIRED_PATHS = (
     "README.md",
+    "LICENSE",
+    "NOTICE",
     "SECURITY.md",
     "CHANGELOG.md",
     "docs/demo.md",
@@ -76,7 +78,7 @@ def tracked_files() -> list[str]:
 
 
 def check_required_paths(files: list[str]) -> None:
-    """Verify reviewer and release-critical files are tracked.
+    """Verify release-critical files are tracked.
 
     Requires:
         files contains repository-relative tracked paths.
