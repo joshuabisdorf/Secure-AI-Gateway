@@ -28,11 +28,13 @@ PY
 TMP_DIR="$(mktemp -d)"
 API_KEY=""
 KEY_ID=""
+CONTAINER_API_KEY_FILE="/tmp/sag-demo-client-key-$$"
 
 cleanup() {
   if [[ -n "$KEY_ID" ]]; then
     docker compose exec -T gateway python -m app.clients revoke "$KEY_ID" >/dev/null 2>&1 || true
   fi
+  docker compose exec -T gateway rm -f "$CONTAINER_API_KEY_FILE" >/dev/null 2>&1 || true
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
@@ -115,20 +117,18 @@ if ! curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then
 fi
 echo "PASS step=gateway_health"
 
-CREATE_OUTPUT="$(docker compose exec -T gateway python -m app.clients create portfolio-demo)"
-API_KEY="$(printf '%s\n' "$CREATE_OUTPUT" | sed -n 's/^API key: //p' | tail -n 1)"
-if [[ -z "$API_KEY" ]]; then
+CREATE_OUTPUT="$(
+  docker compose exec -T gateway \
+    python -m app.clients create portfolio-demo \
+    --api-key-file "$CONTAINER_API_KEY_FILE"
+)"
+KEY_ID="$(printf '%s\n' "$CREATE_OUTPUT" | sed -n 's/^Key ID: //p' | tail -n 1)"
+API_KEY="$(docker compose exec -T gateway cat "$CONTAINER_API_KEY_FILE")"
+docker compose exec -T gateway rm -f "$CONTAINER_API_KEY_FILE"
+if [[ -z "$API_KEY" || -z "$KEY_ID" ]]; then
   echo "FAIL step=create_demo_client" >&2
   exit 1
 fi
-KEY_ID="$(python - "$API_KEY" <<'PY'
-import sys
-parts = sys.argv[1].split("_", 2)
-if len(parts) != 3 or parts[0] != "sag":
-    raise SystemExit(1)
-print(parts[1])
-PY
-)"
 echo "PASS step=create_demo_client key_id=$KEY_ID raw_key_logged=false"
 
 docker compose exec -T redis redis-cli DEL 'sag:rate_limit:portfolio-demo' >/dev/null

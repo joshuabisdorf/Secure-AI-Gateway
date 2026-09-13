@@ -1,11 +1,16 @@
+import stat
+
 import pytest
 
 from app.api_keys import (
     format_client_record,
     generate_api_key,
     hash_api_key,
+    managed_api_key_secret_file,
+    open_api_key_secret_file,
     parse_client_records,
     parse_key_id,
+    write_api_key_secret,
 )
 
 
@@ -90,3 +95,63 @@ def test_parse_client_records_rejects_duplicate_key_ids() -> None:
         parse_client_records(
             f"client-a:keya:{'a' * 64},client-b:keya:{'b' * 64}"
         )
+
+
+def test_api_key_secret_file_is_owner_only_and_exclusive(tmp_path) -> None:
+    """
+    RME
+
+    Requires:
+        - tmp_path identifies a writable test directory.
+
+    Modifies:
+        - Creates one temporary API-key secret file.
+
+    Effects:
+        - Verifies raw key delivery uses mode 0600.
+        - Verifies an existing destination cannot be overwritten.
+
+    Inputs:
+        - tmp_path: pytest temporary-directory fixture.
+
+    Outputs:
+        - None. Filesystem assertions determine whether the test passes.
+    """
+    secret_path = tmp_path / "client-api-key"
+    with managed_api_key_secret_file(secret_path) as secret_file:
+        write_api_key_secret(secret_file, "sag_keya_test-secret")
+
+    assert secret_path.read_text(encoding="utf-8") == "sag_keya_test-secret\n"
+    assert stat.S_IMODE(secret_path.stat().st_mode) == 0o600
+
+    with pytest.raises(FileExistsError):
+        open_api_key_secret_file(secret_path)
+
+
+def test_api_key_secret_file_is_removed_when_delivery_fails(tmp_path) -> None:
+    """
+    RME
+
+    Requires:
+        - tmp_path identifies a writable test directory.
+
+    Modifies:
+        - Creates and then removes one temporary API-key secret file.
+
+    Effects:
+        - Verifies failed provisioning does not leave a partial raw credential on disk.
+
+    Inputs:
+        - tmp_path: pytest temporary-directory fixture.
+
+    Outputs:
+        - None. Filesystem assertions determine whether the test passes.
+    """
+    secret_path = tmp_path / "failed-client-api-key"
+
+    with pytest.raises(RuntimeError, match="provisioning_failed"):
+        with managed_api_key_secret_file(secret_path) as secret_file:
+            write_api_key_secret(secret_file, "sag_keya_test-secret")
+            raise RuntimeError("provisioning_failed")
+
+    assert not secret_path.exists()

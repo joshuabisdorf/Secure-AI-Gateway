@@ -2,11 +2,19 @@ import argparse
 import asyncio
 import os
 from pathlib import Path
+from typing import TextIO
 
 import psycopg
 from psycopg.errors import UniqueViolation
 
-from app.api_keys import ClientKeyRecord, generate_api_key, parse_client_records
+from app.api_keys import (
+    ClientKeyRecord,
+    generate_api_key,
+    managed_api_key_secret_file,
+    parse_client_records,
+    parse_key_id,
+    write_api_key_secret,
+)
 
 _MIGRATION_PATH = (
     Path(__file__).resolve().parents[1]
@@ -148,6 +156,7 @@ async def insert_client_key_record(
 async def create_client_key(
     database_url: str,
     client_id: str,
+    secret_file: TextIO | None = None,
 ) -> str:
     """
     RME
@@ -155,24 +164,31 @@ async def create_client_key(
     Requires:
         - database_url identifies an initialized PostgreSQL database.
         - client_id is valid for gateway identity generation.
+        - secret_file, when provided, is an exclusive owner-only writable stream.
 
     Modifies:
         - gateway_clients and gateway_api_keys database tables.
         - Operating-system cryptographic random state.
+        - secret_file contents when a stream is provided.
 
     Effects:
         - Generates a new high-entropy gateway key.
+        - Writes the candidate raw key to the secret stream before persistence when provided.
         - Persists only its SHA-256 digest and public key metadata.
+        - Rewrites the secret stream if an extremely unlikely key-ID collision requires retry.
 
     Inputs:
         - database_url: PostgreSQL connection string.
         - client_id: Stable gateway client identity.
+        - secret_file: Optional secure one-time credential delivery stream.
 
     Outputs:
-        - Raw API key to deliver to the client exactly once.
+        - Raw API key for programmatic callers.
     """
     for _ in range(3):
         api_key, record = generate_api_key(client_id)
+        if secret_file is not None:
+            write_api_key_secret(secret_file, api_key)
         try:
             await insert_client_key_record(database_url, record)
         except ValueError as exc:
@@ -238,6 +254,7 @@ async def revoke_client_key(database_url: str, key_id: str) -> bool:
 async def rotate_client_keys(
     database_url: str,
     client_id: str,
+    secret_file: TextIO | None = None,
 ) -> tuple[str, str, tuple[str, ...]]:
     """
     RME
@@ -245,19 +262,23 @@ async def rotate_client_keys(
     Requires:
         - database_url identifies an initialized PostgreSQL database.
         - client_id identifies an active client with at least one active API key.
+        - secret_file, when provided, is an exclusive owner-only writable stream.
 
     Modifies:
         - gateway_api_keys rows for the client.
         - Operating-system cryptographic random state.
+        - secret_file contents when a stream is provided.
 
     Effects:
         - Creates one replacement API key and stores only its hash.
+        - Writes and synchronizes the replacement secret before revoking existing keys.
         - Revokes all previously active keys for the client in the same transaction.
-        - Rolls back the full rotation when any database step fails.
+        - Rolls back the full rotation when secret delivery or any database step fails.
 
     Inputs:
         - database_url: PostgreSQL connection string.
         - client_id: Client identity whose active keys are being rotated.
+        - secret_file: Optional secure one-time credential delivery stream.
 
     Outputs:
         - Tuple containing the new raw API key, new key ID, and revoked key IDs.
@@ -323,6 +344,9 @@ async def rotate_client_keys(
 
                 if new_api_key is None or new_key_id is None:
                     raise RuntimeError("unable_to_generate_unique_key_id")
+
+                if secret_file is not None:
+                    write_api_key_secret(secret_file, new_api_key)
 
                 await cursor.execute(
                     """
@@ -412,6 +436,31 @@ async def list_client_keys(database_url: str) -> list[tuple[str, str, bool, bool
 
 
 async def _run_command(args: argparse.Namespace) -> None:
+    """
+    RME
+
+    Requires:
+        - args contains one supported client-registry subcommand.
+        - DATABASE_URL identifies the registry database.
+        - create/rotate commands provide a new --api-key-file path.
+
+    Modifies:
+        - PostgreSQL client/key state according to the selected command.
+        - A 0600 API-key delivery file for create/rotate commands.
+        - Standard output with non-secret command metadata.
+
+    Effects:
+        - Executes the selected administrative command.
+        - Never writes raw API keys to standard output.
+        - Removes incomplete API-key output files when create/rotate fails.
+
+    Inputs:
+        - args: Parsed command-line namespace.
+
+    Outputs:
+        - Human-readable non-secret command status on standard output.
+        - Raw API key in the requested secret file for create/rotate.
+    """
     database_url = get_database_url()
 
     if args.command == "init-db":
@@ -425,10 +474,19 @@ async def _run_command(args: argparse.Namespace) -> None:
         return
 
     if args.command == "create":
-        api_key = await create_client_key(database_url, args.client_id)
+        with managed_api_key_secret_file(args.api_key_file) as secret_file:
+            api_key = await create_client_key(
+                database_url,
+                args.client_id,
+                secret_file,
+            )
+        key_id = parse_key_id(api_key)
+        if key_id is None:
+            raise RuntimeError("generated_invalid_api_key")
         print(f"Client ID: {args.client_id}")
-        print(f"API key: {api_key}")
-        print("Store this raw key on the client; it is not stored in PostgreSQL.")
+        print(f"Key ID: {key_id}")
+        print(f"API key file: {args.api_key_file}")
+        print("Store the secret file securely and delete it after client provisioning.")
         return
 
     if args.command == "revoke":
@@ -440,15 +498,17 @@ async def _run_command(args: argparse.Namespace) -> None:
         return
 
     if args.command == "rotate":
-        api_key, key_id, revoked_key_ids = await rotate_client_keys(
-            database_url,
-            args.client_id,
-        )
+        with managed_api_key_secret_file(args.api_key_file) as secret_file:
+            _, key_id, revoked_key_ids = await rotate_client_keys(
+                database_url,
+                args.client_id,
+                secret_file,
+            )
         print(f"Client ID: {args.client_id}")
         print(f"New key ID: {key_id}")
-        print(f"API key: {api_key}")
+        print(f"API key file: {args.api_key_file}")
         print("Revoked key IDs: " + ",".join(revoked_key_ids))
-        print("Store this raw key on the client; it is not stored in PostgreSQL.")
+        print("Store the secret file securely and delete it after client provisioning.")
         return
 
     if args.command == "list":
@@ -477,17 +537,20 @@ def main() -> None:
 
     Modifies:
         - PostgreSQL client-registry state for write commands.
-        - Terminal output.
+        - Owner-only API-key output files for create/rotate commands.
+        - Terminal output containing non-secret metadata only.
 
     Effects:
         - Initializes schema, migrates records, creates keys, revokes keys, rotates keys,
           or lists non-secret metadata.
+        - Requires explicit secret-file delivery for newly generated raw credentials.
 
     Inputs:
         - Command-line subcommand and arguments.
 
     Outputs:
-        - Human-readable command result written to standard output.
+        - Human-readable non-secret command result written to standard output.
+        - Raw API keys only in explicitly requested 0600 output files.
     """
     parser = argparse.ArgumentParser(
         description="Manage Secure AI Gateway PostgreSQL client identities."
@@ -505,6 +568,11 @@ def main() -> None:
         help="Create a client identity/key and persist only the key hash.",
     )
     create_parser.add_argument("client_id")
+    create_parser.add_argument(
+        "--api-key-file",
+        required=True,
+        help="New owner-only file that will receive the raw API key.",
+    )
 
     revoke_parser = subparsers.add_parser(
         "revoke",
@@ -517,6 +585,11 @@ def main() -> None:
         help="Create a replacement key and atomically revoke prior active keys.",
     )
     rotate_parser.add_argument("client_id")
+    rotate_parser.add_argument(
+        "--api-key-file",
+        required=True,
+        help="New owner-only file that will receive the replacement API key.",
+    )
 
     subparsers.add_parser("list", help="List non-secret client/key metadata.")
 

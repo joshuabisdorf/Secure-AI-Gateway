@@ -7,6 +7,7 @@ All notable project changes are summarized here. The project has not yet publish
 ### Security architecture
 
 - PostgreSQL-backed gateway client/key identity with revocation and atomic rotation.
+- Newly generated raw API keys are delivered only through explicit exclusive 0600 secret files rather than normal command output; failed provisioning removes partial files, and rotation writes the replacement secret before revoking prior keys inside the database transaction.
 - Distributed Redis/Valkey rate limiting and one-time execution-ticket replay protection.
 - Daily persistent usage budgets.
 - Structured and semantic PII controls.
