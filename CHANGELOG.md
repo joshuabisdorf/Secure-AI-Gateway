@@ -26,17 +26,22 @@ All notable project changes are summarized here. The project has not yet publish
 - Public GHCR release workflow with anonymous-pull verification.
 - Bandit, CodeQL, and `pip-audit` security analysis.
 - CycloneDX Python dependency SBOM generation in CI.
+- Trivy container vulnerability scanning.
 - SHA-pinned GitHub Actions.
 - Dependabot maintenance for Python, GitHub Actions, and Docker dependencies.
+- Read-only repository preflight covering release-critical files, tracked secret/artifact hygiene, immutable Action refs, and optional full-history sensitive-filename scanning.
 
 ### Documentation and developer experience
 
 - Reviewer-focused README with architecture and execution-authorization diagrams.
+- Consolidated reviewer architecture/trust-boundary guide.
+- Portfolio evidence guide mapping security claims to reproducible commands and CI evidence.
 - Threat/security review and residual-risk record.
 - Cost policy separating the free verified path from optional paid AWS architecture.
 - Reliability/failure-injection documentation.
 - Architecture decision records for execution-time tool authorization and the zero-cost required path.
 - `CONTRIBUTING.md`, release checklist, `.editorconfig`, and developer Make targets.
+- `make preflight` release/repository hygiene command.
 
 ## Planned v1.0.0
 
