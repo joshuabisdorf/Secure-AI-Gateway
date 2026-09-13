@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: help install test evals security check demo resilience up down kind-up kind-verify terraform-validate
+.PHONY: help install test evals security check preflight demo resilience up down kind-up kind-verify terraform-validate
 
 help:
 	@printf '%s\n' \
@@ -9,6 +9,7 @@ help:
 	  'evals               Run prompt-injection and semantic-PII baselines' \
 	  'security            Run Bandit and dependency audit' \
 	  'check               Run test + evals + security' \
+	  'preflight           Run repository/release hygiene checks' \
 	  'demo                Run the zero-cost end-to-end portfolio demo' \
 	  'resilience          Inject Redis/PostgreSQL/telemetry outages and verify behavior' \
 	  'up                  Start the Docker Compose stack' \
@@ -32,6 +33,9 @@ security:
 	$(PYTHON) -m pip_audit --progress-spinner off --skip-editable
 
 check: test evals security
+
+preflight:
+	$(PYTHON) scripts/repo_preflight.py
 
 demo:
 	bash scripts/demo.sh

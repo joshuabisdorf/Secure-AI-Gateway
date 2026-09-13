@@ -8,7 +8,10 @@ Use this checklist for the first portfolio `v1.0.0` release.
 - [ ] README reflects current capabilities and limitations.
 - [ ] `SECURITY.md` and `docs/security-review.md` are current.
 - [ ] `CHANGELOG.md` contains the release summary.
-- [ ] No secrets, local `.env` files, Terraform state, or generated credentials are tracked.
+- [ ] `docs/architecture.md` and `docs/portfolio-evidence.md` reflect the final design/evidence path.
+- [ ] No secrets, local `.env` files, Terraform state, generated credentials, or Python build/cache artifacts are tracked.
+- [ ] `make preflight` passes on the intended release state.
+- [ ] `python scripts/repo_preflight.py --history` passes from a full clone, confirming no sensitive-looking filenames were committed historically.
 - [ ] A software license has been deliberately selected, or the repository intentionally remains unlicensed.
 
 ## Verification
@@ -17,6 +20,7 @@ Use this checklist for the first portfolio `v1.0.0` release.
 - [ ] `End-to-end demo` is green on the release commit.
 - [ ] `Resilience smoke` is green on the release commit.
 - [ ] CodeQL Python analysis is green on the release commit.
+- [ ] Container security / Trivy is green on the release commit.
 - [ ] `make kind-up && make kind-verify` has passed for the current Kubernetes architecture when kind is available.
 - [ ] Terraform validation is green in CI.
 - [ ] All primary GitHub CI gates are green on the release commit.
