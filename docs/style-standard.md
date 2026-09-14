@@ -113,15 +113,32 @@ reference-only, or optional behavior.
 
 `scripts/style_check.py` is the repository-owned checker for rules that can be
 validated safely without importing a third-party formatting or linting policy.
-Run it with:
+
+The repository had substantial style debt before this standard was introduced.
+`.style-baseline` anchors that debt to the exact pre-standard commit. Normal CI
+checks every new or modified file in full. An unchanged pre-standard file is
+not a policy exception; it is deferred migration work. As soon as such a file
+is modified, the entire file must comply with the current standard.
+
+Run the normal incremental gate with:
 
 ```bash
 make style
 ```
 
-CI runs the same command. The checker is intentionally conservative: it rejects
-clear violations and leaves subjective review decisions to code review rather
-than rewriting source automatically.
+Run the entire repository with no baseline deferral using:
+
+```bash
+make style-strict
+```
+
+The strict command is the end-state conformance check. The baseline is fixed;
+it must never be moved forward to absorb new violations. It may be removed
+once the whole repository passes strict mode.
+
+CI runs the incremental command. The checker is intentionally conservative: it
+rejects clear violations and leaves subjective review decisions to code review
+rather than rewriting source automatically.
 
 A change that requires a line-length exception should normally make the reason
 obvious from the line itself. The checker recognizes a narrow set of atomic
