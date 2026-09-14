@@ -399,11 +399,11 @@ def test_migration_failure_rolls_back_partial_migration(
         - tmp_path is writable for an isolated migration corpus.
 
     Modifies:
-        - Applies one valid temporary migration and attempts one invalid temporary migration.
+        - Attempts one valid temporary migration followed by one invalid temporary migration.
         - Temporarily replaces the migration directory used by app.database.
 
     Effects:
-        - Verifies statements and migration metadata from the failing migration roll back atomically.
+        - Verifies a failing migration invocation rolls back all new schema and migration metadata from that invocation.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -427,6 +427,7 @@ def test_migration_failure_rolls_back_partial_migration(
     monkeypatch.setattr(database, "_MIGRATION_DIRECTORY", tmp_path)
 
     async def exercise() -> None:
+        await _initialize_database()
         async with await psycopg.AsyncConnection.connect(database_url) as connection:
             await connection.execute("DROP TABLE IF EXISTS m10_migration_partial")
             await connection.execute("DROP TABLE IF EXISTS m10_migration_good")
@@ -440,13 +441,13 @@ def test_migration_failure_rolls_back_partial_migration(
         async with await psycopg.AsyncConnection.connect(database_url) as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute(
-                    "SELECT filename FROM schema_migrations WHERE filename = %s",
-                    (bad_name,),
+                    "SELECT filename FROM schema_migrations WHERE filename IN (%s, %s)",
+                    (good_name, bad_name),
                 )
-                assert await cursor.fetchone() is None
+                assert await cursor.fetchall() == []
                 await cursor.execute("SELECT to_regclass('public.m10_migration_partial')")
                 assert (await cursor.fetchone())[0] is None
                 await cursor.execute("SELECT to_regclass('public.m10_migration_good')")
-                assert (await cursor.fetchone())[0] == "m10_migration_good"
+                assert (await cursor.fetchone())[0] is None
 
     asyncio.run(exercise())
