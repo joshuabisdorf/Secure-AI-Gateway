@@ -30,26 +30,16 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install one-time migration helpers
-        run: >-
-          python -m pip install
-          black==25.1.0
-          docformatter==1.7.5
+      - name: Install one-time migration helper
+        run: python -m pip install black==25.1.0
 
-      - name: Reflow Python documentation and strings
-        shell: bash
-        run: |
-          set -euo pipefail
-          find app scripts tests -name '*.py' -print0 \
-            | xargs -0 docformatter \
-                --in-place \
-                --wrap-summaries 80 \
-                --wrap-descriptions 80
-          black \
-            --line-length 80 \
-            --preview \
-            --enable-unstable-feature string_processing \
-            app scripts tests
+      - name: Split long Python string expressions
+        run: >-
+          black
+          --line-length 80
+          --preview
+          --enable-unstable-feature string_processing
+          app scripts tests
 
       - name: Pretty-print tracked JSON corpora
         shell: bash
