@@ -331,6 +331,7 @@ echo "replica_rescheduling=PASS deleted=$DELETED_POD replacement=$REPLACEMENT_PO
 
 LOAD_STATUS_FILE="/tmp/sag-k8s-load-statuses.txt"
 : > "$LOAD_STATUS_FILE"
+LOAD_PIDS=()
 for request_number in $(seq 1 8); do
   if [ $((request_number % 2)) -eq 0 ]; then
     port=18001
@@ -341,8 +342,11 @@ for request_number in $(seq 1 8); do
     status="$(send_request "$port" "sag-k8s-load-$request_number" || printf '000')"
     printf '%s\n' "$status" >> "$LOAD_STATUS_FILE"
   ) &
+  LOAD_PIDS+=("$!")
 done
-wait
+for pid in "${LOAD_PIDS[@]}"; do
+  wait "$pid"
+done
 
 LOAD_TOTAL="$(wc -l < "$LOAD_STATUS_FILE" | tr -d ' ')"
 LOAD_BAD="$(grep -Evc '^(200|429)$' "$LOAD_STATUS_FILE" || true)"
