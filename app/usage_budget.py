@@ -10,11 +10,12 @@ from typing import Protocol
 
 from fastapi import HTTPException, status
 from psycopg import Error as PsycopgError
-from psycopg_pool import AsyncConnectionPool
+from psycopg_pool import AsyncConnectionPool, PoolTimeout
 
 _client_id_pattern = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _max_daily_tokens = 1_000_000_000
 _max_daily_cost_usd = Decimal("1000000")
+_default_connection_timeout_seconds = 5.0
 
 
 @dataclass(frozen=True)
@@ -197,6 +198,24 @@ def get_client_usage_budget(client_id: str) -> ClientUsageBudget:
 
 
 def _now_utc(clock: Callable[[], datetime]) -> datetime:
+    """
+    RME
+
+    Requires:
+        - clock returns a timezone-aware datetime.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Normalizes the supplied time source to UTC.
+
+    Inputs:
+        - clock: Time source callable.
+
+    Outputs:
+        - UTC-aware current datetime.
+    """
     now = clock()
     if now.tzinfo is None:
         raise ValueError("clock_must_be_timezone_aware")
@@ -210,6 +229,28 @@ def _build_decision(
     budget: ClientUsageBudget,
     now: datetime,
 ) -> UsageBudgetDecision:
+    """
+    RME
+
+    Requires:
+        - Usage totals are non-negative.
+        - now is the normalized current UTC time.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Computes remaining daily capacity and the next UTC reset boundary.
+
+    Inputs:
+        - tokens_used: Current UTC-day token total.
+        - cost_used_usd: Current UTC-day cost total.
+        - budget: Client usage limits.
+        - now: Current UTC time.
+
+    Outputs:
+        - UsageBudgetDecision describing current allowance and remaining capacity.
+    """
     token_remaining = (
         None
         if budget.token_limit_daily is None
@@ -283,6 +324,25 @@ class InMemoryUsageLedger:
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
+        """
+        RME
+
+        Requires:
+            - client_id identifies a test client.
+
+        Modifies:
+            - May initialize the current-day process-local bucket.
+
+        Effects:
+            - Reads deterministic in-memory usage for the current UTC day.
+
+        Inputs:
+            - client_id: Client identity.
+            - budget: Client usage limits.
+
+        Outputs:
+            - Current UsageBudgetDecision.
+        """
         now = _now_utc(self._clock)
         with self._lock:
             bucket = self._get_bucket(client_id, now)
@@ -301,6 +361,27 @@ class InMemoryUsageLedger:
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
+        """
+        RME
+
+        Requires:
+            - total_tokens and cost_usd are non-negative usage values.
+
+        Modifies:
+            - Current-day process-local client usage totals.
+
+        Effects:
+            - Atomically adds usage under a process lock.
+
+        Inputs:
+            - client_id: Client identity.
+            - budget: Client usage limits.
+            - total_tokens: Tokens to add.
+            - cost_usd: Cost to add.
+
+        Outputs:
+            - Updated UsageBudgetDecision.
+        """
         _validate_usage(total_tokens=total_tokens, cost_usd=cost_usd)
         now = _now_utc(self._clock)
         with self._lock:
@@ -320,6 +401,25 @@ class InMemoryUsageLedger:
             self._buckets.clear()
 
     def _get_bucket(self, client_id: str, now: datetime) -> _UsageBucket:
+        """
+        RME
+
+        Requires:
+            - now is UTC-aware.
+
+        Modifies:
+            - Process-local bucket mapping when the client/day has no current bucket.
+
+        Effects:
+            - Resets usage automatically at a UTC day boundary.
+
+        Inputs:
+            - client_id: Client identity.
+            - now: Current UTC time.
+
+        Outputs:
+            - Current process-local usage bucket.
+        """
         day = now.date().isoformat()
         bucket = self._buckets.get(client_id)
         if bucket is None or bucket.day != day:
@@ -339,6 +439,7 @@ class PostgresUsageLedger:
         *,
         min_size: int = 1,
         max_size: int = 10,
+        connection_timeout_seconds: float = _default_connection_timeout_seconds,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
         """
@@ -347,6 +448,7 @@ class PostgresUsageLedger:
         Requires:
             - database_url identifies the gateway PostgreSQL database.
             - min_size and max_size define a valid connection-pool range.
+            - connection_timeout_seconds is greater than zero.
             - clock returns timezone-aware datetimes.
 
         Modifies:
@@ -354,20 +456,26 @@ class PostgresUsageLedger:
 
         Effects:
             - Creates a closed async pool and defers connections until first use.
+            - Bounds pool acquisition waits so exhaustion fails closed instead of stalling indefinitely.
 
         Inputs:
             - database_url: PostgreSQL connection string.
             - min_size: Minimum pooled connections.
             - max_size: Maximum pooled connections.
+            - connection_timeout_seconds: Maximum wait for a pooled connection.
             - clock: UTC-aware time source.
 
         Outputs:
             - A configured PostgresUsageLedger instance.
         """
+        if connection_timeout_seconds <= 0:
+            raise ValueError("invalid_connection_timeout_seconds")
+        self._connection_timeout_seconds = connection_timeout_seconds
         self._pool = AsyncConnectionPool(
             conninfo=database_url,
             min_size=min_size,
             max_size=max_size,
+            timeout=connection_timeout_seconds,
             open=False,
         )
         self._open_lock = asyncio.Lock()
@@ -375,6 +483,25 @@ class PostgresUsageLedger:
         self._clock = clock
 
     async def _ensure_open(self) -> None:
+        """
+        RME
+
+        Requires:
+            - The configured PostgreSQL service may be opened lazily.
+
+        Modifies:
+            - PostgreSQL pool open state.
+
+        Effects:
+            - Opens the pool once under an async lock.
+            - Converts database/pool timeout failures to UsageLedgerUnavailable.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         if self._is_open:
             return
 
@@ -382,8 +509,11 @@ class PostgresUsageLedger:
             if self._is_open:
                 return
             try:
-                await self._pool.open(wait=True)
-            except PsycopgError as exc:
+                await self._pool.open(
+                    wait=True,
+                    timeout=self._connection_timeout_seconds,
+                )
+            except (PsycopgError, PoolTimeout) as exc:
                 raise UsageLedgerUnavailable("usage_ledger_unavailable") from exc
             self._is_open = True
 
@@ -405,7 +535,7 @@ class PostgresUsageLedger:
         Effects:
             - Reads persisted usage for the current UTC day.
             - Treats a missing daily row as zero accumulated usage.
-            - Fails closed when PostgreSQL cannot be queried.
+            - Fails closed when PostgreSQL cannot be queried or a connection cannot be acquired within the configured timeout.
 
         Inputs:
             - client_id: Authenticated client identity.
@@ -418,7 +548,9 @@ class PostgresUsageLedger:
         await self._ensure_open()
 
         try:
-            async with self._pool.connection() as connection:
+            async with self._pool.connection(
+                timeout=self._connection_timeout_seconds
+            ) as connection:
                 async with connection.cursor() as cursor:
                     await cursor.execute(
                         """
@@ -430,7 +562,7 @@ class PostgresUsageLedger:
                         (client_id, now.date()),
                     )
                     row = await cursor.fetchone()
-        except PsycopgError as exc:
+        except (PsycopgError, PoolTimeout) as exc:
             raise UsageLedgerUnavailable("usage_ledger_unavailable") from exc
 
         tokens_used = 0 if row is None else int(row[0])
@@ -464,7 +596,7 @@ class PostgresUsageLedger:
         Effects:
             - Atomically inserts or increments durable token/cost totals.
             - Prevents concurrent successful requests from losing increments.
-            - Fails closed when usage cannot be persisted.
+            - Fails closed when usage cannot be persisted or a connection cannot be acquired within the configured timeout.
 
         Inputs:
             - client_id: Authenticated client identity.
@@ -480,7 +612,9 @@ class PostgresUsageLedger:
         await self._ensure_open()
 
         try:
-            async with self._pool.connection() as connection:
+            async with self._pool.connection(
+                timeout=self._connection_timeout_seconds
+            ) as connection:
                 async with connection.cursor() as cursor:
                     await cursor.execute(
                         """
@@ -501,7 +635,7 @@ class PostgresUsageLedger:
                         (client_id, now.date(), total_tokens, cost_usd),
                     )
                     row = await cursor.fetchone()
-        except PsycopgError as exc:
+        except (PsycopgError, PoolTimeout) as exc:
             raise UsageLedgerUnavailable("usage_ledger_unavailable") from exc
 
         if row is None:
@@ -527,6 +661,7 @@ class UnavailableUsageLedger:
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
+        """Fail closed when no usable durable ledger is configured."""
         raise UsageLedgerUnavailable("usage_ledger_not_configured")
 
     async def record(
@@ -537,6 +672,7 @@ class UnavailableUsageLedger:
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
+        """Fail closed when no usable durable ledger is configured."""
         raise UsageLedgerUnavailable("usage_ledger_not_configured")
 
 
@@ -554,6 +690,7 @@ def build_usage_ledger() -> UsageLedger:
     Effects:
         - Selects durable PostgreSQL usage accounting by default.
         - Retains the in-memory backend for deterministic tests.
+        - Applies a bounded default PostgreSQL pool wait.
         - Fails closed through UnavailableUsageLedger for unusable configuration.
 
     Inputs:
@@ -574,6 +711,25 @@ def build_usage_ledger() -> UsageLedger:
 
 
 def _validate_usage(*, total_tokens: int, cost_usd: Decimal) -> None:
+    """
+    RME
+
+    Requires:
+        - total_tokens and cost_usd are candidate provider-reported usage values.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Rejects negative, infinite, or NaN usage before persistence.
+
+    Inputs:
+        - total_tokens: Token count.
+        - cost_usd: Decimal cost.
+
+    Outputs:
+        - None when values are valid.
+    """
     if total_tokens < 0:
         raise ValueError("invalid_total_tokens")
     if not cost_usd.is_finite() or cost_usd < 0:
