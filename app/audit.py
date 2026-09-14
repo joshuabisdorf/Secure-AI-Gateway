@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 from app.observability import observe_audit_event
 
-
 audit_logger = logging.getLogger("secure_ai_gateway.audit")
 audit_logger.setLevel(logging.INFO)
 audit_logger.propagate = False

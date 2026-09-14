@@ -81,7 +81,8 @@ def read_lock_entries() -> dict[str, str]:
             continue
         if line.startswith(("-", ".")):
             raise LockVerificationError(
-                f"release lock line {line_number} uses an unsupported option/path: {line}"
+                f"release lock line {line_number} uses an unsupported"
+                f" option/path: {line}"
             )
 
         exact_match = EXACT_PIN_RE.fullmatch(line)
@@ -89,7 +90,8 @@ def read_lock_entries() -> dict[str, str]:
         match = exact_match or direct_match
         if match is None:
             raise LockVerificationError(
-                f"release lock line {line_number} is not exact/hash pinned: {line}"
+                f"release lock line {line_number} is not exact/hash pinned:"
+                f" {line}"
             )
 
         name = normalize_name(match.group(1))

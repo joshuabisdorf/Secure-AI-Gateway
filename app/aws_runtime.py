@@ -253,7 +253,9 @@ def exec_with_runtime_environment(command: Sequence[str]) -> None:
 def main() -> None:
     """Load cloud runtime secrets and exec the gateway command without printing them."""
     parser = argparse.ArgumentParser(
-        description="Load Secure AI Gateway AWS runtime secrets and exec a command."
+        description=(
+            "Load Secure AI Gateway AWS runtime secrets and exec a command."
+        )
     )
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()

@@ -200,7 +200,7 @@ def test_client_policy_parser_supports_multiple_clients_and_colons() -> None:
         - None. Assertions determine whether policy parsing works correctly.
     """
     policies = parse_client_allowed_models(
-        "alice:openrouter/free," "alice:nvidia/model:free," "bob:mock-model"
+        "alice:openrouter/free,alice:nvidia/model:free,bob:mock-model"
     )
 
     assert policies["alice"] == frozenset(

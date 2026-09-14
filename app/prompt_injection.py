@@ -107,7 +107,8 @@ _indicators = (
         patterns=(
             re.compile(
                 r"\b(?:reveal|show|print|display|output|provide|give\s+me)\b.{0,64}"
-                r"\b(?:api[ _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
+                r"\b(?:api["
+                r" _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
         ),

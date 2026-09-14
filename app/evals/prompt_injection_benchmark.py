@@ -452,7 +452,8 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
     )
     for item in report.categories:
         print(
-            f"CATEGORY name={item.category} label={item.label} cases={item.cases} "
+            "CATEGORY"
+            f" name={item.category} label={item.label} cases={item.cases} "
             f"detected={item.detected} detection_rate={item.detection_rate:.4f}"
         )
     if show_errors:
@@ -469,13 +470,17 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Evaluate the deterministic prompt-injection detector offline."
+        description=(
+            "Evaluate the deterministic prompt-injection detector offline."
+        )
     )
     parser.add_argument(
         "--dataset",
         type=Path,
         default=_DEFAULT_DATASET,
-        help="Benchmark JSON file; defaults to the committed version-1 dataset.",
+        help=(
+            "Benchmark JSON file; defaults to the committed version-1 dataset."
+        ),
     )
     parser.add_argument(
         "--format",
@@ -486,12 +491,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--show-errors",
         action="store_true",
-        help="Include false-positive/false-negative case IDs without prompt bodies.",
+        help=(
+            "Include false-positive/false-negative case IDs without prompt"
+            " bodies."
+        ),
     )
     parser.add_argument(
         "--enforce-baseline",
         action="store_true",
-        help="Exit 1 when committed precision/recall/FPR thresholds are not met.",
+        help=(
+            "Exit 1 when committed precision/recall/FPR thresholds are not met."
+        ),
     )
     return parser
 

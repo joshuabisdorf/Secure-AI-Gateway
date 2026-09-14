@@ -505,7 +505,8 @@ async def _run_command(args: argparse.Namespace) -> None:
         print(f"Key ID: {key_id}")
         print(f"API key file: {args.api_key_file}")
         print(
-            "Store the secret file securely and delete it after client provisioning."
+            "Store the secret file securely and delete it after client"
+            " provisioning."
         )
         return
 
@@ -529,7 +530,8 @@ async def _run_command(args: argparse.Namespace) -> None:
         print(f"API key file: {args.api_key_file}")
         print("Revoked key IDs: " + ",".join(revoked_key_ids))
         print(
-            "Store the secret file securely and delete it after client provisioning."
+            "Store the secret file securely and delete it after client"
+            " provisioning."
         )
         return
 
@@ -606,7 +608,9 @@ def main() -> None:
 
     rotate_parser = subparsers.add_parser(
         "rotate",
-        help="Create a replacement key and atomically revoke prior active keys.",
+        help=(
+            "Create a replacement key and atomically revoke prior active keys."
+        ),
     )
     rotate_parser.add_argument("client_id")
     rotate_parser.add_argument(

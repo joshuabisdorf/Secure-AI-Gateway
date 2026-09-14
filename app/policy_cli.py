@@ -8,7 +8,10 @@ from app.security_policy import (
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Validate the configured Secure AI Gateway security policy registry."
+        description=(
+            "Validate the configured Secure AI Gateway security policy"
+            " registry."
+        )
     )
     parser.add_argument(
         "command",

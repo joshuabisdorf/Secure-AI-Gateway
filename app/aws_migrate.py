@@ -120,15 +120,15 @@ async def provision_runtime_role(
         if exists is None:
             await connection.execute(
                 sql.SQL(
-                    "CREATE ROLE {} LOGIN PASSWORD {} "
-                    "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+                    "CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB"
+                    " NOCREATEROLE NOREPLICATION NOBYPASSRLS"
                 ).format(runtime_identifier, runtime_password_literal)
             )
         else:
             await connection.execute(
                 sql.SQL(
-                    "ALTER ROLE {} WITH LOGIN PASSWORD {} "
-                    "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+                    "ALTER ROLE {} WITH LOGIN PASSWORD {} NOSUPERUSER"
+                    " NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
                 ).format(runtime_identifier, runtime_password_literal)
             )
 
@@ -145,12 +145,14 @@ async def provision_runtime_role(
         )
         await connection.execute(
             sql.SQL(
-                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {}"
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA"
+                " public TO {}"
             ).format(runtime_identifier)
         )
         await connection.execute(
             sql.SQL(
-                "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {}"
+                "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public"
+                " TO {}"
             ).format(runtime_identifier)
         )
         await connection.execute(

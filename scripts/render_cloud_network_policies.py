@@ -178,7 +178,10 @@ def build_parser() -> argparse.ArgumentParser:
         Configured ArgumentParser instance.
     """
     parser = argparse.ArgumentParser(
-        description="Render Secure AI Gateway cloud NetworkPolicies from Terraform CIDRs."
+        description=(
+            "Render Secure AI Gateway cloud NetworkPolicies from Terraform"
+            " CIDRs."
+        )
     )
     parser.add_argument("--private-cidrs-json", required=True)
     parser.add_argument("--data-cidrs-json", required=True)

@@ -45,7 +45,7 @@ RMEIO_SECTIONS = (
     "Outputs:",
 )
 SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
-CLASS_NAME_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")
+CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")
 HEX_TOKEN_RE = re.compile(r"^[0-9a-fA-F]{40,}$")
 OPAQUE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_./:+@#%?&=~-]{81,}$")
 JSON_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
@@ -450,7 +450,7 @@ def check_python(path: Path, text: str) -> list[Violation]:
                         path,
                         node.lineno,
                         "N003",
-                        f"class name is not UpperCamelCase: {node.name}",
+                        f"class name is not UpperCamelCase with optional private prefix: {node.name}",
                     )
                 )
         elif isinstance(node, ast.ImportFrom):
@@ -571,10 +571,7 @@ def main() -> int:
         )
     )
     for item in violations:
-        print(
-            f"{item.path.as_posix()}:{item.line}: "
-            f"{item.code} {item.message}"
-        )
+        print(f"{item.path.as_posix()}:{item.line}: {item.code} {item.message}")
 
     if violations:
         print(f"style_check=FAIL violations={len(violations)}")

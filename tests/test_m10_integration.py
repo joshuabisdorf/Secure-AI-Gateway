@@ -468,7 +468,8 @@ def test_migration_failure_rolls_back_partial_migration(
         ) as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute(
-                    "SELECT filename FROM schema_migrations WHERE filename IN (%s, %s)",
+                    "SELECT filename FROM schema_migrations WHERE filename IN"
+                    " (%s, %s)",
                     (good_name, bad_name),
                 )
                 assert await cursor.fetchall() == []

@@ -124,7 +124,9 @@ def get_client_allowed_tools(client_id: str) -> frozenset[str]:
     if client_tools is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Tool authorization policy is not configured for this client.",
+            detail=(
+                "Tool authorization policy is not configured for this client."
+            ),
         )
 
     return client_tools

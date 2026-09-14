@@ -219,7 +219,8 @@ def check_history_sensitive_filenames() -> None:
     shallow = run_git("rev-parse", "--is-shallow-repository").stdout.strip()
     if shallow == "true":
         raise PreflightFailure(
-            "history scan requires a full clone; fetch full history before using --history"
+            "history scan requires a full clone; fetch full history before"
+            " using --history"
         )
     names = run_git(
         "log", "--all", "--name-only", "--format="
