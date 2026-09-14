@@ -18,9 +18,24 @@ output "private_subnet_ids" {
   value       = values(aws_subnet.private)[*].id
 }
 
+output "private_subnet_cidrs" {
+  description = "Private EKS worker subnet CIDRs used to render cloud NetworkPolicies."
+  value       = values(aws_subnet.private)[*].cidr_block
+}
+
 output "data_subnet_ids" {
   description = "Isolated subnet IDs used by RDS and ElastiCache."
   value       = values(aws_subnet.data)[*].id
+}
+
+output "data_subnet_cidrs" {
+  description = "Isolated data subnet CIDRs used to render cloud NetworkPolicies."
+  value       = values(aws_subnet.data)[*].cidr_block
+}
+
+output "secretsmanager_vpc_endpoint_id" {
+  description = "Private Secrets Manager interface endpoint used by gateway workloads."
+  value       = aws_vpc_endpoint.secretsmanager.id
 }
 
 output "eks_cluster_name" {

@@ -17,9 +17,10 @@ The gateway currently provides:
 - least-privilege tool exposure and independent execution-time authorization;
 - sensitive-data-minimized JSON audit events, Prometheus metrics, and OpenTelemetry traces;
 - fail-closed runtime behavior when security-critical Redis/PostgreSQL state is unavailable;
-- hardened Docker and Kubernetes runtime configuration;
+- hardened Docker and Kubernetes runtime configuration with restricted Pod Security and overlay-aware default-deny NetworkPolicies;
 - Terraform for an optional private AWS/EKS/RDS/Valkey architecture;
-- CI security analysis, CodeQL, dependency auditing, SBOM generation, benchmarks, end-to-end and resilience tests, manifest validation, Terraform validation, repository preflight checks, and public container delivery.
+- an exact release-runtime dependency lock, SHA-pinned GitHub Actions, vulnerability/security analysis, image SBOM generation, and build/SBOM attestations;
+- deterministic adversarial, concurrency, resilience, performance, kind, manifest, Terraform, preflight, and public-container verification in CI.
 
 The gateway **does not execute external side-effecting tools**. A model-generated tool call is treated as untrusted output. The gateway validates the request and can issue a short-lived authorization ticket for a separate downstream executor.
 
@@ -31,7 +32,7 @@ The deterministic local demo exercises the primary security path without externa
 make demo
 ```
 
-The demo creates a temporary client and verifies authenticated chat, usage accounting, PII redaction, prompt-injection detection, signed tool-ticket issuance, execution-time authorization, replay denial, rate limiting, and Prometheus metrics. It does not print the raw client key or execution ticket and revokes the temporary client key on exit.
+It verifies authenticated chat, usage accounting, PII redaction, prompt-injection detection, signed tool-ticket issuance, execution-time authorization, replay denial, rate limiting, and Prometheus metrics. It does not print the raw client key or execution ticket and revokes the temporary client key on exit.
 
 A successful run ends with:
 
@@ -41,15 +42,12 @@ provider_calls=mock_only
 billable_cloud_resources=0
 ```
 
-The same command runs in CI on a clean GitHub-hosted Ubuntu runner.
-
-See [`docs/demo.md`](docs/demo.md) for the full demo path.
-
 Primary local verification:
 
 ```bash
 make install
 make check
+make lock-verify
 ```
 
 Controlled dependency failure injection:
@@ -58,7 +56,7 @@ Controlled dependency failure injection:
 make resilience
 ```
 
-Two-replica Kubernetes verification:
+Hardened two-replica Kubernetes verification:
 
 ```bash
 make kind-up
@@ -80,13 +78,11 @@ flowchart LR
     E -->|execution authorization request| G
 ```
 
-PostgreSQL is the authoritative store for client identity, key lifecycle, and persistent usage accounting. Redis/Valkey provides shared rate-limit state and one-time execution-ticket replay claims. Prometheus and OpenTelemetry expose operational state without making telemetry availability part of authorization.
+PostgreSQL is authoritative for client identity, key lifecycle, and persistent usage accounting. Redis/Valkey provides shared rate-limit state and one-time execution-ticket replay claims. Prometheus and OpenTelemetry expose operational state without making telemetry availability part of authorization.
 
-A more detailed trust-boundary and deployment view is in [`docs/architecture.md`](docs/architecture.md).
+See [`docs/architecture.md`](docs/architecture.md) for trust boundaries and deployment structure.
 
 ## Request processing
-
-The main request path is:
 
 ```text
 authenticate client
@@ -125,7 +121,7 @@ sequenceDiagram
     G-->>E: allow once / deny
 ```
 
-Execution tickets bind the client identity, source request, tool call, tool name, exact arguments, authoritative schema, risk class, and expiry. Authorization re-checks current policy at execution time and claims the execution ID once to prevent replay.
+Execution tickets bind client identity, source request, tool call, tool name, exact arguments, authoritative schema, risk class, and expiry. Authorization re-checks current policy at execution time and claims the execution ID once to prevent replay.
 
 ## Security controls
 
@@ -138,23 +134,23 @@ Execution tickets bind the client identity, source request, tool call, tool name
 | Usage | Persistent per-client UTC-day token/cost budgets |
 | Sensitive data | Structured and local semantic PII detection with redact/deny policy |
 | Prompt injection | Deterministic audit/deny/off policy plus regression benchmark |
-| Tool exposure | Per-client tool allowlist |
 | Tool execution | Authoritative schema, exact argument hash, risk class, HMAC ticket, expiry, identity binding, current-policy recheck, one-time replay claim |
 | Audit/telemetry | Metadata-only audit events and bounded labels; prompts, credentials, raw PII/tool arguments/results/tickets excluded |
-| HTTP runtime | API docs hidden by default; no-store/CSP/referrer/MIME/frame headers; server banner and proxy headers disabled in container default |
 | Container | Non-root, read-only root filesystem, dropped capabilities, no-new-privileges |
-| Kubernetes | Two replicas, readiness/liveness/startup checks, PDB, resource bounds, `RuntimeDefault` seccomp, no privilege escalation |
-| Supply chain | SHA-pinned Actions, Dependabot for Python/Actions/Docker, Bandit, CodeQL, `pip-audit`, CycloneDX dependency SBOM generation, immutable GHCR SHA tags |
-| Repository hygiene | Release-critical file checks, tracked-secret/artifact checks, immutable Action-ref checks, and optional full-history sensitive-filename scanning |
+| Kubernetes | Two replicas, probes, PDB, resource bounds, `restricted` Pod Security enforcement, default-deny NetworkPolicies, explicit local/cloud egress paths |
+| Supply chain | Exact release lock, direct-artifact hash pin, SHA-pinned Actions, Dependabot, Bandit, CodeQL, `pip-audit`, CycloneDX dependency SBOM, Trivy, immutable GHCR SHA tags, SPDX image SBOM and GitHub provenance/SBOM attestations |
+| Repository hygiene | Release-critical file checks, tracked-secret/artifact checks, immutable Action-ref checks, optional full-history sensitive-filename scanning |
 
-See [`SECURITY.md`](SECURITY.md), [`docs/production-hardening.md`](docs/production-hardening.md), [`docs/security-review.md`](docs/security-review.md), and the [`docs/adr/`](docs/adr/) decision records.
+See [`SECURITY.md`](SECURITY.md), [`docs/security-review.md`](docs/security-review.md), [`docs/kubernetes-security.md`](docs/kubernetes-security.md), and [`docs/supply-chain.md`](docs/supply-chain.md).
 
 ## Verification
 
-The main CI workflow has nine independent gates:
+The primary CI workflow separates the major failure domains into independent jobs:
 
 ```text
 Pytest
+Reproducible release install
+M10 adversarial/reliability/performance
 Security analysis
 Prompt-injection benchmark
 Semantic PII benchmark
@@ -162,20 +158,19 @@ Docker build
 End-to-end demo
 Resilience smoke
 Kubernetes manifests
+kind security and resilience
 Terraform
 ```
 
-Security analysis runs Bandit, audits installed Python dependencies with `pip-audit`, and generates/parses a CycloneDX JSON dependency SBOM. Third-party GitHub Actions are pinned to immutable commit SHAs.
+The clean release-install job installs `requirements/release.lock` into a new Python 3.13 virtual environment, installs the application without dependency resolution/build isolation, runs `pip check`, and imports the production server/model. The Docker build consumes the same exact runtime lock on Python 3.14.
 
-`End-to-end demo` runs `make demo` on a fresh GitHub-hosted Ubuntu runner and validates the mock-provider security path before cleaning up the Compose stack.
+The live kind job applies the enforcing namespace and NetworkPolicies, proves an unauthorized Redis path is blocked, verifies shared Redis/PostgreSQL state across gateway replicas, deletes a replica while exercising the survivor, waits for a replacement, and performs bounded concurrent load/resource checks.
 
-`Resilience smoke` stops and restores Redis and PostgreSQL to verify fail-closed behavior for security-critical shared state, then stops the OpenTelemetry Collector to verify that telemetry export is not an authorization dependency. See [`docs/reliability.md`](docs/reliability.md).
+Security analysis runs Bandit, `pip-audit`, and CycloneDX dependency-SBOM generation. Separate workflows provide CodeQL, Trivy container scanning, and repository preflight.
 
-A separate CodeQL workflow analyzes Python with the `security-extended` query suite. Container security scanning uses Trivy. Repository preflight runs independently and can scan full Git history for sensitive-looking filenames.
+The release workflow publishes an immutable GHCR image, resolves its OCI digest, generates an SPDX image SBOM, creates GitHub build-provenance and SBOM attestations associated with the image, then logs out and verifies anonymous public pull. Verification commands are in [`docs/supply-chain.md`](docs/supply-chain.md).
 
-The `Release container` workflow builds and smoke-tests an immutable GHCR image, publishes it, logs out of GHCR, pulls the image anonymously, and smoke-tests the public image again.
-
-Reproducible verification commands and supporting evidence are collected in [`docs/portfolio-evidence.md`](docs/portfolio-evidence.md).
+Reproducible claims and supporting commands are mapped in [`docs/portfolio-evidence.md`](docs/portfolio-evidence.md).
 
 ## Security evaluation baselines
 
@@ -203,11 +198,10 @@ These are small versioned regression corpora, not estimates of real-world produc
 
 ## Local development
 
-Create ignored local configuration for the normal configurable stack:
-
 ```bash
 cp .env.example .env
 cp config/security-policies.example.json config/security-policies.json
+make install
 ```
 
 Validate policy:
@@ -219,64 +213,63 @@ set +a
 python -m app.policy_cli validate
 ```
 
-Start or stop Docker Compose without deleting persistent data:
+The ordinary developer installation keeps dependency ranges from `pyproject.toml`. Release-style runtime installation uses the exact committed lock:
 
 ```bash
-make up
-make down
+make release-install
 ```
 
-Do not use `docker compose down -v` unless PostgreSQL, Redis, and Prometheus data should be deleted intentionally.
+See [`docs/dependency-policy.md`](docs/dependency-policy.md) for lock refresh and dependency/base-image update policy.
 
 ## Developer commands
 
 ```text
 make install             install project + development/security tooling
+make release-install     install exact runtime dependency lock
+make lock-verify         validate release-lock invariants
 make test                run pytest
 make evals               enforce prompt-injection and semantic-PII baselines
 make security            Bandit + dependency audit
 make check               test + evals + security
 make demo                zero-cost end-to-end demo
 make resilience          inject backend/telemetry outages and verify behavior
+make m10-adversarial     deterministic adversarial regression corpus
+make m10-integration     real Redis/PostgreSQL concurrency verification
+make benchmark           local M10 reliability/performance baseline
 make preflight           repository/release hygiene checks
 make up / make down      Docker Compose lifecycle, preserving volumes
 make kind-up             build/start local kind environment
-make kind-verify         verify two-replica kind security state
+make kind-verify         verify policy, rescheduling, shared state, and bounded load
 make terraform-validate  side-effect-free Terraform validation
 ```
 
-Contribution and security-development guidance is in [`CONTRIBUTING.md`](CONTRIBUTING.md).
-
 ## Kubernetes
 
-The local distributed-runtime environment uses kind with two gateway replicas, shared PostgreSQL and Redis, Prometheus, and an OpenTelemetry Collector.
+The local kind environment uses two gateway replicas, shared PostgreSQL and Redis, Prometheus, and an OpenTelemetry Collector. The namespace enforces the Kubernetes `restricted` Pod Security profile. The local overlay starts from ingress/egress default deny and permits only the application/database/cache/telemetry/discovery paths required by the stack.
 
-```bash
-make kind-up
-make kind-verify
-```
+The optional cloud overlay also starts default-deny. Its backend/AWS egress policy is rendered from actual Terraform private/data subnet CIDRs instead of committed placeholder identities. Terraform enables EKS VPC CNI NetworkPolicy support and creates a private Secrets Manager interface endpoint. Gateway and migration use separate EKS Pod Identity roles rather than ordinary Kubernetes API tokens.
 
-Verification sends traffic to different gateway pods and checks shared Redis rate state, shared PostgreSQL usage, tracing, and two healthy Prometheus targets.
+The default cloud provider is `mock`, so unrestricted Internet/provider egress is intentionally absent. Live-provider deployments must add environment-specific controlled egress.
 
-The Kubernetes namespace is configured to warn/audit against the restricted Pod Security profile. Environment-specific NetworkPolicies are not hard-coded into the shared base because local and optional cloud backends have different network identities; production deployments should add policies once concrete service and egress identities are known.
-
-See [`docs/kubernetes.md`](docs/kubernetes.md).
+See [`docs/kubernetes.md`](docs/kubernetes.md) and [`docs/kubernetes-security.md`](docs/kubernetes-security.md).
 
 ## Container release
 
-The public release workflow publishes immutable images using the commit SHA:
+The public release workflow publishes immutable commit images:
 
 ```text
 ghcr.io/joshuabisdorf/secure-ai-gateway:sha-<commit>
 ```
 
-A `v*` Git tag also publishes the corresponding version tag. The release path does not require AWS credentials, Docker Hub credentials, provider keys, or Terraform apply.
+A `v*` Git tag also publishes the corresponding version tag. Consumers should resolve and record the immutable OCI digest. Build provenance and the SPDX SBOM can be verified against that digest with GitHub CLI as documented in [`docs/supply-chain.md`](docs/supply-chain.md).
+
+The release path does not require AWS credentials, Docker Hub credentials, provider keys, or Terraform apply.
 
 ## Optional AWS reference architecture
 
-Terraform defines protected S3/KMS remote state plus an application architecture with VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, KMS, Secrets Manager, and separate Pod Identity roles for gateway runtime and migration.
+Terraform defines protected S3/KMS remote state plus an application architecture with VPC networking, private EKS, ECR, encrypted RDS PostgreSQL, TLS/IAM-authenticated ElastiCache Valkey, KMS, Secrets Manager, a private Secrets Manager endpoint, EKS NetworkPolicy support, and separate Pod Identity roles for gateway runtime and migration.
 
-I keep the AWS deployment as a reference architecture rather than a prerequisite for developing or verifying the gateway. Any repository helper that can create paid AWS resources requires an explicit billable-AWS opt-in guard.
+The AWS deployment remains a reference architecture rather than a prerequisite for development or release verification. Helpers that can create paid AWS resources require explicit billable-AWS opt-in guards.
 
 See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/terraform.md), and [`docs/cloud-deployment.md`](docs/cloud-deployment.md).
 
@@ -287,14 +280,15 @@ See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/ter
 ├── app/                         gateway/security implementation
 ├── config/                      tracked policy examples and demo policy
 ├── db/migrations/               PostgreSQL migrations
-├── docs/                        design, ADRs, operations, demo, reliability, hardening
+├── docs/                        architecture, security, operations, release evidence
 ├── evals/datasets/              versioned security regression corpora
 ├── k8s/                         base/local/CI/cloud/migration Kustomize targets
 ├── observability/               Prometheus and OTel configuration
-├── scripts/                     demo, resilience, kind, and optional AWS helpers
+├── requirements/                exact release-runtime dependency lock
+├── scripts/                     verification, kind, release, and optional AWS helpers
 ├── terraform/                   bootstrap + AWS reference roots
 ├── tests/                       unit/integration/adversarial tests
-├── .github/workflows/           CI, CodeQL, preflight, security, and release workflows
+├── .github/workflows/           CI, CodeQL, preflight, security, release workflows
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE
@@ -307,11 +301,9 @@ See [`docs/cost-policy.md`](docs/cost-policy.md), [`docs/terraform.md`](docs/ter
 
 ## Current release work
 
-The core gateway, security controls, deterministic demo, resilience verification, local distributed deployment, optional AWS architecture, CI security analysis, SBOM generation, CodeQL, container scanning, and public GHCR release path are implemented.
+The core gateway and M10 adversarial/reliability/performance verification are implemented. M11 adds reproducible release dependencies, image SBOM/provenance evidence, restricted Pod Security enforcement, default-deny overlay-aware network policy, live kind rescheduling/load checks, and the cloud CIDR/runtime-identity model.
 
-Before `v1.0.0`, the remaining work is focused on deeper adversarial and concurrency testing, reliability and performance baselines, supply-chain/release provenance, environment-aware Kubernetes network hardening, and the final release review. The stable tag will be created only after [`docs/release-checklist.md`](docs/release-checklist.md) is satisfied.
-
-Paid AWS runtime verification is not a release requirement.
+Before `v1.0.0`, the remaining roadmap work is the M12 final security/release review and deliberate stable tag. The tag will be created only after [`docs/release-checklist.md`](docs/release-checklist.md) is satisfied. Paid AWS runtime verification remains an explicit non-requirement.
 
 ## Documentation convention
 

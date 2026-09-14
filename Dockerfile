@@ -6,11 +6,14 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 WORKDIR /build
 
 COPY pyproject.toml ./
+COPY requirements ./requirements
 COPY LICENSE NOTICE ./
 COPY app ./app
 
 RUN python -m venv /opt/venv \
-    && /opt/venv/bin/python -m pip install . \
+    && /opt/venv/bin/python -m pip install -r requirements/release.lock \
+    && /opt/venv/bin/python -m pip install --no-deps --no-build-isolation . \
+    && /opt/venv/bin/python -m pip check \
     && /opt/venv/bin/python -m pip uninstall -y setuptools \
     && /opt/venv/bin/python -m pip uninstall -y pip
 

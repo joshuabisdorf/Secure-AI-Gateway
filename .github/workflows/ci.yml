@@ -36,6 +36,34 @@ jobs:
       - name: Run test suite
         run: pytest -q
 
+  release-lock:
+    name: Reproducible release install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Verify lock invariants
+        run: python scripts/verify_release_lock.py
+
+      - name: Install clean runtime from lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/sag-release-venv
+          /tmp/sag-release-venv/bin/python -m pip install -r requirements/release.lock
+          /tmp/sag-release-venv/bin/python -m pip install --no-deps --no-build-isolation -e .
+          /tmp/sag-release-venv/bin/python -m pip check
+          /tmp/sag-release-venv/bin/python -c 'import app.server, en_core_web_sm; print("release_lock_install=OK")'
+
   m10-verification:
     name: M10 adversarial/reliability/performance
     runs-on: ubuntu-latest
@@ -215,6 +243,11 @@ jobs:
           scripts/aws-cloud-deploy.sh
           scripts/aws-cloud-verify.sh
 
+      - name: Validate M11 helper scripts
+        run: |
+          python -m py_compile scripts/verify_release_lock.py scripts/render_cloud_network_policies.py
+          python scripts/verify_release_lock.py
+
       - name: Validate developer task surface
         run: make help
 
@@ -277,10 +310,21 @@ jobs:
         run: |
           kubectl kustomize k8s/ci > rendered-kubernetes.yaml
           kubectl kustomize k8s/cloud > rendered-cloud-kubernetes.yaml
+          python scripts/render_cloud_network_policies.py \
+            --private-cidrs-json '["10.90.10.0/24","10.90.11.0/24"]' \
+            --data-cidrs-json '["10.90.20.0/24","10.90.21.0/24"]' \
+            --output rendered-cloud-network-policies.yaml
+
+      - name: Enforce M11 Kubernetes policy surface
+        run: |
+          grep -Fq 'pod-security.kubernetes.io/enforce: restricted' rendered-kubernetes.yaml
+          grep -Fq 'name: sag-default-deny' rendered-kubernetes.yaml
+          grep -Fq 'name: sag-default-deny' rendered-cloud-kubernetes.yaml
+          grep -Fq 'name: sag-cloud-gateway-runtime-egress' rendered-cloud-network-policies.yaml
 
       - name: Reject committed Kubernetes Secret objects
         run: >-
-          if grep -q '^kind: Secret$' rendered-kubernetes.yaml rendered-cloud-kubernetes.yaml; then
+          if grep -q '^kind: Secret$' rendered-kubernetes.yaml rendered-cloud-kubernetes.yaml rendered-cloud-network-policies.yaml; then
             echo 'Kubernetes Secret objects must not be committed in rendered deployment targets.' >&2;
             exit 1;
           fi
@@ -291,6 +335,7 @@ jobs:
           manifests: |
             rendered-kubernetes.yaml
             rendered-cloud-kubernetes.yaml
+            rendered-cloud-network-policies.yaml
           kubeconformOpts: -strict
 
       - name: Validate Kubernetes 1.37 compatibility
@@ -299,7 +344,53 @@ jobs:
           manifests: |
             rendered-kubernetes.yaml
             rendered-cloud-kubernetes.yaml
+            rendered-cloud-network-policies.yaml
           kubeconformOpts: -kubernetes-version=1.37.0
+
+  kind-security:
+    name: kind security and resilience
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+        with:
+          version: v1.37.0
+
+      - name: Install kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          version: v0.33.0
+          install_only: true
+
+      - name: Create ephemeral local configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGNING_KEY="$(openssl rand -hex 32)"
+          umask 077
+          cat > .env <<EOF
+          SAG_PROVIDER=mock
+          POSTGRES_PASSWORD=sag_ci_kind_password
+          SAG_TOOL_EXECUTION_SIGNING_KEY=$SIGNING_KEY
+          EOF
+
+      - name: Deploy hardened kind environment
+        run: make kind-up
+
+      - name: Verify policy, rescheduling, and bounded load
+        run: make kind-verify
+
+      - name: Remove kind environment and credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f .env .k8s-client.env /tmp/sag-network-deny-probe.yaml
+          kind delete cluster --name secure-ai-gateway >/dev/null 2>&1 || true
 
   terraform:
     name: Terraform

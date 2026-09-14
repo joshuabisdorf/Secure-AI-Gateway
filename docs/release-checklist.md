@@ -14,6 +14,14 @@ Use this checklist for the first stable `v1.0.0` release.
 - [ ] `make preflight` passes on the intended release state.
 - [ ] `python scripts/repo_preflight.py --history` passes from a full clone, confirming no sensitive-looking filenames were committed historically.
 
+## Dependencies and build reproducibility
+
+- [ ] `make lock-verify` passes.
+- [ ] The `Reproducible release install` CI job is green from a clean environment.
+- [ ] `requirements/release.lock` reflects the reviewed runtime dependency set for the release.
+- [ ] Direct downloaded artifacts retain their SHA-256 pins.
+- [ ] Dependency and base-image update expectations in `docs/dependency-policy.md` are current.
+
 ## Verification
 
 - [ ] `make check` passes on the intended release state.
@@ -21,18 +29,20 @@ Use this checklist for the first stable `v1.0.0` release.
 - [ ] `Resilience smoke` is green on the release commit.
 - [ ] CodeQL Python analysis is green on the release commit.
 - [ ] Container security / Trivy is green on the release commit.
-- [ ] `make kind-up && make kind-verify` has passed for the current Kubernetes architecture when kind is available.
+- [ ] `kind security and resilience` is green, including default-deny enforcement, Pod Security, replica rescheduling, and bounded-load checks.
 - [ ] Terraform validation is green in CI.
 - [ ] All primary GitHub CI gates are green on the release commit.
-- [ ] Optionally repeat `make demo` and `make resilience` locally as a final workstation smoke test.
+- [ ] Optionally repeat `make demo`, `make resilience`, and `make kind-up && make kind-verify` locally as final workstation smoke tests.
 
 ## Release artifact
 
 - [ ] Release workflow is green on the release commit.
-- [ ] Immutable `sha-*` GHCR image exists.
+- [ ] Immutable `sha-*` GHCR image exists and its OCI digest is recorded.
 - [ ] Anonymous pull verification is green.
+- [ ] Build-provenance attestation verifies with `gh attestation verify` for the image digest.
+- [ ] SPDX SBOM attestation verifies with the SPDX predicate type documented in `docs/supply-chain.md`.
 - [ ] Only after the checks above, create annotated tag `v1.0.0`.
-- [ ] Confirm the workflow publishes `ghcr.io/joshuabisdorf/secure-ai-gateway:v1.0.0`.
+- [ ] Confirm the workflow publishes `ghcr.io/joshuabisdorf/secure-ai-gateway:v1.0.0` and that it resolves to the reviewed digest.
 
 ## Explicit non-requirements
 
