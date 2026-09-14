@@ -56,4 +56,23 @@ The inspection-path delta is similarly descriptive. Both the normal and matched 
 
 ## Representative result
 
-A representative GitHub Actions result is recorded after the M10 pull request completes on the hosted runner. Host-level measurements vary across runs, so the repository treats the command and methodology as authoritative and the numeric result as a dated example rather than a release threshold.
+GitHub Actions produced the following bounded baseline on 2026-09-14 using the CI sample of 80 requests at concurrency 8 and 200 direct rate-limiter operations. The run used only the mock provider and reported zero billable cloud resources.
+
+| Measurement | Result |
+| --- | ---: |
+| Single replica throughput | 118.489 requests/sec |
+| Single replica p50 / p95 / p99 | 62.196 / 109.659 / 125.306 ms |
+| Two replica throughput | 178.163 requests/sec |
+| Two replica p50 / p95 / p99 | 39.985 / 78.525 / 93.105 ms |
+| Two-replica throughput vs. single | 1.504x |
+| Replica RSS | 199.9 MiB / 197.6 MiB |
+| Safe request p50 | 30.925 ms |
+| PII + injection match p50 | 36.563 ms |
+| Matched-path p50 delta | +5.638 ms |
+| Redis rate-limiter throughput | 564.454 operations/sec |
+| Replica-termination traffic completed | 41 requests |
+| Alternate-replica failovers during termination | 13 |
+| Replica-termination p95 | 80.678 ms |
+| Forced post-termination failover | verified |
+
+These figures are a dated example from a shared hosted runner, not a release threshold. Host-level measurements vary across runs; the benchmark command and methodology are the authoritative reproducible evidence.
