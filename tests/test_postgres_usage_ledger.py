@@ -71,7 +71,8 @@ class FakePool:
     def __init__(self, state: dict[str, object]) -> None:
         self.state = state
 
-    def connection(self) -> FakeConnectionContext:
+    def connection(self, *, timeout: float | None = None) -> FakeConnectionContext:
+        assert timeout is not None and timeout > 0
         return FakeConnectionContext(self.state)
 
 
@@ -115,6 +116,7 @@ def test_postgres_usage_ledger_reads_and_atomically_increments() -> None:
     Effects:
         - Verifies persisted totals are read before forwarding.
         - Verifies recording uses an atomic PostgreSQL upsert increment.
+        - Verifies pooled operations use a bounded connection wait.
 
     Inputs:
         - None.
