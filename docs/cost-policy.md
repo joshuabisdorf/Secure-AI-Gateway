@@ -15,7 +15,7 @@ The maintained and verified path uses only resources that can be used without pr
 - GitHub Container Registry for a public package published from this public repository;
 - deterministic mock-provider requests for routine verification.
 
-The public container release workflow uses the repository-scoped `GITHUB_TOKEN`; it does not require AWS credentials, Docker Hub credentials, provider credentials, or a paid deployment platform.
+The public container release workflow uses the repository-scoped `GITHUB_TOKEN`; it does not require AWS credentials, Docker Hub credentials, provider credentials, or a paid deployment platform. Release SBOM/provenance attestations are generated in that same GitHub path and do not introduce an AWS dependency.
 
 If a GitHub account-level included quota is exhausted, the workflow should be allowed to stop rather than enabling paid overage merely to keep this project running.
 
@@ -23,7 +23,7 @@ If a GitHub account-level included quota is exhausted, the workflow should be al
 
 `terraform/aws`, `k8s/cloud`, and the `scripts/aws-cloud-*` scripts are retained as an optional production-style AWS reference architecture.
 
-That architecture includes resources such as EKS, NAT Gateway, EC2 worker capacity, RDS PostgreSQL, ElastiCache Valkey, KMS, Secrets Manager, ECR, and S3. Some of those services are billable independently of workload traffic. Therefore:
+That architecture includes resources such as EKS, NAT Gateway, EC2 worker capacity, RDS PostgreSQL, ElastiCache Valkey, KMS, Secrets Manager, a Secrets Manager interface VPC endpoint, ECR, and S3. Some of those services are billable independently of workload traffic. Therefore:
 
 - AWS deployment is not required to complete the project;
 - AWS runtime verification is not required for a green repository;
@@ -31,6 +31,8 @@ That architecture includes resources such as EKS, NAT Gateway, EC2 worker capaci
 - no AWS account or payment method is a project prerequisite;
 - an untested optional paid component must be documented as such rather than represented as verified;
 - paid AWS apply paths require explicit local opt-in guards.
+
+The private Secrets Manager interface endpoint exists so the default-deny cloud NetworkPolicy can permit a concrete private HTTPS path instead of granting gateway pods arbitrary Internet HTTPS egress. Its hourly/data-processing charges are part of the optional AWS architecture and are not incurred by the normal development/release path.
 
 ## Cost fail-closed rule
 
@@ -51,7 +53,7 @@ Repository documentation should distinguish these states:
 
 - **CI-verified** — exercised by GitHub Actions;
 - **locally verified** — exercised on Docker/kind without paid infrastructure;
-- **release-verified** — a public GHCR image was built, smoke-tested, and published by the release workflow;
+- **release-verified** — a public GHCR image was built, smoke-tested, published, and associated with verifiable release attestations;
 - **reference only** — designed and statically validated, but not deployed because deployment would create billable infrastructure.
 
 The AWS Terraform/Kubernetes path may remain reference-only indefinitely without blocking the project roadmap.
