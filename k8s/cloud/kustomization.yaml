@@ -6,6 +6,7 @@ resources:
   - ../migration
   - serviceaccounts.yaml
   - observability.yaml
+  - network-policies.yaml
 patches:
   - path: gateway-patch.yaml
   - path: migration-patch.yaml
