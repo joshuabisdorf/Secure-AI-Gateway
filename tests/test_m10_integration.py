@@ -424,10 +424,10 @@ def test_migration_failure_rolls_back_partial_migration(
         "SELECT * FROM m10_table_that_does_not_exist;\n",
         encoding="utf-8",
     )
+    asyncio.run(_initialize_database())
     monkeypatch.setattr(database, "_MIGRATION_DIRECTORY", tmp_path)
 
     async def exercise() -> None:
-        await _initialize_database()
         async with await psycopg.AsyncConnection.connect(database_url) as connection:
             await connection.execute("DROP TABLE IF EXISTS m10_migration_partial")
             await connection.execute("DROP TABLE IF EXISTS m10_migration_good")
