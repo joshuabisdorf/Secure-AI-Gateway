@@ -9,7 +9,10 @@ from typing import Any
 from app.semantic_pii import SemanticPIIUnavailable, semantic_pii_analyzer
 
 _DEFAULT_DATASET = (
-    Path(__file__).resolve().parents[2] / "evals" / "datasets" / "semantic_pii_v1.json"
+    Path(__file__).resolve().parents[2]
+    / "evals"
+    / "datasets"
+    / "semantic_pii_v1.json"
 )
 _MAX_DATASET_BYTES = 2_097_152
 _ID_PATTERN = re.compile(r"^[A-Za-z0-9._-]{1,96}$")
@@ -90,7 +93,9 @@ class BenchmarkReport:
     baseline_passed: bool
 
 
-def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
     """Reject duplicate JSON keys while constructing benchmark objects."""
     parsed: dict[str, Any] = {}
     for key, value in pairs:
@@ -100,7 +105,9 @@ def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, An
     return parsed
 
 
-def _require_exact_keys(value: dict[str, Any], expected: frozenset[str], reason: str) -> None:
+def _require_exact_keys(
+    value: dict[str, Any], expected: frozenset[str], reason: str
+) -> None:
     """Reject missing or unknown schema fields."""
     if frozenset(value) != expected:
         raise ValueError(reason)
@@ -116,7 +123,9 @@ def _parse_unit_interval(value: Any, reason: str) -> float:
     return parsed
 
 
-def parse_dataset(document: str, *, sha256: str = "unknown") -> SemanticPIIDataset:
+def parse_dataset(
+    document: str, *, sha256: str = "unknown"
+) -> SemanticPIIDataset:
     """
     RME
 
@@ -138,7 +147,9 @@ def parse_dataset(document: str, *, sha256: str = "unknown") -> SemanticPIIDatas
         - Validated SemanticPIIDataset.
     """
     try:
-        root = json.loads(document, object_pairs_hook=_object_without_duplicate_keys)
+        root = json.loads(
+            document, object_pairs_hook=_object_without_duplicate_keys
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("invalid_semantic_pii_benchmark_json") from exc
     if not isinstance(root, dict):
@@ -149,13 +160,19 @@ def parse_dataset(document: str, *, sha256: str = "unknown") -> SemanticPIIDatas
     version = root["version"]
     if not isinstance(name, str) or not name or len(name) > 96:
         raise ValueError("invalid_benchmark_name")
-    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != 1
+    ):
         raise ValueError("unsupported_benchmark_version")
 
     raw_thresholds = root["baseline_thresholds"]
     if not isinstance(raw_thresholds, dict):
         raise ValueError("invalid_benchmark_thresholds")
-    _require_exact_keys(raw_thresholds, _THRESHOLD_KEYS, "invalid_benchmark_thresholds")
+    _require_exact_keys(
+        raw_thresholds, _THRESHOLD_KEYS, "invalid_benchmark_thresholds"
+    )
     thresholds = BenchmarkThresholds(
         minimum_precision=_parse_unit_interval(
             raw_thresholds["minimum_precision"], "invalid_minimum_precision"
@@ -193,7 +210,9 @@ def parse_dataset(document: str, *, sha256: str = "unknown") -> SemanticPIIDatas
         seen_ids.add(case_id)
         if not isinstance(label, str) or label not in _LABELS:
             raise ValueError("invalid_case_label")
-        if not isinstance(category, str) or not _CATEGORY_PATTERN.fullmatch(category):
+        if not isinstance(category, str) or not _CATEGORY_PATTERN.fullmatch(
+            category
+        ):
             raise ValueError("invalid_case_category")
         if not isinstance(text, str) or not text or len(text) > 16_384:
             raise ValueError("invalid_case_text")
@@ -255,7 +274,9 @@ def load_dataset(path: Path = _DEFAULT_DATASET) -> SemanticPIIDataset:
     try:
         raw = path.read_bytes()
     except OSError as exc:
-        raise SemanticPIIBenchmarkError("semantic_pii_dataset_unavailable") from exc
+        raise SemanticPIIBenchmarkError(
+            "semantic_pii_dataset_unavailable"
+        ) from exc
     if len(raw) > _MAX_DATASET_BYTES:
         raise SemanticPIIBenchmarkError("semantic_pii_dataset_too_large")
     digest = hashlib.sha256(raw).hexdigest()
@@ -344,7 +365,8 @@ def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
     baseline_passed = (
         metrics.precision >= thresholds.minimum_precision
         and metrics.recall >= thresholds.minimum_recall
-        and metrics.false_positive_rate <= thresholds.maximum_false_positive_rate
+        and metrics.false_positive_rate
+        <= thresholds.maximum_false_positive_rate
     )
     return BenchmarkReport(
         dataset_name=dataset.name,
@@ -377,17 +399,29 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
     )
     for item in report.categories:
         print(
-            f"CATEGORY name={item.category} label={item.label} cases={item.cases} "
+            "CATEGORY"
+            f" name={item.category} label={item.label} cases={item.cases} "
             f"detected={item.detected} detection_rate={item.detection_rate:.4f}"
         )
     if show_errors:
-        print("FALSE_POSITIVES ids=" + (",".join(report.false_positive_ids) or "none"))
-        print("FALSE_NEGATIVES ids=" + (",".join(report.false_negative_ids) or "none"))
-        print("TYPE_MISMATCHES ids=" + (",".join(report.type_mismatch_ids) or "none"))
+        print(
+            "FALSE_POSITIVES ids="
+            + (",".join(report.false_positive_ids) or "none")
+        )
+        print(
+            "FALSE_NEGATIVES ids="
+            + (",".join(report.false_negative_ids) or "none")
+        )
+        print(
+            "TYPE_MISMATCHES ids="
+            + (",".join(report.type_mismatch_ids) or "none")
+        )
     print(f"BASELINE status={'PASS' if report.baseline_passed else 'FAIL'}")
 
 
-def _report_dict(report: BenchmarkReport, *, show_errors: bool) -> dict[str, Any]:
+def _report_dict(
+    report: BenchmarkReport, *, show_errors: bool
+) -> dict[str, Any]:
     """Convert a report to machine-readable metadata without benchmark text."""
     payload: dict[str, Any] = {
         "dataset": {
@@ -432,7 +466,9 @@ def main() -> None:
     Outputs:
         - Text or JSON metrics containing no benchmark prompt bodies.
     """
-    parser = argparse.ArgumentParser(description="Evaluate semantic PII detection offline.")
+    parser = argparse.ArgumentParser(
+        description="Evaluate semantic PII detection offline."
+    )
     parser.add_argument("--dataset", type=Path, default=_DEFAULT_DATASET)
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--show-errors", action="store_true")
@@ -447,7 +483,12 @@ def main() -> None:
         raise SystemExit(2) from None
 
     if args.format == "json":
-        print(json.dumps(_report_dict(report, show_errors=args.show_errors), sort_keys=True))
+        print(
+            json.dumps(
+                _report_dict(report, show_errors=args.show_errors),
+                sort_keys=True,
+            )
+        )
     else:
         _print_text(report, show_errors=args.show_errors)
 

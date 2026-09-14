@@ -16,7 +16,10 @@ from app.observability import (
     observe_http_request,
     request_trace,
 )
-from app.tool_authorization import authorize_request_tools, get_client_allowed_tools
+from app.tool_authorization import (
+    authorize_request_tools,
+    get_client_allowed_tools,
+)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 client_registry = build_client_registry()
@@ -170,7 +173,9 @@ async def _authenticate_api_key_once(
 
     action = "allowed" if decision.requested_tools else "none"
     response.headers["X-Tool-Authorization-Action"] = action
-    response.headers["X-Tool-Requested-Count"] = str(len(decision.requested_tools))
+    response.headers["X-Tool-Requested-Count"] = str(
+        len(decision.requested_tools)
+    )
     emit_audit_event(
         request_id=request_id,
         event="tool_authorization",
@@ -230,7 +235,9 @@ async def authenticate_api_key(
             response.headers["X-Trace-ID"] = f"{span_context.trace_id:032x}"
 
         try:
-            principal = await _authenticate_api_key_once(request, response, credentials)
+            principal = await _authenticate_api_key_once(
+                request, response, credentials
+            )
             yield principal
         except HTTPException as exc:
             status_code = exc.status_code

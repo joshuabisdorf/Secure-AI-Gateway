@@ -10,8 +10,12 @@ from app.models import ChatCompletionRequest
 
 _client_id_pattern = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _supported_actions = frozenset({"audit", "deny", "off"})
-_base64_candidate_pattern = re.compile(r"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/=])")
-_hex_candidate_pattern = re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){16,}(?![0-9A-Fa-f])")
+_base64_candidate_pattern = re.compile(
+    r"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/=])"
+)
+_hex_candidate_pattern = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){16,}(?![0-9A-Fa-f])"
+)
 _max_encoded_candidates = 32
 _max_encoded_candidate_chars = 4096
 
@@ -103,13 +107,16 @@ _indicators = (
         patterns=(
             re.compile(
                 r"\b(?:reveal|show|print|display|output|provide|give\s+me)\b.{0,64}"
-                r"\b(?:api[ _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
+                r"\b(?:api["
+                r" _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
         ),
     ),
 )
-_indicator_weights = {indicator.name: indicator.weight for indicator in _indicators}
+_indicator_weights = {
+    indicator.name: indicator.weight for indicator in _indicators
+}
 _indicator_weights["encoded_payload"] = 5
 
 
@@ -267,7 +274,9 @@ def _match_encoded_indicators(text: str) -> set[str]:
     return matched
 
 
-def inspect_prompt_injection(request: ChatCompletionRequest) -> PromptInjectionResult:
+def inspect_prompt_injection(
+    request: ChatCompletionRequest,
+) -> PromptInjectionResult:
     """
     RME
 

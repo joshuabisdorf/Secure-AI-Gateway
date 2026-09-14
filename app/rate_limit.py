@@ -67,11 +67,9 @@ class _RedisClient(Protocol):
         script: str,
         numkeys: int,
         *keys_and_args: object,
-    ) -> object:
-        ...
+    ) -> object: ...
 
-    async def aclose(self) -> None:
-        ...
+    async def aclose(self) -> None: ...
 
 
 def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
@@ -348,8 +346,13 @@ class RedisRateLimiter:
                 limit_rpm,
                 self._window_seconds,
             )
-            if not isinstance(raw_result, (list, tuple)) or len(raw_result) != 3:
-                raise RateLimiterUnavailable("invalid_redis_rate_limit_response")
+            if (
+                not isinstance(raw_result, (list, tuple))
+                or len(raw_result) != 3
+            ):
+                raise RateLimiterUnavailable(
+                    "invalid_redis_rate_limit_response"
+                )
 
             current_value = int(raw_result[0])
             applied_increment = int(raw_result[1])

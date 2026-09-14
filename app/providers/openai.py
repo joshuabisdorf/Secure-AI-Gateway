@@ -3,8 +3,16 @@ import os
 import httpx
 from pydantic import ValidationError
 
-from app.models import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
-from app.providers.base import Provider, ProviderConfigurationError, ProviderError
+from app.models import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+)
+from app.providers.base import (
+    Provider,
+    ProviderConfigurationError,
+    ProviderError,
+)
 from app.providers.observed import observe_provider_chat
 
 
@@ -120,7 +128,9 @@ class OpenAIProvider(Provider):
         """
         payload: dict[str, object] = {
             "model": request.model,
-            "messages": [_serialize_message(message) for message in request.messages],
+            "messages": [
+                _serialize_message(message) for message in request.messages
+            ],
             "stream": False,
         }
         if request.tools is not None:

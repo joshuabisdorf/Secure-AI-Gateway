@@ -20,7 +20,9 @@ class FakeCursor:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         return None
 
-    async def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
+    async def execute(
+        self, query: str, params: tuple[object, ...] = ()
+    ) -> None:
         normalized = " ".join(query.split())
         keys = self.state["keys"]
         client_id = self.state["client_id"]
@@ -56,7 +58,10 @@ class FakeCursor:
             self._all = []
             return
 
-        if "UPDATE gateway_api_keys" in normalized and "key_id <>" in normalized:
+        if (
+            "UPDATE gateway_api_keys" in normalized
+            and "key_id <>" in normalized
+        ):
             requested_client_id, replacement_key_id = params
             revoked: list[tuple[object, ...]] = []
             for key_id, key in keys.items():
@@ -207,7 +212,9 @@ def test_rotate_revokes_old_key_and_revoke_is_idempotent(monkeypatch) -> None:
     assert state["keys"]["oldkey"]["is_active"] is False
     assert state["keys"]["newkey"]["is_active"] is True
 
-    changed = asyncio.run(clients.revoke_client_key("postgresql://test", "oldkey"))
+    changed = asyncio.run(
+        clients.revoke_client_key("postgresql://test", "oldkey")
+    )
     assert changed is False
 
 

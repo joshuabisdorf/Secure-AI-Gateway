@@ -29,8 +29,11 @@ def test_openai_provider_forwards_and_normalizes_response() -> None:
     Outputs:
         - None. Assertions determine whether forwarding works correctly.
     """
+
     def handler(request: httpx.Request) -> httpx.Response:
-        assert str(request.url) == "https://api.example.test/v1/chat/completions"
+        assert (
+            str(request.url) == "https://api.example.test/v1/chat/completions"
+        )
         assert request.headers["Authorization"] == "Bearer test-openai-key"
 
         payload = json.loads(request.content.decode())
@@ -125,6 +128,7 @@ def test_openai_provider_sanitizes_upstream_error() -> None:
     Outputs:
         - None. Assertions determine whether the error is sanitized.
     """
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             401,

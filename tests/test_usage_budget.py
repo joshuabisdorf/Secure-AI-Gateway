@@ -184,4 +184,6 @@ def test_chat_fails_closed_without_usage_budget_policy(
     )
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "Usage budget policy is not configured."}
+    assert response.json() == {
+        "detail": "Usage budget policy is not configured."
+    }

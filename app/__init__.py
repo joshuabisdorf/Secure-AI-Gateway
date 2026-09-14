@@ -1,3 +1,5 @@
-from app.security_policy_bootstrap import apply_unified_security_policy_environment
+from app.security_policy_bootstrap import (
+    apply_unified_security_policy_environment,
+)
 
 apply_unified_security_policy_environment()

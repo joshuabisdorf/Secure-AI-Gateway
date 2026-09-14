@@ -70,7 +70,9 @@ def test_environment_registry_fails_closed_when_missing(monkeypatch) -> None:
         asyncio.run(registry.get_key_record("keya"))
 
 
-def test_postgres_backend_fails_closed_without_database_url(monkeypatch) -> None:
+def test_postgres_backend_fails_closed_without_database_url(
+    monkeypatch,
+) -> None:
     """
     RME
 

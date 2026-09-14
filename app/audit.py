@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 from app.observability import observe_audit_event
 
-
 audit_logger = logging.getLogger("secure_ai_gateway.audit")
 audit_logger.setLevel(logging.INFO)
 audit_logger.propagate = False
@@ -163,4 +162,6 @@ def emit_audit_event(
         # Telemetry is never part of an allow/deny decision. Audit logging remains authoritative.
         pass
 
-    audit_logger.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+    audit_logger.info(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    )

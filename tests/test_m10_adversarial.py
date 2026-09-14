@@ -215,8 +215,12 @@ def _mutate_and_resign_ticket(token: str, mutation) -> str:
     ).encode("utf-8")
     key = os.environ["SAG_TOOL_EXECUTION_SIGNING_KEY"].encode("utf-8")
     signature = hmac.new(key, payload_bytes, hashlib.sha256).digest()
-    encoded_payload = base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode("ascii")
-    encoded_signature = base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
+    encoded_payload = (
+        base64.urlsafe_b64encode(payload_bytes).rstrip(b"=").decode("ascii")
+    )
+    encoded_signature = (
+        base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
+    )
     return f"{encoded_payload}.{encoded_signature}"
 
 
@@ -351,7 +355,9 @@ def test_api_key_parser_negative_and_deterministic_fuzz_corpus() -> None:
     rng = random.Random(20260914)
     alphabet = string.ascii_letters + string.digits + string.punctuation + " "
     for _ in range(256):
-        candidate = "x" + "".join(rng.choice(alphabet) for _ in range(rng.randint(0, 96)))
+        candidate = "x" + "".join(
+            rng.choice(alphabet) for _ in range(rng.randint(0, 96))
+        )
         assert parse_key_id(candidate) is None
 
     assert parse_key_id("sag_abcd_nonempty-secret") == "abcd"
@@ -537,7 +543,11 @@ def test_provider_malformed_response_corpus_fails_closed() -> None:
             "id": "x",
             "model": "m",
             "choices": [],
-            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": -1},
+            "usage": {
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+                "total_tokens": -1,
+            },
         },
         {
             "id": "x",
@@ -728,7 +738,9 @@ def test_security_policy_cache_reloads_and_invalid_update_fails_closed(
     path.write_text('{"version":1}', encoding="utf-8")
     stat = path.stat()
     os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000))
-    with pytest.raises(SecurityPolicyUnavailable, match="invalid_security_policy_file"):
+    with pytest.raises(
+        SecurityPolicyUnavailable, match="invalid_security_policy_file"
+    ):
         load_security_policy_registry(str(path))
 
 
@@ -768,7 +780,9 @@ def test_execution_ticket_is_invalidated_by_policy_change(
         ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000),
     )
 
-    with pytest.raises(ToolExecutionRejected, match="tool_execution_policy_changed"):
+    with pytest.raises(
+        ToolExecutionRejected, match="tool_execution_policy_changed"
+    ):
         verify_execution_ticket(
             token,
             tool_call,

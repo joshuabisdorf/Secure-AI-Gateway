@@ -93,7 +93,9 @@ class BenchmarkReport:
     baseline_passed: bool
 
 
-def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -156,7 +158,9 @@ def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
 
     if label not in _LABELS:
         raise ValueError("invalid_case_label")
-    if not isinstance(category, str) or not _CATEGORY_PATTERN.fullmatch(category):
+    if not isinstance(category, str) or not _CATEGORY_PATTERN.fullmatch(
+        category
+    ):
         raise ValueError("invalid_case_category")
     if not isinstance(messages, list) or not messages or len(messages) > 16:
         raise ValueError("invalid_case_messages")
@@ -182,7 +186,9 @@ def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
     )
 
 
-def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> PromptInjectionDataset:
+def parse_benchmark_dataset(
+    document: str, *, sha256: str = "unknown"
+) -> PromptInjectionDataset:
     """
     RME
 
@@ -207,7 +213,9 @@ def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> Prompt
         - ValueError: Dataset content is malformed or violates the benchmark schema.
     """
     try:
-        root = json.loads(document, object_pairs_hook=_object_without_duplicate_keys)
+        root = json.loads(
+            document, object_pairs_hook=_object_without_duplicate_keys
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("invalid_benchmark_json") from exc
 
@@ -219,7 +227,11 @@ def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> Prompt
     version = root["version"]
     if not isinstance(name, str) or not name or len(name) > 96:
         raise ValueError("invalid_benchmark_name")
-    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != 1
+    ):
         raise ValueError("unsupported_benchmark_version")
 
     raw_cases = root["cases"]
@@ -247,7 +259,9 @@ def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> Prompt
     )
 
 
-def load_benchmark_dataset(path: Path = _DEFAULT_DATASET) -> PromptInjectionDataset:
+def load_benchmark_dataset(
+    path: Path = _DEFAULT_DATASET,
+) -> PromptInjectionDataset:
     """
     RME
 
@@ -383,7 +397,9 @@ def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
     )
 
 
-def _report_as_dict(report: BenchmarkReport, *, show_errors: bool) -> dict[str, Any]:
+def _report_as_dict(
+    report: BenchmarkReport, *, show_errors: bool
+) -> dict[str, Any]:
     metrics = report.metrics
     payload: dict[str, Any] = {
         "dataset": {
@@ -436,7 +452,8 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
     )
     for item in report.categories:
         print(
-            f"CATEGORY name={item.category} label={item.label} cases={item.cases} "
+            "CATEGORY"
+            f" name={item.category} label={item.label} cases={item.cases} "
             f"detected={item.detected} detection_rate={item.detection_rate:.4f}"
         )
     if show_errors:
@@ -453,13 +470,17 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Evaluate the deterministic prompt-injection detector offline."
+        description=(
+            "Evaluate the deterministic prompt-injection detector offline."
+        )
     )
     parser.add_argument(
         "--dataset",
         type=Path,
         default=_DEFAULT_DATASET,
-        help="Benchmark JSON file; defaults to the committed version-1 dataset.",
+        help=(
+            "Benchmark JSON file; defaults to the committed version-1 dataset."
+        ),
     )
     parser.add_argument(
         "--format",
@@ -470,12 +491,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--show-errors",
         action="store_true",
-        help="Include false-positive/false-negative case IDs without prompt bodies.",
+        help=(
+            "Include false-positive/false-negative case IDs without prompt"
+            " bodies."
+        ),
     )
     parser.add_argument(
         "--enforce-baseline",
         action="store_true",
-        help="Exit 1 when committed precision/recall/FPR thresholds are not met.",
+        help=(
+            "Exit 1 when committed precision/recall/FPR thresholds are not met."
+        ),
     )
     return parser
 
@@ -509,7 +535,12 @@ def main() -> None:
 
     report = evaluate_benchmark(dataset)
     if args.format == "json":
-        print(json.dumps(_report_as_dict(report, show_errors=args.show_errors), sort_keys=True))
+        print(
+            json.dumps(
+                _report_as_dict(report, show_errors=args.show_errors),
+                sort_keys=True,
+            )
+        )
     else:
         _print_text(report, show_errors=args.show_errors)
 

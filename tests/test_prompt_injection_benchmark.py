@@ -86,10 +86,30 @@ def test_evaluate_benchmark_computes_confusion_metrics(monkeypatch) -> None:
         - None. Assertions determine whether metric calculations are correct.
     """
     cases = (
-        BenchmarkCase("tp", "attack", "attack_cat", ({"role": "user", "content": "detect"},)),
-        BenchmarkCase("fn", "attack", "attack_cat", ({"role": "user", "content": "clean"},)),
-        BenchmarkCase("fp", "benign", "benign_cat", ({"role": "user", "content": "detect"},)),
-        BenchmarkCase("tn", "benign", "benign_cat", ({"role": "user", "content": "clean"},)),
+        BenchmarkCase(
+            "tp",
+            "attack",
+            "attack_cat",
+            ({"role": "user", "content": "detect"},),
+        ),
+        BenchmarkCase(
+            "fn",
+            "attack",
+            "attack_cat",
+            ({"role": "user", "content": "clean"},),
+        ),
+        BenchmarkCase(
+            "fp",
+            "benign",
+            "benign_cat",
+            ({"role": "user", "content": "detect"},),
+        ),
+        BenchmarkCase(
+            "tn",
+            "benign",
+            "benign_cat",
+            ({"role": "user", "content": "clean"},),
+        ),
     )
     dataset = PromptInjectionDataset(
         name="synthetic",

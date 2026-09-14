@@ -65,7 +65,9 @@ async def migrate_database(database_url: str) -> tuple[str, ...]:
     """
     applied_now: list[str] = []
 
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         await connection.execute(
             """
             CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -134,7 +136,9 @@ async def list_migrations(database_url: str) -> list[tuple[str, str]]:
     Outputs:
         - Applied migration filename and timestamp strings.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 """

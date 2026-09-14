@@ -33,7 +33,9 @@ def test_readiness_skips_unconfigured_shared_backends(monkeypatch) -> None:
     assert unavailable == ()
 
 
-def test_readiness_fails_closed_when_postgres_config_is_missing(monkeypatch) -> None:
+def test_readiness_fails_closed_when_postgres_config_is_missing(
+    monkeypatch,
+) -> None:
     """
     RME
 

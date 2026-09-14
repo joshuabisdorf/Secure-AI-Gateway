@@ -4,7 +4,9 @@ from app.main import app
 from app.policies.model_access import parse_client_allowed_models
 
 
-def test_chat_rejects_globally_disallowed_model(monkeypatch, gateway_api_key) -> None:
+def test_chat_rejects_globally_disallowed_model(
+    monkeypatch, gateway_api_key
+) -> None:
     """
     RME
 
@@ -44,7 +46,9 @@ def test_chat_rejects_globally_disallowed_model(monkeypatch, gateway_api_key) ->
     assert response.json() == {"detail": "Requested model is not allowed."}
 
 
-def test_chat_rejects_model_not_granted_to_client(monkeypatch, gateway_api_key) -> None:
+def test_chat_rejects_model_not_granted_to_client(
+    monkeypatch, gateway_api_key
+) -> None:
     """
     RME
 
@@ -128,7 +132,9 @@ def test_chat_fails_closed_without_global_model_policy(
     )
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "Model access policy is not configured."}
+    assert response.json() == {
+        "detail": "Model access policy is not configured."
+    }
 
 
 def test_chat_fails_closed_without_client_model_policy(
@@ -194,9 +200,7 @@ def test_client_policy_parser_supports_multiple_clients_and_colons() -> None:
         - None. Assertions determine whether policy parsing works correctly.
     """
     policies = parse_client_allowed_models(
-        "alice:openrouter/free,"
-        "alice:nvidia/model:free,"
-        "bob:mock-model"
+        "alice:openrouter/free,alice:nvidia/model:free,bob:mock-model"
     )
 
     assert policies["alice"] == frozenset(

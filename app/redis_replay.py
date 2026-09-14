@@ -62,7 +62,9 @@ class SharedRedisToolExecutionReplayStore:
                 nx=True,
             )
         except RedisError as exc:
-            raise ToolExecutionUnavailable("tool_execution_replay_store_unavailable") from exc
+            raise ToolExecutionUnavailable(
+                "tool_execution_replay_store_unavailable"
+            ) from exc
         return bool(result)
 
     async def close(self) -> None:
@@ -92,16 +94,24 @@ def build_runtime_tool_execution_replay_store() -> ToolExecutionReplayStore:
     Outputs:
         - Configured ToolExecutionReplayStore.
     """
-    backend = os.getenv("SAG_TOOL_EXECUTION_REPLAY_BACKEND", "redis").strip().lower()
+    backend = (
+        os.getenv("SAG_TOOL_EXECUTION_REPLAY_BACKEND", "redis").strip().lower()
+    )
     if backend == "memory":
         return InMemoryToolExecutionReplayStore()
     if backend != "redis":
-        raise ToolExecutionUnavailable("unsupported_tool_execution_replay_backend")
+        raise ToolExecutionUnavailable(
+            "unsupported_tool_execution_replay_backend"
+        )
 
     redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0").strip()
     if not redis_url:
-        raise ToolExecutionUnavailable("tool_execution_replay_store_not_configured")
+        raise ToolExecutionUnavailable(
+            "tool_execution_replay_store_not_configured"
+        )
     try:
         return SharedRedisToolExecutionReplayStore(redis_url)
     except RedisClientConfigurationError as exc:
-        raise ToolExecutionUnavailable("tool_execution_replay_store_not_configured") from exc
+        raise ToolExecutionUnavailable(
+            "tool_execution_replay_store_not_configured"
+        ) from exc

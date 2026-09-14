@@ -185,13 +185,16 @@ def test_redact_policy_forwards_only_sanitized_prompt_and_safe_audit(
     pii_records = [
         record.message
         for record in caplog.records
-        if record.name == "secure_ai_gateway.audit" and '"event":"pii_policy"' in record.message
+        if record.name == "secure_ai_gateway.audit"
+        and '"event":"pii_policy"' in record.message
     ]
     assert len(pii_records) == 1
     assert '"outcome":"redact"' in pii_records[0]
     assert '"pii_detected_count":1' in pii_records[0]
     assert '"pii_types":"email"' in pii_records[0]
-    assert "alice@example.com" not in "\n".join(record.message for record in caplog.records)
+    assert "alice@example.com" not in "\n".join(
+        record.message for record in caplog.records
+    )
 
 
 def test_deny_policy_blocks_pii_before_provider(
@@ -239,7 +242,9 @@ def test_deny_policy_blocks_pii_before_provider(
     )
 
     assert response.status_code == 403
-    assert response.json() == {"detail": "Request contains prohibited sensitive data."}
+    assert response.json() == {
+        "detail": "Request contains prohibited sensitive data."
+    }
     assert response.headers["X-PII-Action"] == "denied"
     assert response.headers["X-PII-Detected-Count"] == "1"
     assert capturing_provider.request is None

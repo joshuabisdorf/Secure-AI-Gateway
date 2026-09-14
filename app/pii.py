@@ -208,7 +208,9 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
 
     redacted = redact_pattern(text, _email_pattern, "email", "[REDACTED_EMAIL]")
     redacted = redact_pattern(redacted, _ssn_pattern, "ssn", "[REDACTED_SSN]")
-    redacted = redact_pattern(redacted, _phone_pattern, "phone", "[REDACTED_PHONE]")
+    redacted = redact_pattern(
+        redacted, _phone_pattern, "phone", "[REDACTED_PHONE]"
+    )
 
     def replace_card(match: re.Match[str]) -> str:
         candidate = match.group(0)
@@ -258,7 +260,9 @@ def inspect_and_redact_request(
             redacted_messages.append(message)
             continue
 
-        structured_redacted, structured_types = _redact_structured_text(message.content)
+        structured_redacted, structured_types = _redact_structured_text(
+            message.content
+        )
         semantic_redacted, semantic_types = redact_semantic_text(
             structured_redacted,
             semantic_analyzer,
@@ -270,7 +274,9 @@ def inspect_and_redact_request(
         )
 
     return PIIInspectionResult(
-        redacted_request=request.model_copy(update={"messages": redacted_messages}),
+        redacted_request=request.model_copy(
+            update={"messages": redacted_messages}
+        ),
         detected_count=len(detected_types),
         detected_types=tuple(sorted(set(detected_types))),
     )

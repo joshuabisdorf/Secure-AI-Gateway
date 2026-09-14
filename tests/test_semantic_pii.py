@@ -36,7 +36,9 @@ class FixedSemanticAnalyzer:
         return (SemanticPIIFinding("person_name", start, start + len(marker)),)
 
 
-def test_structured_and_semantic_pii_are_redacted_in_one_copied_request() -> None:
+def test_structured_and_semantic_pii_are_redacted_in_one_copied_request() -> (
+    None
+):
     """
     RME
 

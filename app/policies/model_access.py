@@ -35,9 +35,7 @@ def get_allowed_models() -> frozenset[str]:
         )
 
     allowed_models = frozenset(
-        model.strip()
-        for model in configured_models.split(",")
-        if model.strip()
+        model.strip() for model in configured_models.split(",") if model.strip()
     )
 
     if not allowed_models:
@@ -98,8 +96,7 @@ def parse_client_allowed_models(
         raise ValueError("no_client_model_policies")
 
     return {
-        client_id: frozenset(models)
-        for client_id, models in policies.items()
+        client_id: frozenset(models) for client_id, models in policies.items()
     }
 
 

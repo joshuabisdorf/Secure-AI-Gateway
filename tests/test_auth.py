@@ -114,4 +114,6 @@ def test_chat_fails_closed_without_client_registry(monkeypatch) -> None:
     )
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "Gateway authentication is not configured."}
+    assert response.json() == {
+        "detail": "Gateway authentication is not configured."
+    }

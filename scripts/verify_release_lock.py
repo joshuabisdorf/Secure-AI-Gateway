@@ -9,7 +9,9 @@ LOCK_PATH = ROOT / "requirements" / "release.lock"
 PYPROJECT_PATH = ROOT / "pyproject.toml"
 NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+")
 EXACT_PIN_RE = re.compile(r"^([A-Za-z0-9_.-]+)==([^\s]+)$")
-DIRECT_URL_RE = re.compile(r"^([A-Za-z0-9_.-]+)\s*@\s*https://[^\s]+#sha256=([0-9a-f]{64})$")
+DIRECT_URL_RE = re.compile(
+    r"^([A-Za-z0-9_.-]+)\s*@\s*https://[^\s]+#sha256=([0-9a-f]{64})$"
+)
 
 
 class LockVerificationError(RuntimeError):
@@ -49,7 +51,9 @@ def dependency_name(requirement: str) -> str:
     """
     match = NAME_RE.match(requirement.strip())
     if match is None:
-        raise LockVerificationError(f"cannot parse project dependency: {requirement}")
+        raise LockVerificationError(
+            f"cannot parse project dependency: {requirement}"
+        )
     return normalize_name(match.group(0))
 
 
@@ -77,7 +81,8 @@ def read_lock_entries() -> dict[str, str]:
             continue
         if line.startswith(("-", ".")):
             raise LockVerificationError(
-                f"release lock line {line_number} uses an unsupported option/path: {line}"
+                f"release lock line {line_number} uses an unsupported"
+                f" option/path: {line}"
             )
 
         exact_match = EXACT_PIN_RE.fullmatch(line)
@@ -85,7 +90,8 @@ def read_lock_entries() -> dict[str, str]:
         match = exact_match or direct_match
         if match is None:
             raise LockVerificationError(
-                f"release lock line {line_number} is not exact/hash pinned: {line}"
+                f"release lock line {line_number} is not exact/hash pinned:"
+                f" {line}"
             )
 
         name = normalize_name(match.group(1))
@@ -143,7 +149,8 @@ def verify_release_lock() -> None:
     missing = sorted(project_dependencies - set(lock_entries))
     if missing:
         raise LockVerificationError(
-            "release lock is missing project dependencies: " + ", ".join(missing)
+            "release lock is missing project dependencies: "
+            + ", ".join(missing)
         )
 
     if build_requirements != ["setuptools==84.0.0"]:
@@ -153,7 +160,9 @@ def verify_release_lock() -> None:
 
     model_line = lock_entries.get("en-core-web-sm", "")
     if "#sha256=" not in model_line:
-        raise LockVerificationError("spaCy model direct artifact must be SHA-256 pinned")
+        raise LockVerificationError(
+            "spaCy model direct artifact must be SHA-256 pinned"
+        )
 
 
 def main() -> int:
