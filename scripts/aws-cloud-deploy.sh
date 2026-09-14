@@ -16,7 +16,7 @@ require_command() {
   fi
 }
 
-for command in aws terraform docker kubectl jq openssl git sed; do
+for command in aws terraform docker kubectl jq openssl git sed python; do
   require_command "$command"
 done
 
@@ -133,6 +133,8 @@ case "$MODE" in
     VALKEY_PORT="$(terraform -chdir=terraform/aws output -raw valkey_port)"
     VALKEY_CACHE_NAME="$(terraform -chdir=terraform/aws output -raw valkey_replication_group_id)"
     VALKEY_USER_ID="$(terraform -chdir=terraform/aws output -raw valkey_iam_user_id)"
+    PRIVATE_CIDRS_JSON="$(terraform -chdir=terraform/aws output -json private_subnet_cidrs)"
+    DATA_CIDRS_JSON="$(terraform -chdir=terraform/aws output -json data_subnet_cidrs)"
     DATABASE_SECRET="$(terraform -chdir=terraform/aws output -json runtime_secret_arns | jq -r '.database_credentials')"
     SIGNING_SECRET="$(terraform -chdir=terraform/aws output -json runtime_secret_arns | jq -r '.tool_signing_key')"
 
@@ -216,10 +218,17 @@ case "$MODE" in
       --from-literal=OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://sag-otel-collector:4318/v1/traces \
       --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
+    python scripts/render_cloud_network_policies.py \
+      --private-cidrs-json "$PRIVATE_CIDRS_JSON" \
+      --data-cidrs-json "$DATA_CIDRS_JSON" \
+      --output "$TMP_DIR/cloud-network-policies.yaml"
+
     kubectl -n "$NAMESPACE" delete job sag-migrate --ignore-not-found >/dev/null
     kubectl kustomize k8s/cloud \
       | sed "s#image: secure-ai-gateway:local#image: ${IMAGE_REF}#g" \
       > "$TMP_DIR/cloud.yaml"
+    printf '\n---\n' >> "$TMP_DIR/cloud.yaml"
+    cat "$TMP_DIR/cloud-network-policies.yaml" >> "$TMP_DIR/cloud.yaml"
 
     if grep -q '^kind: Secret$' "$TMP_DIR/cloud.yaml"; then
       echo "ERROR rendered_cloud_secret_detected=true" >&2
@@ -270,7 +279,7 @@ case "$MODE" in
     umask 077
     printf 'SAG_CLIENT_API_KEY=%s\n' "$CLIENT_KEY" > .aws-client.env
     chmod 600 .aws-client.env
-    unset CLIENT_KEY CLIENT_OUTPUT
+    unset CLIENT_KEY CLIENT_OUTPUT DATABASE_URL_K8S
 
     echo "cloud_deployment=PASS"
     echo "image=$IMAGE_REF"
