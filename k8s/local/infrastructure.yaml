@@ -35,6 +35,10 @@ spec:
         app.kubernetes.io/component: postgres
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: postgres
           image: postgres:18
@@ -80,6 +84,11 @@ spec:
             limits:
               cpu: "1"
               memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql
@@ -130,6 +139,10 @@ spec:
         app.kubernetes.io/component: redis
     spec:
       automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: redis
           image: redis:8.10.1-alpine
@@ -165,6 +178,11 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
           volumeMounts:
             - name: data
               mountPath: /data
