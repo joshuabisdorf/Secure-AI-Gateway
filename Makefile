@@ -1,10 +1,12 @@
 PYTHON ?= python
 
-.PHONY: help install test evals security check preflight demo resilience m10-adversarial m10-integration benchmark up down kind-up kind-verify terraform-validate
+.PHONY: help install release-install lock-verify test evals security check preflight demo resilience m10-adversarial m10-integration benchmark up down kind-up kind-verify terraform-validate
 
 help:
 	@printf '%s\n' \
 	  'install             Install project with development tooling' \
+	  'release-install     Install exact runtime dependencies from the release lock' \
+	  'lock-verify         Validate release dependency lock invariants' \
 	  'test                Run pytest' \
 	  'evals               Run prompt-injection and semantic-PII baselines' \
 	  'security            Run Bandit and dependency audit' \
@@ -18,11 +20,19 @@ help:
 	  'up                  Start the Docker Compose stack' \
 	  'down                Stop the Docker Compose stack without deleting volumes' \
 	  'kind-up             Build/start the local kind environment' \
-	  'kind-verify         Verify the local kind environment' \
+	  'kind-verify         Verify policy, resilience, and load behavior in kind' \
 	  'terraform-validate  Format-check and validate both Terraform roots'
 
 install:
 	$(PYTHON) -m pip install -e '.[dev]'
+
+release-install: lock-verify
+	$(PYTHON) -m pip install -r requirements/release.lock
+	$(PYTHON) -m pip install --no-deps --no-build-isolation -e .
+	$(PYTHON) -m pip check
+
+lock-verify:
+	$(PYTHON) scripts/verify_release_lock.py
 
 test:
 	pytest -q
