@@ -1,6 +1,6 @@
 PYTHON ?= python
 
-.PHONY: help install test evals security check preflight demo resilience up down kind-up kind-verify terraform-validate
+.PHONY: help install test evals security check preflight demo resilience m10-adversarial m10-integration benchmark up down kind-up kind-verify terraform-validate
 
 help:
 	@printf '%s\n' \
@@ -12,6 +12,9 @@ help:
 	  'preflight           Run repository/release hygiene checks' \
 	  'demo                Run the zero-cost end-to-end portfolio demo' \
 	  'resilience          Inject Redis/PostgreSQL/telemetry outages and verify behavior' \
+	  'm10-adversarial     Run deterministic M10 adversarial regression coverage' \
+	  'm10-integration     Run M10 real Redis/PostgreSQL concurrency tests (requires service URLs)' \
+	  'benchmark           Run local M10 two-replica reliability/performance baseline (requires service URLs)' \
 	  'up                  Start the Docker Compose stack' \
 	  'down                Stop the Docker Compose stack without deleting volumes' \
 	  'kind-up             Build/start the local kind environment' \
@@ -42,6 +45,19 @@ demo:
 
 resilience:
 	bash scripts/resilience-smoke.sh
+
+m10-adversarial:
+	pytest -q tests/test_m10_adversarial.py
+
+m10-integration:
+	@test -n "$$DATABASE_URL" || (echo 'DATABASE_URL is required.' >&2; exit 1)
+	@test -n "$$REDIS_URL" || (echo 'REDIS_URL is required.' >&2; exit 1)
+	SAG_RUN_M10_INTEGRATION=1 pytest -q tests/test_m10_integration.py
+
+benchmark:
+	@test -n "$$DATABASE_URL" || (echo 'DATABASE_URL is required.' >&2; exit 1)
+	@test -n "$$REDIS_URL" || (echo 'REDIS_URL is required.' >&2; exit 1)
+	$(PYTHON) scripts/m10_runtime_verification.py
 
 up:
 	docker compose up -d --build

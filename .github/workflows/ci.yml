@@ -36,6 +36,71 @@ jobs:
       - name: Run test suite
         run: pytest -q
 
+  m10-verification:
+    name: M10 adversarial/reliability/performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: postgresql://sag:sag_m10_password@127.0.0.1:5432/secure_ai_gateway
+      REDIS_URL: redis://127.0.0.1:6379/15
+      SAG_RUN_M10_INTEGRATION: "1"
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: secure_ai_gateway
+          POSTGRES_USER: sag
+          POSTGRES_PASSWORD: sag_m10_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sag -d secure_ai_gateway"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:8.10.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project and test dependencies
+        run: python -m pip install -e '.[dev]'
+
+      - name: Run real Redis/PostgreSQL M10 integration tests
+        run: pytest -q tests/test_m10_integration.py
+
+      - name: Run two-replica mock-provider runtime verification
+        run: >-
+          python scripts/m10_runtime_verification.py
+          --requests 80
+          --concurrency 8
+          --rate-limit-operations 200
+          --output /tmp/m10-runtime.json
+
+      - name: Show M10 runtime evidence
+        if: always()
+        run: |
+          if [ -f /tmp/m10-runtime.json ]; then
+            cat /tmp/m10-runtime.json
+          fi
+
   security-analysis:
     name: Security analysis
     runs-on: ubuntu-latest

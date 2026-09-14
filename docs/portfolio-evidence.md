@@ -8,6 +8,9 @@ This page defines the evidence a reviewer should be able to inspect quickly with
 | --- | --- | --- |
 | `make demo` | authenticated request path, usage accounting, PII redaction, prompt-injection detection, tool-ticket issuance, execution authorization, replay denial, rate limiting, Prometheus metrics | local Docker Compose, mock provider only |
 | `make resilience` | Redis and PostgreSQL fail closed; telemetry outage does not become an authorization dependency | local Docker Compose, mock provider only |
+| `make m10-adversarial` | malformed HTTP/JSON, key/ticket mutation, schema-edge, provider-failure, audit-leakage, and stale-policy regression coverage | local Python environment, no network/provider calls |
+| `make m10-integration` | real Redis/PostgreSQL replay, rate, usage, key-lifecycle, pool-exhaustion, and migration-rollback concurrency behavior | local PostgreSQL + Redis |
+| `make benchmark` | local mock-provider RPS/p50/p95/p99/RSS baseline, matched inspection path, distributed limiter throughput, two replicas, and replica-termination failover | local PostgreSQL + Redis, mock provider only |
 | `make check` | unit/integration tests, security evaluation baselines, Bandit, dependency audit | local Python environment |
 | `make kind-up && make kind-verify` | two gateway replicas sharing distributed state and telemetry | local kind cluster |
 | `make terraform-validate` | formatting and static validity of both Terraform roots | local Terraform |
@@ -41,6 +44,7 @@ The exact numeric usage counters may differ because persistent development volum
 The primary CI workflow separates failure domains into independent jobs:
 
 - Pytest;
+- M10 adversarial/reliability/performance verification with real Redis/PostgreSQL service containers;
 - security analysis;
 - prompt-injection benchmark;
 - semantic PII benchmark;
@@ -54,19 +58,25 @@ Additional workflows provide CodeQL analysis, scheduled/PR container vulnerabili
 
 For a portfolio capture, prefer one screenshot of the GitHub Actions run showing all green jobs rather than many individual job screenshots. The repository and logs remain the authoritative evidence.
 
+## M10 evidence
+
+The M10 CI job deliberately separates correctness from performance claims. Real Redis/PostgreSQL tests assert one-time replay behavior, distributed rate-limit caps, lossless usage updates, key lifecycle invariants, bounded pool exhaustion, and migration rollback. The runtime verifier asserts two-replica availability behavior while reporting performance measurements without enforcing a machine-specific throughput threshold.
+
+The runtime JSON report includes single/two-replica requests per second, p50/p95/p99 latency, resident memory where Linux `/proc` is available, matched PII/injection-path latency, direct Redis limiter contention throughput, and replica-termination failover evidence. `docs/performance.md` defines the methodology and limitations.
+
 ## Security benchmark evidence
 
 The versioned corpora are regression tests, not claims of universal detection quality. Current documented baselines are intentionally published with false-positive/false-negative counts so limitations remain visible.
 
 For screenshots or a short demo recording, capture:
 
-1. the README five-minute reviewer path;
+1. the README quick-start path;
 2. one full successful `make demo` result;
 3. the GitHub Actions job matrix;
 4. Prometheus showing gateway request metrics;
 5. one OpenTelemetry Collector trace/debug entry with no prompt or credential contents;
 6. the execution-authorization sequence diagram;
-7. the benchmark summary from the README.
+7. the benchmark summary from `docs/performance.md`.
 
 Do not capture raw API keys, execution tickets, provider credentials, `.env` content, Terraform state, or raw sensitive request payloads.
 
