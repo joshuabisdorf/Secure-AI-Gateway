@@ -1,6 +1,9 @@
 import argparse
 
-from app.security_policy import SecurityPolicyUnavailable, load_security_policy_registry
+from app.security_policy import (
+    SecurityPolicyUnavailable,
+    load_security_policy_registry,
+)
 
 
 def _build_parser() -> argparse.ArgumentParser:

@@ -7,7 +7,9 @@ from app.main import app as gateway_app
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1_048_576
 MIN_MAX_REQUEST_BODY_BYTES = 1_024
 MAX_MAX_REQUEST_BODY_BYTES = 16_777_216
-_BLOCKED_DOC_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
+_BLOCKED_DOC_PATHS = frozenset(
+    {"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
+)
 _SECURITY_HEADERS = (
     (b"cache-control", b"no-store"),
     (b"content-security-policy", b"default-src 'none'; frame-ancestors 'none'"),
@@ -148,7 +150,13 @@ class RequestBodyLimitMiddleware:
             (b"content-length", str(len(body)).encode("ascii")),
             *_SECURITY_HEADERS,
         ]
-        await send({"type": "http.response.start", "status": status, "headers": headers})
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": headers,
+            }
+        )
         await send({"type": "http.response.body", "body": body})
 
     async def __call__(
@@ -260,8 +268,7 @@ class RequestBodyLimitMiddleware:
         async def hardened_send(message: dict[str, Any]) -> None:
             if message.get("type") == "http.response.start":
                 existing = {
-                    name.lower()
-                    for name, _ in message.get("headers", [])
+                    name.lower() for name, _ in message.get("headers", [])
                 }
                 headers = list(message.get("headers", []))
                 headers.extend(

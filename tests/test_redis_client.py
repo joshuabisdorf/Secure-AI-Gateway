@@ -76,5 +76,7 @@ def test_elasticache_iam_rejects_embedded_credentials(monkeypatch) -> None:
     monkeypatch.setenv("SAG_ELASTICACHE_CACHE_NAME", "sag-dev-cache")
     monkeypatch.setenv("AWS_REGION", "ca-central-1")
 
-    with pytest.raises(RedisClientConfigurationError, match="must_not_embed_credentials"):
+    with pytest.raises(
+        RedisClientConfigurationError, match="must_not_embed_credentials"
+    ):
         build_redis_client("rediss://user:password@cache.example:6379/0")

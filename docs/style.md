@@ -4,8 +4,8 @@ This document defines the source and documentation style for Secure AI Gateway.
 It is a project-authored standard. It does not incorporate or require an
 external style guide, formatter, or style linter.
 
-The standard does not change the project's Apache-2.0 license, copyright,
-NOTICE attribution, or authorship. Style conformance is a repository quality
+The standard does not change the project's Apache-2.0 license, copyright, NOTICE
+attribution, or authorship. Style conformance is a repository quality
 requirement, not a transfer or sharing of project credit.
 
 ## Priorities
@@ -13,10 +13,10 @@ requirement, not a transfer or sharing of project credit.
 Code and documentation should optimize for, in order:
 
 1. security-relevant correctness;
-2. readability during review and incident response;
-3. explicit contracts and side effects;
-4. consistency across the repository;
-5. compactness only when it does not reduce clarity.
+1. readability during review and incident response;
+1. explicit contracts and side effects;
+1. consistency across the repository;
+1. compactness only when it does not reduce clarity.
 
 A shorter expression is not preferred when a slightly longer form makes a
 security boundary, failure path, mutation, or invariant easier to inspect.
@@ -25,18 +25,18 @@ security boundary, failure path, mutation, or invariant easier to inspect.
 
 Text lines must not exceed 80 characters.
 
-The only exception is content that cannot be split sensibly without changing
-its meaning or making it materially harder to use. Examples include:
+The only exception is content that cannot be split sensibly without changing its
+meaning or making it materially harder to use. Examples include:
 
 - a single URL that is itself longer than 80 characters;
 - a cryptographic digest or other opaque identifier;
 - a generated dependency locator or machine-oriented token;
 - a literal test vector whose exact bytes are significant.
 
-The exception applies only to the unsplittable content. It is not permission
-to place ordinary prose, comments, arguments, or expressions on a long line.
-A label plus a URL should normally be split when the label is what pushes the
-line past 80 characters.
+The exception applies only to the unsplittable content. It is not permission to
+place ordinary prose, comments, arguments, or expressions on a long line. A
+label plus a URL should normally be split when the label is what pushes the line
+past 80 characters.
 
 The repository-owned style checker enforces this rule.
 
@@ -75,8 +75,8 @@ Public and security-relevant interfaces should use type annotations. Types
 should clarify contracts rather than duplicate obvious implementation detail.
 
 Exceptions should be specific. Bare `except` clauses are prohibited. Error
-messages must not disclose credentials, prompts, execution tickets, raw PII,
-or connection strings.
+messages must not disclose credentials, prompts, execution tickets, raw PII, or
+connection strings.
 
 Boolean conditions should favor named intermediate values when a compound
 expression would otherwise obscure policy or failure semantics.
@@ -90,13 +90,13 @@ Project functions under `app/` and Python utilities under `scripts/` document
 these sections in this order:
 
 1. `Requires`
-2. `Modifies`
-3. `Effects`
-4. `Inputs`
-5. `Outputs`
+1. `Modifies`
+1. `Effects`
+1. `Inputs`
+1. `Outputs`
 
-The sections describe the contract, not a line-by-line implementation trace.
-Use `Nothing.` or `None.` when a section has no meaningful entry.
+The sections describe the contract, not a line-by-line implementation trace. Use
+`Nothing.` or `None.` when a section has no meaningful entry.
 
 `Requires` states preconditions and environmental assumptions.
 
@@ -111,9 +111,9 @@ when those inputs materially affect behavior.
 `Outputs` describes return values or produced artifacts.
 
 Very small language-protocol methods such as `__str__` may use a concise
-ordinary docstring when a full RMEIO contract would add no information.
-Tests are not required to carry RMEIO sections, but reusable test utilities
-should still document non-obvious state changes.
+ordinary docstring when a full RMEIO contract would add no information. Tests
+are not required to carry RMEIO sections, but reusable test utilities should
+still document non-obvious state changes.
 
 ### Python layout
 
@@ -175,8 +175,8 @@ where a line can be sensibly split.
 ## Markdown and documentation
 
 Prose is wrapped at 80 characters. Headings are concise and descriptive.
-Paragraphs should explain one coherent idea. Use lists for true collections,
-not as a substitute for connected explanation.
+Paragraphs should explain one coherent idea. Use lists for true collections, not
+as a substitute for connected explanation.
 
 Code blocks preserve the syntax and layout required by the demonstrated tool.
 Long opaque values inside code blocks may use the unsplittable exception.
@@ -190,12 +190,12 @@ planned work, and optional paid deployment paths.
 ## Tests
 
 Test names should state the behavior or invariant being verified. Tests should
-be deterministic unless their purpose is explicitly to verify concurrency,
-time, or randomized input handling.
+be deterministic unless their purpose is explicitly to verify concurrency, time,
+or randomized input handling.
 
 Security regression tests should assert the failure mode, not merely that an
-exception occurred. Secret-bearing test fixtures must use inert values and
-must not be copied from real credentials.
+exception occurred. Secret-bearing test fixtures must use inert values and must
+not be copied from real credentials.
 
 Avoid sleeps when a bounded readiness or synchronization condition can be
 observed directly.
@@ -206,8 +206,8 @@ A security-tool suppression must be narrow and adjacent to the suppressed
 operation. The accompanying comment must explain why the reported pattern is
 safe in this specific design.
 
-Do not suppress a finding merely to obtain a green build. If the invariant
-that justifies a suppression changes, remove or re-evaluate the suppression.
+Do not suppress a finding merely to obtain a green build. If the invariant that
+justifies a suppression changes, remove or re-evaluate the suppression.
 
 ## Automated enforcement
 

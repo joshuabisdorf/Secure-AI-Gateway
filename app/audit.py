@@ -163,4 +163,6 @@ def emit_audit_event(
         # Telemetry is never part of an allow/deny decision. Audit logging remains authoritative.
         pass
 
-    audit_logger.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+    audit_logger.info(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    )

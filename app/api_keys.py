@@ -266,7 +266,9 @@ def write_api_key_secret(secret_file: TextIO, api_key: str) -> None:
 
 
 @contextmanager
-def managed_api_key_secret_file(path: str | os.PathLike[str]) -> Iterator[TextIO]:
+def managed_api_key_secret_file(
+    path: str | os.PathLike[str],
+) -> Iterator[TextIO]:
     """
     RME
 

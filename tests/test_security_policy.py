@@ -8,8 +8,13 @@ from app.pii import get_client_pii_policy
 from app.policies.model_access import get_client_allowed_models
 from app.prompt_injection import get_client_prompt_injection_policy
 from app.rate_limit import get_client_rate_limit
-from app.security_policy import clear_security_policy_cache, parse_security_policy_registry
-from app.security_policy_bootstrap import apply_unified_security_policy_environment
+from app.security_policy import (
+    clear_security_policy_cache,
+    parse_security_policy_registry,
+)
+from app.security_policy_bootstrap import (
+    apply_unified_security_policy_environment,
+)
 from app.tool_authorization import get_client_allowed_tools
 from app.usage_budget import get_client_usage_budget
 
@@ -49,11 +54,15 @@ def _policy_document() -> dict[str, object]:
 
 
 def _track_policy_environment(monkeypatch) -> None:
-    monkeypatch.setenv("SAG_CLIENT_ALLOWED_MODELS", "legacy-client:legacy-model")
+    monkeypatch.setenv(
+        "SAG_CLIENT_ALLOWED_MODELS", "legacy-client:legacy-model"
+    )
     monkeypatch.setenv("SAG_CLIENT_RATE_LIMITS", "legacy-client:1")
     monkeypatch.setenv("SAG_CLIENT_DAILY_BUDGETS", "legacy-client:1:1.00")
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "legacy-client:redact")
-    monkeypatch.setenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES", "legacy-client:audit")
+    monkeypatch.setenv(
+        "SAG_CLIENT_PROMPT_INJECTION_POLICIES", "legacy-client:audit"
+    )
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_TOOLS", "legacy-client:-")
     monkeypatch.delenv("SAG_SECURITY_POLICY_ACTIVE", raising=False)
     monkeypatch.delenv("SAG_SECURITY_POLICY_ERROR", raising=False)
@@ -92,7 +101,9 @@ def test_parse_security_policy_registry_resolves_reusable_profiles() -> None:
     assert resolved.profile.allowed_tools == frozenset({"calculator", "lookup"})
 
 
-def test_security_policy_registry_rejects_unknown_fields_and_non_integer_version() -> None:
+def test_security_policy_registry_rejects_unknown_fields_and_non_integer_version() -> (
+    None
+):
     """
     RME
 
@@ -209,7 +220,10 @@ def test_enabled_invalid_unified_policy_clears_legacy_fallback(
     clear_security_policy_cache()
     apply_unified_security_policy_environment()
 
-    assert os.environ["SAG_SECURITY_POLICY_ERROR"] == "invalid_security_policy_file"
+    assert (
+        os.environ["SAG_SECURITY_POLICY_ERROR"]
+        == "invalid_security_policy_file"
+    )
     assert "SAG_SECURITY_POLICY_ACTIVE" not in os.environ
     for variable in (
         "SAG_CLIENT_ALLOWED_MODELS",

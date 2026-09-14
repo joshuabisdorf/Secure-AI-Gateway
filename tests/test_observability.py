@@ -26,7 +26,9 @@ def _configure_chat_policy(monkeypatch) -> None:
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_MODELS", "test-client:mock-model")
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "test-client:redact")
-    monkeypatch.setenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit")
+    monkeypatch.setenv(
+        "SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit"
+    )
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_TOOLS", "test-client:-")
 
 

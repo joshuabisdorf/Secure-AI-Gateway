@@ -1,6 +1,10 @@
 import os
 
-from app.security_policy import SecurityPolicyRegistry, SecurityPolicyUnavailable, load_security_policy_registry
+from app.security_policy import (
+    SecurityPolicyRegistry,
+    SecurityPolicyUnavailable,
+    load_security_policy_registry,
+)
 
 _legacy_policy_variables = (
     "SAG_CLIENT_ALLOWED_MODELS",
@@ -12,7 +16,9 @@ _legacy_policy_variables = (
 )
 
 
-def _compile_policy_environment(registry: SecurityPolicyRegistry) -> dict[str, str]:
+def _compile_policy_environment(
+    registry: SecurityPolicyRegistry,
+) -> dict[str, str]:
     """
     RME
 

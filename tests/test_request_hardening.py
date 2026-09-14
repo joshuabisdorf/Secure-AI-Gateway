@@ -126,7 +126,9 @@ def test_request_body_limit_rejects_streamed_oversize() -> None:
             message = await receive()
             if not message.get("more_body", False):
                 break
-        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send(
+            {"type": "http.response.start", "status": 204, "headers": []}
+        )
         await send({"type": "http.response.body", "body": b""})
 
     async def receive() -> dict[str, object]:
@@ -144,7 +146,9 @@ def test_request_body_limit_rejects_streamed_oversize() -> None:
     assert b"Request body too large" in sent[1]["body"]
 
 
-def test_request_body_limit_allows_bounded_stream_and_adds_security_headers() -> None:
+def test_request_body_limit_allows_bounded_stream_and_adds_security_headers() -> (
+    None
+):
     sent: list[dict[str, object]] = []
     chunks = iter(
         [
@@ -161,7 +165,9 @@ def test_request_body_limit_allows_bounded_stream_and_adds_security_headers() ->
             if not message.get("more_body", False):
                 break
         assert bytes(body) == b"12345678"
-        await send({"type": "http.response.start", "status": 204, "headers": []})
+        await send(
+            {"type": "http.response.start", "status": 204, "headers": []}
+        )
         await send({"type": "http.response.body", "body": b""})
 
     async def receive() -> dict[str, object]:

@@ -71,10 +71,14 @@ def _configure_chat_policy(monkeypatch) -> None:
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_MODELS", "test-client:mock-model")
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "test-client:redact")
-    monkeypatch.setenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit")
+    monkeypatch.setenv(
+        "SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit"
+    )
 
 
-def test_parse_client_allowed_tools_supports_explicit_none_and_multiple_grants() -> None:
+def test_parse_client_allowed_tools_supports_explicit_none_and_multiple_grants() -> (
+    None
+):
     """
     RME
 
@@ -239,7 +243,9 @@ def test_chat_forwards_only_explicitly_allowed_tool(
     assert provider.request.tool_choice.function.name == "calculator"
 
 
-def test_chat_fails_closed_without_tool_policy(monkeypatch, gateway_api_key) -> None:
+def test_chat_fails_closed_without_tool_policy(
+    monkeypatch, gateway_api_key
+) -> None:
     """
     RME
 
@@ -272,7 +278,9 @@ def test_chat_fails_closed_without_tool_policy(monkeypatch, gateway_api_key) -> 
     )
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "Tool authorization policy is not configured."}
+    assert response.json() == {
+        "detail": "Tool authorization policy is not configured."
+    }
 
 
 def test_openai_provider_forwards_tools_and_normalizes_tool_calls() -> None:
@@ -317,7 +325,7 @@ def test_openai_provider_forwards_tools_and_normalizes_tool_calls() -> None:
                                     "type": "function",
                                     "function": {
                                         "name": "calculator",
-                                        "arguments": "{\"value\":\"2+2\"}",
+                                        "arguments": '{"value":"2+2"}',
                                     },
                                 }
                             ],

@@ -129,7 +129,9 @@ def test_real_redis_execution_ticket_claim_race_has_one_winner() -> None:
         redis_url = _redis_url()
         execution_id = uuid4().hex
         redis = Redis.from_url(redis_url, decode_responses=True)
-        stores = [SharedRedisToolExecutionReplayStore(redis_url) for _ in range(24)]
+        stores = [
+            SharedRedisToolExecutionReplayStore(redis_url) for _ in range(24)
+        ]
         try:
             await redis.delete(f"sag:tool_execution:{execution_id}")
             results = await asyncio.gather(
@@ -169,7 +171,9 @@ def test_real_redis_rate_limit_contention_never_exceeds_limit() -> None:
         client_id = f"m10-rate-{uuid4().hex[:12]}"
         limit = 19
         redis = Redis.from_url(redis_url, decode_responses=True)
-        limiters = [RedisRateLimiter(redis_url, window_seconds=30) for _ in range(4)]
+        limiters = [
+            RedisRateLimiter(redis_url, window_seconds=30) for _ in range(4)
+        ]
         try:
             await redis.delete(f"sag:rate_limit:{client_id}")
             decisions = await asyncio.gather(
@@ -179,7 +183,9 @@ def test_real_redis_rate_limit_contention_never_exceeds_limit() -> None:
                 )
             )
             allowed = [decision for decision in decisions if decision.allowed]
-            denied = [decision for decision in decisions if not decision.allowed]
+            denied = [
+                decision for decision in decisions if not decision.allowed
+            ]
             assert len(allowed) == limit
             assert len(denied) == 80 - limit
             assert all(decision.remaining >= 0 for decision in allowed)
@@ -284,14 +290,20 @@ def test_concurrent_key_rotations_leave_exactly_one_active_key() -> None:
         )
         assert len({key_id for _, key_id, _ in results}) == 6
 
-        rows = [row for row in await list_client_keys(database_url) if row[0] == client_id]
+        rows = [
+            row
+            for row in await list_client_keys(database_url)
+            if row[0] == client_id
+        ]
         active_rows = [row for row in rows if row[2] and row[3]]
         assert len(active_rows) == 1
 
     asyncio.run(exercise())
 
 
-def test_rotation_and_revocation_race_never_creates_multiple_active_keys() -> None:
+def test_rotation_and_revocation_race_never_creates_multiple_active_keys() -> (
+    None
+):
     """
     RME
 
@@ -328,9 +340,16 @@ def test_rotation_and_revocation_race_never_creates_multiple_active_keys() -> No
         for outcome in outcomes:
             if isinstance(outcome, Exception):
                 assert isinstance(outcome, ValueError)
-                assert str(outcome) in {"no_active_keys_to_rotate", "unknown_key_id"}
+                assert str(outcome) in {
+                    "no_active_keys_to_rotate",
+                    "unknown_key_id",
+                }
 
-        rows = [row for row in await list_client_keys(database_url) if row[0] == client_id]
+        rows = [
+            row
+            for row in await list_client_keys(database_url)
+            if row[0] == client_id
+        ]
         active_rows = [row for row in rows if row[2] and row[3]]
         assert len(active_rows) <= 1
 
@@ -377,7 +396,9 @@ def test_usage_pool_exhaustion_is_bounded_and_fails_closed() -> None:
         started = time.monotonic()
         try:
             async with ledger._pool.connection():
-                with pytest.raises(UsageLedgerUnavailable, match="usage_ledger_unavailable"):
+                with pytest.raises(
+                    UsageLedgerUnavailable, match="usage_ledger_unavailable"
+                ):
                     await ledger.check(client_id, budget)
         finally:
             elapsed = time.monotonic() - started
@@ -428,8 +449,12 @@ def test_migration_failure_rolls_back_partial_migration(
     monkeypatch.setattr(database, "_MIGRATION_DIRECTORY", tmp_path)
 
     async def exercise() -> None:
-        async with await psycopg.AsyncConnection.connect(database_url) as connection:
-            await connection.execute("DROP TABLE IF EXISTS m10_migration_partial")
+        async with await psycopg.AsyncConnection.connect(
+            database_url
+        ) as connection:
+            await connection.execute(
+                "DROP TABLE IF EXISTS m10_migration_partial"
+            )
             await connection.execute("DROP TABLE IF EXISTS m10_migration_good")
             await connection.execute(
                 "DELETE FROM schema_migrations WHERE filename IN (%s, %s)",
@@ -438,16 +463,22 @@ def test_migration_failure_rolls_back_partial_migration(
         with pytest.raises(psycopg.Error):
             await database.migrate_database(database_url)
 
-        async with await psycopg.AsyncConnection.connect(database_url) as connection:
+        async with await psycopg.AsyncConnection.connect(
+            database_url
+        ) as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute(
                     "SELECT filename FROM schema_migrations WHERE filename IN (%s, %s)",
                     (good_name, bad_name),
                 )
                 assert await cursor.fetchall() == []
-                await cursor.execute("SELECT to_regclass('public.m10_migration_partial')")
+                await cursor.execute(
+                    "SELECT to_regclass('public.m10_migration_partial')"
+                )
                 assert (await cursor.fetchone())[0] is None
-                await cursor.execute("SELECT to_regclass('public.m10_migration_good')")
+                await cursor.execute(
+                    "SELECT to_regclass('public.m10_migration_good')"
+                )
                 assert (await cursor.fetchone())[0] is None
 
     asyncio.run(exercise())

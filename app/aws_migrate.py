@@ -18,16 +18,24 @@ def _required_text(value: Any, reason: str) -> str:
 
 
 def _admin_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
-    username = _required_text(value.get("username"), "rds_admin_username_invalid")
-    password = _required_text(value.get("password"), "rds_admin_password_invalid")
+    username = _required_text(
+        value.get("username"), "rds_admin_username_invalid"
+    )
+    password = _required_text(
+        value.get("password"), "rds_admin_password_invalid"
+    )
     return username, password
 
 
 def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
-    username = _required_text(value.get("username"), "database_username_invalid")
-    password = _required_text(value.get("password"), "database_password_invalid")
+    username = _required_text(
+        value.get("username"), "database_username_invalid"
+    )
+    password = _required_text(
+        value.get("password"), "database_password_invalid"
+    )
     if len(password.encode("utf-8")) < 32:
         raise RuntimeSecretError("database_password_invalid")
     return username, password
@@ -99,7 +107,9 @@ async def provision_runtime_role(
     admin_identifier = sql.Identifier(admin_username)
     database_identifier = sql.Identifier(database)
 
-    async with await psycopg.AsyncConnection.connect(admin_conninfo) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        admin_conninfo
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 "SELECT 1 FROM pg_roles WHERE rolname = %s",
@@ -129,7 +139,9 @@ async def provision_runtime_role(
             )
         )
         await connection.execute(
-            sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(runtime_identifier)
+            sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(
+                runtime_identifier
+            )
         )
         await connection.execute(
             sql.SQL(
@@ -223,7 +235,9 @@ def main() -> None:
     try:
         applied = asyncio.run(migrate_aws_database())
     except RuntimeSecretError as exc:
-        raise SystemExit(f"AWS migration configuration failed: {exc.reason}") from exc
+        raise SystemExit(
+            f"AWS migration configuration failed: {exc.reason}"
+        ) from exc
     if applied:
         print("Applied migrations: " + ", ".join(applied))
     else:

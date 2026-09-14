@@ -18,7 +18,9 @@ class ToolAuthorizationDecision:
     reason: str | None = None
 
 
-def parse_client_allowed_tools(configured_tools: str) -> dict[str, frozenset[str]]:
+def parse_client_allowed_tools(
+    configured_tools: str,
+) -> dict[str, frozenset[str]]:
     """
     RME
 

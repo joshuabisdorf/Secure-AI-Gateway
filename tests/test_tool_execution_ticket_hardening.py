@@ -57,7 +57,9 @@ def _write_registry(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_TOOLS", "test-client:status_check")
 
 
-def test_malformed_execution_ticket_is_controlled_denial(gateway_api_key) -> None:
+def test_malformed_execution_ticket_is_controlled_denial(
+    gateway_api_key,
+) -> None:
     """
     RME
 
@@ -170,8 +172,10 @@ def test_execution_risk_label_tampering_is_denied(
         source_request_id="req_risk_tamper",
         allowed_tools=frozenset({"status_check"}),
     )
-    tool_call = prepared.response.choices[0].message.tool_calls[0].model_dump(
-        exclude_none=True
+    tool_call = (
+        prepared.response.choices[0]
+        .message.tool_calls[0]
+        .model_dump(exclude_none=True)
     )
     tool_call["execution_risk"] = "destructive"
 

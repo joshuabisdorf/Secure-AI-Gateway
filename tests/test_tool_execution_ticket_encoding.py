@@ -47,6 +47,7 @@ def test_noncanonical_execution_ticket_is_rejected_before_decode(
     Outputs:
         - None. Assertions determine whether canonical encoding is enforced early.
     """
+
     def verifier_must_not_run(*args, **kwargs):
         raise AssertionError("noncanonical execution token reached verifier")
 
@@ -99,6 +100,7 @@ def test_oversized_execution_ticket_is_rejected_by_request_schema(
     Outputs:
         - None. Assertions determine whether the outer request schema fails closed.
     """
+
     def verifier_must_not_run(*args, **kwargs):
         raise AssertionError("oversized execution token reached verifier")
 
@@ -125,7 +127,9 @@ def test_oversized_execution_ticket_is_rejected_by_request_schema(
     assert response.status_code == 422
 
 
-def test_execution_ticket_shape_accepts_only_unpadded_urlsafe_two_segments() -> None:
+def test_execution_ticket_shape_accepts_only_unpadded_urlsafe_two_segments() -> (
+    None
+):
     """
     RME
 
@@ -144,6 +148,8 @@ def test_execution_ticket_shape_accepts_only_unpadded_urlsafe_two_segments() -> 
     Outputs:
         - None. Assertions determine whether the lexical boundary is exact.
     """
-    assert tool_execution_api._is_canonical_execution_token("Abc_123-XyZ.def-456_Q")
+    assert tool_execution_api._is_canonical_execution_token(
+        "Abc_123-XyZ.def-456_Q"
+    )
     assert not tool_execution_api._is_canonical_execution_token("Abc_123=.def")
     assert not tool_execution_api._is_canonical_execution_token("Abc_123.def$")

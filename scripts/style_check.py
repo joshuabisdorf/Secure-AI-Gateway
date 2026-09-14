@@ -224,7 +224,9 @@ def check_text(path: Path, data: bytes) -> list[Violation]:
         )
     if data and not data.endswith(b"\n"):
         violations.append(
-            Violation(path, len(text.splitlines()), "T003", "missing final newline")
+            Violation(
+                path, len(text.splitlines()), "T003", "missing final newline"
+            )
         )
 
     allow_next = False
@@ -430,7 +432,9 @@ def check_python(path: Path, text: str) -> list[Violation]:
 
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if not is_dunder(node.name) and not SNAKE_CASE_RE.fullmatch(node.name):
+            if not is_dunder(node.name) and not SNAKE_CASE_RE.fullmatch(
+                node.name
+            ):
                 violations.append(
                     Violation(
                         path,
@@ -490,7 +494,9 @@ def check_shell(path: Path, text: str) -> list[Violation]:
     lines = text.splitlines()
     if not lines or lines[0] != "#!/usr/bin/env bash":
         violations.append(
-            Violation(path, 1, "S001", "shell program must use env bash shebang")
+            Violation(
+                path, 1, "S001", "shell program must use env bash shebang"
+            )
         )
     early_lines = lines[1:12]
     if not any(line.strip() == "set -euo pipefail" for line in early_lines):

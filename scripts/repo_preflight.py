@@ -125,7 +125,9 @@ def check_tracked_artifacts(files: list[str]) -> None:
         if lower.endswith((".tfstate", ".tfstate.backup", ".pem", ".key")):
             forbidden.append(path)
     if forbidden:
-        raise PreflightFailure("forbidden tracked artifacts: " + ", ".join(forbidden))
+        raise PreflightFailure(
+            "forbidden tracked artifacts: " + ", ".join(forbidden)
+        )
 
 
 def check_action_pins(files: list[str]) -> None:
@@ -146,7 +148,8 @@ def check_action_pins(files: list[str]) -> None:
     workflow_paths = [
         path
         for path in files
-        if path.startswith(".github/workflows/") and path.endswith((".yml", ".yaml"))
+        if path.startswith(".github/workflows/")
+        and path.endswith((".yml", ".yaml"))
     ]
     for path in workflow_paths:
         text = (ROOT / path).read_text(encoding="utf-8")
@@ -160,7 +163,9 @@ def check_action_pins(files: list[str]) -> None:
             if not SHA_PIN_RE.fullmatch(ref):
                 failures.append(f"{path}: {use} is not SHA-pinned")
     if failures:
-        raise PreflightFailure("mutable GitHub Action refs:\n  " + "\n  ".join(failures))
+        raise PreflightFailure(
+            "mutable GitHub Action refs:\n  " + "\n  ".join(failures)
+        )
 
 
 def check_current_tree_secret_markers(files: list[str]) -> None:
@@ -216,7 +221,9 @@ def check_history_sensitive_filenames() -> None:
         raise PreflightFailure(
             "history scan requires a full clone; fetch full history before using --history"
         )
-    names = run_git("log", "--all", "--name-only", "--format=").stdout.splitlines()
+    names = run_git(
+        "log", "--all", "--name-only", "--format="
+    ).stdout.splitlines()
     suspicious: set[str] = set()
     for path in names:
         if not path:
@@ -269,7 +276,9 @@ def parse_args() -> argparse.Namespace:
     Outputs:
         Parsed argparse namespace.
     """
-    parser = argparse.ArgumentParser(description="Secure AI Gateway repository preflight")
+    parser = argparse.ArgumentParser(
+        description="Secure AI Gateway repository preflight"
+    )
     parser.add_argument(
         "--allow-dirty",
         action="store_true",
@@ -302,7 +311,10 @@ def main() -> int:
         ("required_paths", lambda files: check_required_paths(files)),
         ("tracked_artifacts", lambda files: check_tracked_artifacts(files)),
         ("action_sha_pins", lambda files: check_action_pins(files)),
-        ("secret_markers", lambda files: check_current_tree_secret_markers(files)),
+        (
+            "secret_markers",
+            lambda files: check_current_tree_secret_markers(files),
+        ),
     ]
     try:
         files = tracked_files()
@@ -310,7 +322,11 @@ def main() -> int:
             check(files)
             print(f"PASS check={label}")
         check_clean_tree(args.allow_dirty)
-        print("PASS check=clean_tree" if not args.allow_dirty else "PASS check=clean_tree skipped=true")
+        print(
+            "PASS check=clean_tree"
+            if not args.allow_dirty
+            else "PASS check=clean_tree skipped=true"
+        )
         if args.history:
             check_history_sensitive_filenames()
             print("PASS check=history_sensitive_filenames")

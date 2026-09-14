@@ -78,7 +78,9 @@ def _minimal_document() -> dict[str, object]:
     }
 
 
-def test_semantic_pii_benchmark_framework_computes_perfect_metrics(monkeypatch) -> None:
+def test_semantic_pii_benchmark_framework_computes_perfect_metrics(
+    monkeypatch,
+) -> None:
     """
     RME
 
@@ -97,7 +99,9 @@ def test_semantic_pii_benchmark_framework_computes_perfect_metrics(monkeypatch) 
     Outputs:
         - None. Assertions determine whether benchmark accounting is correct.
     """
-    dataset = benchmark.parse_dataset(json.dumps(_minimal_document()), sha256="abc")
+    dataset = benchmark.parse_dataset(
+        json.dumps(_minimal_document()), sha256="abc"
+    )
     monkeypatch.setattr(benchmark, "semantic_pii_analyzer", KeywordAnalyzer())
 
     report = benchmark.evaluate(dataset)

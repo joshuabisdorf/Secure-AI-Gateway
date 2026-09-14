@@ -305,8 +305,12 @@ async def chat_completion(
             },
         )
 
-    outgoing_response.headers["X-RateLimit-Limit"] = str(rate_decision.limit_rpm)
-    outgoing_response.headers["X-RateLimit-Remaining"] = str(rate_decision.remaining)
+    outgoing_response.headers["X-RateLimit-Limit"] = str(
+        rate_decision.limit_rpm
+    )
+    outgoing_response.headers["X-RateLimit-Remaining"] = str(
+        rate_decision.remaining
+    )
     emit_audit_event(
         request_id=request_id,
         event="rate_limit",
@@ -387,7 +391,9 @@ async def chat_completion(
         pii_action_header = "redacted"
 
     outgoing_response.headers["X-PII-Action"] = pii_action_header
-    outgoing_response.headers["X-PII-Detected-Count"] = str(pii_result.detected_count)
+    outgoing_response.headers["X-PII-Detected-Count"] = str(
+        pii_result.detected_count
+    )
     emit_audit_event(
         request_id=request_id,
         event="pii_policy",
@@ -400,7 +406,9 @@ async def chat_completion(
     )
 
     try:
-        prompt_injection_policy = get_client_prompt_injection_policy(principal.client_id)
+        prompt_injection_policy = get_client_prompt_injection_policy(
+            principal.client_id
+        )
     except HTTPException as exc:
         emit_audit_event(
             request_id=request_id,
@@ -425,7 +433,10 @@ async def chat_completion(
         injection_score = injection_result.score
         injection_indicators = injection_result.indicators
 
-        if injection_detected_count > 0 and prompt_injection_policy.action == "deny":
+        if (
+            injection_detected_count > 0
+            and prompt_injection_policy.action == "deny"
+        ):
             indicator_names = ",".join(injection_indicators) or None
             emit_audit_event(
                 request_id=request_id,
@@ -444,16 +455,22 @@ async def chat_completion(
                 detail="Potential prompt injection detected.",
                 headers={
                     "X-Prompt-Injection-Action": "denied",
-                    "X-Prompt-Injection-Detected-Count": str(injection_detected_count),
+                    "X-Prompt-Injection-Detected-Count": str(
+                        injection_detected_count
+                    ),
                     "X-Prompt-Injection-Score": str(injection_score),
                 },
             )
 
         injection_outcome = "audit" if injection_detected_count > 0 else "allow"
-        injection_action_header = "audited" if injection_detected_count > 0 else "none"
+        injection_action_header = (
+            "audited" if injection_detected_count > 0 else "none"
+        )
 
     indicator_names = ",".join(injection_indicators) or None
-    outgoing_response.headers["X-Prompt-Injection-Action"] = injection_action_header
+    outgoing_response.headers["X-Prompt-Injection-Action"] = (
+        injection_action_header
+    )
     outgoing_response.headers["X-Prompt-Injection-Detected-Count"] = str(
         injection_detected_count
     )
@@ -489,7 +506,9 @@ async def chat_completion(
         raise
 
     try:
-        budget_decision = await usage_ledger.check(principal.client_id, usage_budget)
+        budget_decision = await usage_ledger.check(
+            principal.client_id, usage_budget
+        )
     except UsageLedgerUnavailable as exc:
         emit_audit_event(
             request_id=request_id,
@@ -520,7 +539,9 @@ async def chat_completion(
         raise HTTPException(
             status_code=403,
             detail="Usage budget exceeded.",
-            headers={"X-Usage-Budget-Reset": budget_decision.reset_at.isoformat()},
+            headers={
+                "X-Usage-Budget-Reset": budget_decision.reset_at.isoformat()
+            },
         )
 
     try:
@@ -558,9 +579,8 @@ async def chat_completion(
         raise
 
     usage = provider_response.usage
-    missing_required_cost = (
-        usage_budget.cost_limit_daily_usd is not None
-        and (usage is None or usage.cost is None)
+    missing_required_cost = usage_budget.cost_limit_daily_usd is not None and (
+        usage is None or usage.cost is None
     )
     if usage is None or missing_required_cost:
         emit_audit_event(
@@ -577,7 +597,9 @@ async def chat_completion(
             detail="Upstream provider usage data is unavailable.",
         )
 
-    request_cost = Decimal(str(usage.cost)) if usage.cost is not None else Decimal("0")
+    request_cost = (
+        Decimal(str(usage.cost)) if usage.cost is not None else Decimal("0")
+    )
     try:
         updated_budget = await usage_ledger.record(
             principal.client_id,
@@ -602,8 +624,12 @@ async def chat_completion(
             detail="Usage accounting is unavailable.",
         ) from exc
 
-    outgoing_response.headers["X-Usage-Budget-Reset"] = updated_budget.reset_at.isoformat()
-    outgoing_response.headers["X-Usage-Tokens-Used"] = str(updated_budget.tokens_used_daily)
+    outgoing_response.headers["X-Usage-Budget-Reset"] = (
+        updated_budget.reset_at.isoformat()
+    )
+    outgoing_response.headers["X-Usage-Tokens-Used"] = str(
+        updated_budget.tokens_used_daily
+    )
     if updated_budget.tokens_remaining_daily is not None:
         outgoing_response.headers["X-Usage-Tokens-Remaining"] = str(
             updated_budget.tokens_remaining_daily

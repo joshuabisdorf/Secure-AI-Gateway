@@ -120,7 +120,9 @@ class PostgresClientRegistry:
             try:
                 await self._pool.open(wait=True)
             except PsycopgError as exc:
-                raise ClientRegistryUnavailable("client_registry_unavailable") from exc
+                raise ClientRegistryUnavailable(
+                    "client_registry_unavailable"
+                ) from exc
 
             self._is_open = True
 
@@ -165,7 +167,9 @@ class PostgresClientRegistry:
                     )
                     row = await cursor.fetchone()
         except PsycopgError as exc:
-            raise ClientRegistryUnavailable("client_registry_unavailable") from exc
+            raise ClientRegistryUnavailable(
+                "client_registry_unavailable"
+            ) from exc
 
         if row is None:
             return None
@@ -229,7 +233,9 @@ def build_client_registry() -> ClientRegistry:
     Outputs:
         - Configured ClientRegistry implementation.
     """
-    backend = os.getenv("SAG_CLIENT_REGISTRY_BACKEND", "postgres").strip().lower()
+    backend = (
+        os.getenv("SAG_CLIENT_REGISTRY_BACKEND", "postgres").strip().lower()
+    )
 
     if backend == "environment":
         return EnvironmentClientRegistry()

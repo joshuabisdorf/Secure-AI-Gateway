@@ -76,7 +76,9 @@ def test_load_gateway_runtime_environment(monkeypatch) -> None:
 
 def test_database_secret_rejects_unknown_fields() -> None:
     """Verify runtime database secret schema is exact rather than permissive."""
-    with pytest.raises(RuntimeSecretError, match="database_secret_schema_invalid"):
+    with pytest.raises(
+        RuntimeSecretError, match="database_secret_schema_invalid"
+    ):
         build_database_conninfo(
             {
                 "username": "sag_runtime",

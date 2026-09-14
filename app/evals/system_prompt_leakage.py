@@ -144,7 +144,9 @@ def _decode_hex(candidate: str) -> str | None:
         return None
 
 
-def detect_system_prompt_leakage(response_text: str, *, canary: str) -> LeakageFinding:
+def detect_system_prompt_leakage(
+    response_text: str, *, canary: str
+) -> LeakageFinding:
     """
     RME
 

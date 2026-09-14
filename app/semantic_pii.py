@@ -33,10 +33,15 @@ _dob_context_patterns = (
     re.compile(r"\bbirthday\b", re.IGNORECASE),
 )
 _address_context_patterns = (
-    re.compile(r"\b(?:my|her|his|their|home|billing|shipping)\s+address\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:my|her|his|their|home|billing|shipping)\s+address\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\b(?:ship|send|deliver|delivery)\b", re.IGNORECASE),
     re.compile(r"\b(?:moved|move|moving)\s+to\b", re.IGNORECASE),
-    re.compile(r"\b(?:customer|patient|recipient)[’']?s?\s+home\b", re.IGNORECASE),
+    re.compile(
+        r"\b(?:customer|patient|recipient)[’']?s?\s+home\b", re.IGNORECASE
+    ),
 )
 _street_address_pattern = re.compile(
     r"(?<!\w)\d{1,6}\s+"
@@ -123,7 +128,9 @@ def _context_window(text: str, start: int, end: int) -> str:
     Outputs:
         - Bounded text surrounding the entity.
     """
-    return text[max(0, start - _CONTEXT_RADIUS): min(len(text), end + _CONTEXT_RADIUS)]
+    return text[
+        max(0, start - _CONTEXT_RADIUS) : min(len(text), end + _CONTEXT_RADIUS)
+    ]
 
 
 def _has_context(text: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
@@ -242,10 +249,17 @@ class SpacySemanticPIIAnalyzer:
             try:
                 self._nlp = spacy.load(
                     self._model_name,
-                    disable=["tagger", "parser", "attribute_ruler", "lemmatizer"],
+                    disable=[
+                        "tagger",
+                        "parser",
+                        "attribute_ruler",
+                        "lemmatizer",
+                    ],
                 )
             except Exception as exc:
-                raise SemanticPIIUnavailable("semantic_pii_model_unavailable") from exc
+                raise SemanticPIIUnavailable(
+                    "semantic_pii_model_unavailable"
+                ) from exc
         return self._nlp
 
     def analyze(self, text: str) -> tuple[SemanticPIIFinding, ...]:
@@ -274,15 +288,21 @@ class SpacySemanticPIIAnalyzer:
             context = _context_window(text, match.start(), match.end())
             if _has_context(context, _address_context_patterns):
                 findings.append(
-                    SemanticPIIFinding("street_address", match.start(), match.end())
+                    SemanticPIIFinding(
+                        "street_address", match.start(), match.end()
+                    )
                 )
 
         doc = self._get_nlp()(text)
         for entity in doc.ents:
             context = _context_window(text, entity.start_char, entity.end_char)
-            if entity.label_ == "PERSON" and _has_context(context, _person_context_patterns):
+            if entity.label_ == "PERSON" and _has_context(
+                context, _person_context_patterns
+            ):
                 findings.append(
-                    SemanticPIIFinding("person_name", entity.start_char, entity.end_char)
+                    SemanticPIIFinding(
+                        "person_name", entity.start_char, entity.end_char
+                    )
                 )
             elif entity.label_ in {"GPE", "LOC", "FAC"} and _has_context(
                 context, _location_context_patterns
@@ -292,9 +312,13 @@ class SpacySemanticPIIAnalyzer:
                         "personal_location", entity.start_char, entity.end_char
                     )
                 )
-            elif entity.label_ == "DATE" and _has_context(context, _dob_context_patterns):
+            elif entity.label_ == "DATE" and _has_context(
+                context, _dob_context_patterns
+            ):
                 findings.append(
-                    SemanticPIIFinding("date_of_birth", entity.start_char, entity.end_char)
+                    SemanticPIIFinding(
+                        "date_of_birth", entity.start_char, entity.end_char
+                    )
                 )
 
         return _select_non_overlapping(findings)
@@ -328,7 +352,9 @@ def redact_semantic_text(
     redacted = text
     for finding in reversed(findings):
         replacement = _replacements[finding.pii_type]
-        redacted = redacted[: finding.start] + replacement + redacted[finding.end :]
+        redacted = (
+            redacted[: finding.start] + replacement + redacted[finding.end :]
+        )
     return redacted, tuple(finding.pii_type for finding in findings)
 
 

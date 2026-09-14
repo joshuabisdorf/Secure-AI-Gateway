@@ -62,7 +62,9 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             ("region", region),
         ):
             if not value or not value.strip():
-                raise RedisClientConfigurationError(f"missing_elasticache_{label}")
+                raise RedisClientConfigurationError(
+                    f"missing_elasticache_{label}"
+                )
 
         self._user_id = user_id.strip()
         self._cache_name = cache_name.strip().lower()
@@ -76,7 +78,9 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
     def _generate_token(self) -> str:
         credentials = self._session.get_credentials()
         if credentials is None:
-            raise AuthenticationError("AWS credentials are unavailable for ElastiCache IAM auth")
+            raise AuthenticationError(
+                "AWS credentials are unavailable for ElastiCache IAM auth"
+            )
 
         frozen = credentials.get_frozen_credentials()
         request = AWSRequest(
@@ -162,7 +166,9 @@ def build_redis_client(redis_url: str, **kwargs: Any) -> Redis:
     if parsed.scheme.lower() != "rediss":
         raise RedisClientConfigurationError("elasticache_iam_requires_tls")
     if parsed.username is not None or parsed.password is not None:
-        raise RedisClientConfigurationError("elasticache_iam_url_must_not_embed_credentials")
+        raise RedisClientConfigurationError(
+            "elasticache_iam_url_must_not_embed_credentials"
+        )
 
     provider = _elasticache_iam_provider()
     return Redis.from_url(

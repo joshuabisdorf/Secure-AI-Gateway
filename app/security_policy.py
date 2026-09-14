@@ -95,7 +95,9 @@ class SecurityPolicyRegistry:
         """
         profile_name = self.clients.get(client_id)
         if profile_name is None:
-            raise SecurityPolicyUnavailable("client_security_policy_not_configured")
+            raise SecurityPolicyUnavailable(
+                "client_security_policy_not_configured"
+            )
         return ResolvedSecurityPolicy(
             client_id=client_id,
             profile_name=profile_name,
@@ -103,7 +105,9 @@ class SecurityPolicyRegistry:
         )
 
 
-def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -209,7 +213,10 @@ def _parse_profile(value: Any) -> SecurityPolicyProfile:
         raise ValueError("invalid_profile_rate_limit")
 
     pii_action = value["pii_action"]
-    if not isinstance(pii_action, str) or pii_action not in _supported_pii_actions:
+    if (
+        not isinstance(pii_action, str)
+        or pii_action not in _supported_pii_actions
+    ):
         raise ValueError("invalid_profile_pii_action")
 
     prompt_injection_action = value["prompt_injection_action"]
@@ -260,7 +267,9 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
         - ValueError: The policy document is malformed or violates the schema.
     """
     try:
-        root = json.loads(document, object_pairs_hook=_object_without_duplicate_keys)
+        root = json.loads(
+            document, object_pairs_hook=_object_without_duplicate_keys
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("invalid_security_policy_json") from exc
 
@@ -269,7 +278,11 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
     _require_exact_keys(root, _root_keys, "invalid_security_policy_root")
 
     version = root["version"]
-    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != 1
+    ):
         raise ValueError("unsupported_security_policy_version")
 
     raw_profiles = root["profiles"]
@@ -278,10 +291,9 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
     profiles: dict[str, SecurityPolicyProfile] = {}
     for profile_name, raw_profile in raw_profiles.items():
-        if (
-            not isinstance(profile_name, str)
-            or not _profile_name_pattern.fullmatch(profile_name)
-        ):
+        if not isinstance(
+            profile_name, str
+        ) or not _profile_name_pattern.fullmatch(profile_name):
             raise ValueError("invalid_profile_name")
         profiles[profile_name] = _parse_profile(raw_profile)
 
@@ -291,7 +303,9 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
     clients: dict[str, str] = {}
     for client_id, profile_name in raw_clients.items():
-        if not isinstance(client_id, str) or not _client_id_pattern.fullmatch(client_id):
+        if not isinstance(client_id, str) or not _client_id_pattern.fullmatch(
+            client_id
+        ):
             raise ValueError("invalid_client_id")
         if not isinstance(profile_name, str) or profile_name not in profiles:
             raise ValueError("unknown_security_profile")
@@ -346,7 +360,9 @@ def load_security_policy_registry(
         stat = path.stat()
         resolved_path = str(path.resolve())
     except OSError as exc:
-        raise SecurityPolicyUnavailable("security_policy_file_unavailable") from exc
+        raise SecurityPolicyUnavailable(
+            "security_policy_file_unavailable"
+        ) from exc
 
     if not path.is_file() or stat.st_size > _max_policy_file_bytes:
         raise SecurityPolicyUnavailable("security_policy_file_unavailable")
@@ -368,7 +384,9 @@ def load_security_policy_registry(
     return registry
 
 
-def resolve_client_security_policy(client_id: str) -> ResolvedSecurityPolicy | None:
+def resolve_client_security_policy(
+    client_id: str,
+) -> ResolvedSecurityPolicy | None:
     """
     RME
 

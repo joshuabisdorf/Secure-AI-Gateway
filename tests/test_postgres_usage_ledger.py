@@ -71,7 +71,9 @@ class FakePool:
     def __init__(self, state: dict[str, object]) -> None:
         self.state = state
 
-    def connection(self, *, timeout: float | None = None) -> FakeConnectionContext:
+    def connection(
+        self, *, timeout: float | None = None
+    ) -> FakeConnectionContext:
         assert timeout is not None and timeout > 0
         return FakeConnectionContext(self.state)
 
@@ -136,4 +138,6 @@ def test_postgres_usage_ledger_reads_and_atomically_increments() -> None:
     queries = "\n".join(state["queries"])
     assert "ON CONFLICT (client_id, usage_date)" in queries
     assert "gateway_daily_usage.tokens_used + EXCLUDED.tokens_used" in queries
-    assert "gateway_daily_usage.cost_used_usd + EXCLUDED.cost_used_usd" in queries
+    assert (
+        "gateway_daily_usage.cost_used_usd + EXCLUDED.cost_used_usd" in queries
+    )

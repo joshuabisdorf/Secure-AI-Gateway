@@ -20,8 +20,7 @@ _provider_secret_fields = frozenset(
 
 
 class SecretsManagerClient(Protocol):
-    def get_secret_value(self, **kwargs: Any) -> Mapping[str, Any]:
-        ...
+    def get_secret_value(self, **kwargs: Any) -> Mapping[str, Any]: ...
 
 
 class RuntimeSecretError(RuntimeError):
@@ -67,7 +66,9 @@ def load_json_secret(
         raise RuntimeSecretError("secret_id_not_configured")
 
     try:
-        response = (client or _secrets_client()).get_secret_value(SecretId=secret_id)
+        response = (client or _secrets_client()).get_secret_value(
+            SecretId=secret_id
+        )
     except Exception as exc:
         raise RuntimeSecretError("secret_unavailable") from exc
 
@@ -88,7 +89,9 @@ def _database_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
         raise RuntimeSecretError("database_secret_schema_invalid")
     username = value.get("username")
     password = value.get("password")
-    if not isinstance(username, str) or not _database_user_pattern.fullmatch(username):
+    if not isinstance(username, str) or not _database_user_pattern.fullmatch(
+        username
+    ):
         raise RuntimeSecretError("database_username_invalid")
     if not isinstance(password, str) or len(password.encode("utf-8")) < 32:
         raise RuntimeSecretError("database_password_invalid")

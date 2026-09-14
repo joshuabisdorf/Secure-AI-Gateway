@@ -263,7 +263,10 @@ def _build_decision(
     )
 
     reason = None
-    if budget.token_limit_daily is not None and tokens_used >= budget.token_limit_daily:
+    if (
+        budget.token_limit_daily is not None
+        and tokens_used >= budget.token_limit_daily
+    ):
         reason = "token_budget_exceeded"
     elif (
         budget.cost_limit_daily_usd is not None
@@ -514,7 +517,9 @@ class PostgresUsageLedger:
                     timeout=self._connection_timeout_seconds,
                 )
             except (PsycopgError, PoolTimeout) as exc:
-                raise UsageLedgerUnavailable("usage_ledger_unavailable") from exc
+                raise UsageLedgerUnavailable(
+                    "usage_ledger_unavailable"
+                ) from exc
             self._is_open = True
 
     async def check(

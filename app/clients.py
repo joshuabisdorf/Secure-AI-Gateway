@@ -77,7 +77,9 @@ async def initialize_database(database_url: str) -> None:
         if statement.strip()
     ]
 
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         for statement in statements:
             await connection.execute(statement)
 
@@ -109,7 +111,9 @@ async def insert_client_key_record(
     Outputs:
         - None.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         await connection.execute(
             """
             INSERT INTO gateway_clients (client_id)
@@ -135,7 +139,9 @@ async def insert_client_key_record(
         except UniqueViolation:
             await connection.rollback()
 
-        async with await psycopg.AsyncConnection.connect(database_url) as connection:
+        async with await psycopg.AsyncConnection.connect(
+            database_url
+        ) as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute(
                     """
@@ -223,7 +229,9 @@ async def revoke_client_key(database_url: str, key_id: str) -> bool:
     Outputs:
         - True when this call changed an active key to revoked; False when already revoked.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 """
@@ -283,7 +291,9 @@ async def rotate_client_keys(
     Outputs:
         - Tuple containing the new raw API key, new key ID, and revoked key IDs.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.transaction():
             async with connection.cursor() as cursor:
                 await cursor.execute(
@@ -318,7 +328,9 @@ async def rotate_client_keys(
                 new_api_key: str | None = None
                 new_key_id: str | None = None
                 for _ in range(3):
-                    candidate_api_key, candidate_record = generate_api_key(client_id)
+                    candidate_api_key, candidate_record = generate_api_key(
+                        client_id
+                    )
                     await cursor.execute(
                         """
                         INSERT INTO gateway_api_keys (
@@ -397,7 +409,9 @@ async def import_environment_records(database_url: str) -> int:
     return len(records)
 
 
-async def list_client_keys(database_url: str) -> list[tuple[str, str, bool, bool]]:
+async def list_client_keys(
+    database_url: str,
+) -> list[tuple[str, str, bool, bool]]:
     """
     RME
 
@@ -416,7 +430,9 @@ async def list_client_keys(database_url: str) -> list[tuple[str, str, bool, bool
     Outputs:
         - Tuples of client_id, key_id, client_active, and key_active.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 """
@@ -488,7 +504,9 @@ async def _run_command(args: argparse.Namespace) -> None:
         # codeql[py/clear-text-logging-sensitive-data]
         print(f"Key ID: {key_id}")
         print(f"API key file: {args.api_key_file}")
-        print("Store the secret file securely and delete it after client provisioning.")
+        print(
+            "Store the secret file securely and delete it after client provisioning."
+        )
         return
 
     if args.command == "revoke":
@@ -510,7 +528,9 @@ async def _run_command(args: argparse.Namespace) -> None:
         print(f"New key ID: {key_id}")
         print(f"API key file: {args.api_key_file}")
         print("Revoked key IDs: " + ",".join(revoked_key_ids))
-        print("Store the secret file securely and delete it after client provisioning.")
+        print(
+            "Store the secret file securely and delete it after client provisioning."
+        )
         return
 
     if args.command == "list":
@@ -559,7 +579,9 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("init-db", help="Initialize the client registry schema.")
+    subparsers.add_parser(
+        "init-db", help="Initialize the client registry schema."
+    )
     subparsers.add_parser(
         "import-env",
         help="Import existing hashed SAG_CLIENTS records into PostgreSQL.",

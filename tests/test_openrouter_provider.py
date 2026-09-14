@@ -30,8 +30,12 @@ def test_openrouter_provider_forwards_request() -> None:
     Outputs:
         - None. Assertions determine whether forwarding works correctly.
     """
+
     def handler(request: httpx.Request) -> httpx.Response:
-        assert str(request.url) == "https://openrouter.example/api/v1/chat/completions"
+        assert (
+            str(request.url)
+            == "https://openrouter.example/api/v1/chat/completions"
+        )
         assert request.headers["Authorization"] == "Bearer test-openrouter-key"
 
         payload = json.loads(request.content.decode())
