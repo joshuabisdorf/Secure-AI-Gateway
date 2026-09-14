@@ -1,0 +1,130 @@
+name: Temporary style migration
+
+on:
+  push:
+    branches:
+      - pre-v1-project-style
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: >-
+      !contains(
+        github.event.head_commit.message,
+        '[style-migrated-2]'
+      )
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out migration branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: pre-v1-project-style
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.13"
+
+      - name: Install one-time migration helpers
+        run: >-
+          python -m pip install
+          black==25.1.0
+          docformatter==1.7.5
+
+      - name: Reflow Python documentation and strings
+        shell: bash
+        run: |
+          set -euo pipefail
+          docformatter \
+            --in-place \
+            --recursive \
+            --wrap-summaries 80 \
+            --wrap-descriptions 80 \
+            app scripts tests
+          black \
+            --line-length 80 \
+            --preview \
+            --enable-unstable-feature string_processing \
+            app scripts tests
+
+      - name: Pretty-print tracked JSON corpora
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          root = Path('.')
+          for path in root.glob('evals/datasets/*.json'):
+              payload = json.loads(path.read_text(encoding='utf-8'))
+              text = json.dumps(payload, indent=2, ensure_ascii=False) + '\n'
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Normalize shell strict mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          paths = [
+              Path('docker/entrypoint.sh'),
+              Path('scripts/k8s-local-up.sh'),
+              Path('scripts/k8s-verify.sh'),
+          ]
+          for path in paths:
+              text = path.read_text(encoding='utf-8')
+              if path == Path('docker/entrypoint.sh'):
+                  text = text.replace(
+                      '#!/bin/sh\n',
+                      '#!/usr/bin/env bash\n',
+                      1,
+                  )
+              text = text.replace(
+                  'set -eu\n',
+                  'set -euo pipefail\n',
+                  1,
+              )
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Permit private class prefix in project naming rule
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('scripts/style_check.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              'CLASS_NAME_RE = re.compile(r"^[A-Z][A-Za-z0-9]*$")',
+              'CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")',
+          )
+          text = text.replace(
+              'class name is not UpperCamelCase:',
+              'class name is not UpperCamelCase with optional private prefix:',
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit migration output
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email \
+            '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m 'Finish mechanical style migration [style-migrated-2]'
+          git push origin HEAD:pre-v1-project-style
