@@ -40,12 +40,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docformatter \
-            --in-place \
-            --recursive \
-            --wrap-summaries 80 \
-            --wrap-descriptions 80 \
-            app scripts tests
+          find app scripts tests -name '*.py' -print0 \
+            | xargs -0 docformatter \
+                --in-place \
+                --wrap-summaries 80 \
+                --wrap-descriptions 80
           black \
             --line-length 80 \
             --preview \
@@ -60,8 +59,7 @@ jobs:
           import json
           from pathlib import Path
 
-          root = Path('.')
-          for path in root.glob('evals/datasets/*.json'):
+          for path in Path('evals/datasets').glob('*.json'):
               payload = json.loads(path.read_text(encoding='utf-8'))
               text = json.dumps(payload, indent=2, ensure_ascii=False) + '\n'
               path.write_text(text, encoding='utf-8')
