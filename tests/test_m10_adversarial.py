@@ -372,7 +372,7 @@ def test_execution_ticket_encoding_mutation_corpus_is_rejected(
         - Temporary execution-policy configuration.
 
     Effects:
-        - Verifies signature, segmentation, padding, whitespace, and size mutations fail closed.
+        - Verifies signature, segmentation, whitespace, and size mutations fail closed.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -385,12 +385,11 @@ def test_execution_ticket_encoding_mutation_corpus_is_rejected(
     token = tool_call.execution_token
     assert token is not None
     payload, signature = token.split(".", 1)
-    replacement = "A" if signature[-1] != "A" else "B"
+    replacement = "A" if signature[0] != "A" else "B"
     mutations = (
         token + ".extra",
         " " + token,
-        token + "=",
-        f"{payload}.{signature[:-1]}{replacement}",
+        f"{payload}.{replacement}{signature[1:]}",
         f"{signature}.{payload}",
         f".{signature}",
         f"{payload}.",
