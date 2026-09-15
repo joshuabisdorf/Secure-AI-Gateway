@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secure-ai-gateway"
+version = "1.0.0"
+description = "Security gateway for LLM applications and providers"
+authors = [{ name = "Joshua Bisdorf" }]
+license = { file = "LICENSE" }
+requires-python = ">=3.13"
+dependencies = [
+    "boto3>=1.43,<2",
+    "fastapi",
+    "httpx",
+    "jsonschema>=4.23,<5",
+    "opentelemetry-api>=1.44,<2",
+    "opentelemetry-sdk>=1.44,<2",
+    "opentelemetry-exporter-otlp-proto-http>=1.44,<2",
+    "prometheus-client>=0.26,<1",
+    "psycopg[binary,pool]>=3.2,<4",
+    "redis>=8.1,<9",
+    "spacy>=3.8.16,<3.9",
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl#sha256=1932429db727d4bff3deed6b34cfc05df17794f4a52eeb26cf8928f7c1a0fb85",
+    "uvicorn[standard]",
+]
+
+[project.optional-dependencies]
+dev = [
+    "bandit==1.9.4",
+    "pip-audit==2.10.1",
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["app*"]

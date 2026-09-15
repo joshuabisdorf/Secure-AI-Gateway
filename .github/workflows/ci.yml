@@ -1,0 +1,449 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: Pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project and test dependencies
+        run: python -m pip install -e '.[dev]'
+
+      - name: Run test suite
+        run: pytest -q
+
+  release-lock:
+    name: Reproducible release install
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Verify lock invariants
+        run: python scripts/verify_release_lock.py
+
+      - name: Install clean runtime from lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m venv /tmp/sag-release-venv
+          /tmp/sag-release-venv/bin/python -m pip install \
+            -r requirements/release.lock
+          /tmp/sag-release-venv/bin/python -m pip install \
+            --no-deps --no-build-isolation -e .
+          /tmp/sag-release-venv/bin/python -m pip check
+          /tmp/sag-release-venv/bin/python -c \
+            'import app.server,en_core_web_sm;print("release_lock_install=OK")'
+
+  m10-verification:
+    name: M10 adversarial/reliability/performance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: >-
+        postgresql://sag:sag_m10_password@127.0.0.1:5432/secure_ai_gateway
+      REDIS_URL: redis://127.0.0.1:6379/15
+      SAG_RUN_M10_INTEGRATION: "1"
+
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: secure_ai_gateway
+          POSTGRES_USER: sag
+          POSTGRES_PASSWORD: sag_m10_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sag -d secure_ai_gateway"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:8.10.1-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project and test dependencies
+        run: python -m pip install -e '.[dev]'
+
+      - name: Run real Redis/PostgreSQL M10 integration tests
+        run: pytest -q tests/test_m10_integration.py
+
+      - name: Run two-replica mock-provider runtime verification
+        run: >-
+          python scripts/m10_runtime_verification.py
+          --requests 80
+          --concurrency 8
+          --rate-limit-operations 200
+          --output /tmp/m10-runtime.json
+
+      - name: Show M10 runtime evidence
+        if: always()
+        run: |
+          if [ -f /tmp/m10-runtime.json ]; then
+            cat /tmp/m10-runtime.json
+          fi
+
+  security-analysis:
+    name: Security analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project and security tooling
+        run: python -m pip install -e '.[dev]'
+
+      - name: Scan Python source for common security defects
+        run: bandit -q -r app -ll -ii
+
+      - name: Audit installed Python dependencies
+        run: python -m pip_audit --progress-spinner off --skip-editable
+
+      - name: Generate and validate CycloneDX dependency SBOM
+        run: |
+          python -m pip_audit \
+            --progress-spinner off \
+            --skip-editable \
+            --format cyclonedx-json \
+            --output /tmp/secure-ai-gateway-python.cdx.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path('/tmp/secure-ai-gateway-python.cdx.json')
+          document = json.loads(path.read_text(encoding='utf-8'))
+          assert document.get('bomFormat') == 'CycloneDX'
+          components = document.get('components')
+          assert isinstance(components, list) and components
+          print(f"cyclonedx_sbom=OK components={len(components)}")
+          PY
+
+  prompt-injection-benchmark:
+    name: Prompt-injection benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install -e .
+
+      - name: Enforce benchmark baseline
+        run: >-
+          python -m app.evals.prompt_injection_benchmark
+          --enforce-baseline
+          --show-errors
+
+  semantic-pii-benchmark:
+    name: Semantic PII benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: "3.13"
+          cache: pip
+
+      - name: Install project
+        run: python -m pip install -e .
+
+      - name: Enforce semantic PII baseline
+        run: >-
+          python -m app.evals.semantic_pii_benchmark
+          --enforce-baseline
+          --show-errors
+
+  docker-build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+
+      - name: Validate shell entrypoints
+        run: >-
+          bash -n
+          scripts/demo.sh
+          scripts/resilience-smoke.sh
+          scripts/k8s-local-up.sh
+          scripts/k8s-verify.sh
+          scripts/aws-cloud-preflight.sh
+          scripts/aws-cloud-deploy.sh
+          scripts/aws-cloud-verify.sh
+
+      - name: Validate M11 helper scripts
+        run: |
+          python -m py_compile \
+            scripts/verify_release_lock.py \
+            scripts/render_cloud_network_policies.py
+          python scripts/verify_release_lock.py
+
+      - name: Validate developer task surface
+        run: make help
+
+      - name: Enforce billable AWS opt-in guard
+        run: |
+          grep -Fq 'SAG_ALLOW_BILLABLE_AWS' scripts/aws-cloud-deploy.sh
+          grep -Fq 'SAG_CONFIRM_AWS_APPLY' scripts/aws-cloud-deploy.sh
+          grep -Fq 'require_billable_aws_opt_in' scripts/aws-cloud-deploy.sh
+
+      - name: Build gateway image
+        run: docker build --tag secure-ai-gateway:ci .
+
+  portfolio-demo:
+    name: End-to-end demo
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Run zero-cost security demo
+        run: make demo
+
+      - name: Stop demo stack
+        if: always()
+        run: docker compose down
+
+  resilience-smoke:
+    name: Resilience smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Inject shared-backend outages
+        run: make resilience
+
+      - name: Stop resilience stack
+        if: always()
+        run: docker compose down
+
+  kubernetes-manifests:
+    name: Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+        with:
+          version: v1.37.0
+
+      - name: Render Kustomize manifests
+        run: |
+          kubectl kustomize k8s/ci > rendered-kubernetes.yaml
+          kubectl kustomize k8s/cloud \
+            > rendered-cloud-kubernetes.yaml
+          python scripts/render_cloud_network_policies.py \
+            --private-cidrs-json '["10.90.10.0/24","10.90.11.0/24"]' \
+            --data-cidrs-json '["10.90.20.0/24","10.90.21.0/24"]' \
+            --output rendered-cloud-network-policies.yaml
+
+      - name: Enforce M11 Kubernetes policy surface
+        run: |
+          grep -Fq \
+            'pod-security.kubernetes.io/enforce: restricted' \
+            rendered-kubernetes.yaml
+          grep -Fq 'name: sag-default-deny' rendered-kubernetes.yaml
+          grep -Fq \
+            'name: sag-default-deny' \
+            rendered-cloud-kubernetes.yaml
+          grep -Fq \
+            'name: sag-cloud-gateway-runtime-egress' \
+            rendered-cloud-network-policies.yaml
+
+      - name: Reject committed Kubernetes Secret objects
+        run: |
+          if grep -q '^kind: Secret$' \
+            rendered-kubernetes.yaml \
+            rendered-cloud-kubernetes.yaml \
+            rendered-cloud-network-policies.yaml; then
+            echo \
+              'Kubernetes Secret objects are forbidden in rendered targets.' \
+              >&2
+            exit 1
+          fi
+
+      - name: Validate Kubernetes schemas strictly
+        uses: azure/k8s-lint@e4234c50ea835112e72b145bdecd00a94bad42fd # v4
+        with:
+          manifests: |
+            rendered-kubernetes.yaml
+            rendered-cloud-kubernetes.yaml
+            rendered-cloud-network-policies.yaml
+          kubeconformOpts: -strict
+
+      - name: Validate Kubernetes 1.37 compatibility
+        uses: azure/k8s-lint@e4234c50ea835112e72b145bdecd00a94bad42fd # v4
+        with:
+          manifests: |
+            rendered-kubernetes.yaml
+            rendered-cloud-kubernetes.yaml
+            rendered-cloud-network-policies.yaml
+          kubeconformOpts: -kubernetes-version=1.37.0
+
+  kind-security:
+    name: kind security and resilience
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@829323503d1be3d00ca8346e5391ca0b07a9ab0d # v5.1.0
+        with:
+          version: v1.37.0
+
+      - name: Install kind
+        uses: helm/kind-action@a1b0e391336a6ee6713a0583f8c6240d70863de3 # v1.12.0
+        with:
+          version: v0.33.0
+          install_only: true
+
+      - name: Create ephemeral local configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          SIGNING_KEY="$(openssl rand -hex 32)"
+          umask 077
+          cat > .env <<EOF
+          SAG_PROVIDER=mock
+          POSTGRES_PASSWORD=sag_ci_kind_password
+          SAG_TOOL_EXECUTION_SIGNING_KEY=$SIGNING_KEY
+          EOF
+
+      - name: Deploy hardened kind environment
+        run: make kind-up
+
+      - name: Verify policy, rescheduling, and bounded load
+        run: make kind-verify
+
+      - name: Remove kind environment and credentials
+        if: always()
+        shell: bash
+        run: |
+          rm -f .env .k8s-client.env /tmp/sag-network-deny-probe.yaml
+          kind delete cluster --name secure-ai-gateway >/dev/null 2>&1 || true
+
+  terraform:
+    name: Terraform
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TF_IN_AUTOMATION: "true"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4
+        with:
+          terraform_version: "1.16.2"
+          terraform_wrapper: false
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -diff -recursive terraform
+
+      - name: Initialize state bootstrap configuration
+        run: >-
+          terraform -chdir=terraform/bootstrap init
+          -backend=false
+          -input=false
+
+      - name: Validate state bootstrap configuration
+        run: terraform -chdir=terraform/bootstrap validate -no-color
+
+      - name: Initialize AWS environment configuration
+        run: >-
+          terraform -chdir=terraform/aws init
+          -backend=false
+          -input=false
+
+      - name: Validate AWS environment configuration
+        run: terraform -chdir=terraform/aws validate -no-color

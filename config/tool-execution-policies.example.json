@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "tools": {
+    "status_check": {
+      "risk": "read",
+      "parameters": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    "send_message": {
+      "risk": "write",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "recipient": {"type": "string", "minLength": 1, "maxLength": 320},
+          "body": {"type": "string", "minLength": 1, "maxLength": 10000}
+        },
+        "required": ["recipient", "body"],
+        "additionalProperties": false
+      }
+    },
+    "delete_record": {
+      "risk": "destructive",
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "record_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,128}$"}
+        },
+        "required": ["record_id"],
+        "additionalProperties": false
+      }
+    }
+  }
+}

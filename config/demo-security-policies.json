@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "profiles": {
+    "portfolio-demo": {
+      "allowed_models": [
+        "mock-model"
+      ],
+      "requests_per_minute": 10,
+      "daily_budget": {
+        "tokens": 100000,
+        "cost_usd": "1.00"
+      },
+      "pii_action": "redact",
+      "prompt_injection_action": "audit",
+      "allowed_tools": [
+        "status_check"
+      ]
+    }
+  },
+  "clients": {
+    "portfolio-demo": "portfolio-demo"
+  }
+}
