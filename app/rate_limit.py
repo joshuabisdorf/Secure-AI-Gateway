@@ -44,7 +44,9 @@ return {next_value, 1, ttl}
 
 
 class RateLimiterUnavailable(RuntimeError):
-    """Raised when the configured rate-limit state backend cannot be used safely."""
+    """
+    Raised when the configured rate-limit state backend cannot be used safely.
+    """
 
 
 @dataclass(frozen=True)

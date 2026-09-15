@@ -96,7 +96,25 @@ class BenchmarkReport:
 def _object_without_duplicate_keys(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
-    """Reject duplicate JSON keys while constructing benchmark objects."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Reject duplicate JSON keys while constructing benchmark objects.
+
+    Inputs:
+        - pairs: Function input.
+
+    Outputs:
+        - A value matching the declared dict[str, Any] return contract.
+    """
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -114,7 +132,26 @@ def _require_exact_keys(
 
 
 def _parse_unit_interval(value: Any, reason: str) -> float:
-    """Parse a numeric threshold in the inclusive interval [0, 1]."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Parse a numeric threshold in the inclusive interval [0, 1].
+
+    Inputs:
+        - value: Function input.
+        - reason: Function input.
+
+    Outputs:
+        - A value matching the declared float return contract.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(reason)
     parsed = float(value)
@@ -388,7 +425,26 @@ def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
 
 
 def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
-    """Print metadata-only benchmark results without source text."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Print metadata-only benchmark results without source text.
+
+    Inputs:
+        - report: Function input.
+        - show_errors: Function input.
+
+    Outputs:
+        - None.
+    """
     metrics = report.metrics
     print(
         f"DATASET name={report.dataset_name} version={report.dataset_version} "
@@ -427,7 +483,26 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 def _report_dict(
     report: BenchmarkReport, *, show_errors: bool
 ) -> dict[str, Any]:
-    """Convert a report to machine-readable metadata without benchmark text."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Convert a report to machine-readable metadata without benchmark text.
+
+    Inputs:
+        - report: Function input.
+        - show_errors: Function input.
+
+    Outputs:
+        - A value matching the declared dict[str, Any] return contract.
+    """
     payload: dict[str, Any] = {
         "dataset": {
             "name": report.dataset_name,

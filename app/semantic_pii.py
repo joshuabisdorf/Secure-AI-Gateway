@@ -16,7 +16,11 @@ _person_context_patterns = (
     re.compile(r"\bmy\s+name\s+is\b", re.IGNORECASE),
     re.compile(r"\b(?:i\s+am|i['’]m|call\s+me)\b", re.IGNORECASE),
     re.compile(
-        r"\b(?:contact|customer|patient|employee|recipient|sender|client|account\s+holder)\b",
+        (
+            '\\b(?:contact|customer|patient|employ'
+            'ee|recipient|sender|client|account\\s'
+            '+holder)\\b'
+        ),
         re.IGNORECASE,
     ),
 )
@@ -105,7 +109,27 @@ class SemanticPIIFinding:
 
 class SemanticPIIAnalyzer(Protocol):
     def analyze(self, text: str) -> tuple[SemanticPIIFinding, ...]:
-        """Return non-overlapping semantic PII spans without retaining raw values."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Return non-overlapping semantic PII spans without retaining raw
+              values.
+
+        Inputs:
+            - text: Function input.
+
+        Outputs:
+            - A value matching the declared tuple[SemanticPIIFinding, ...]
+              return contract.
+        """
         ...
 
 

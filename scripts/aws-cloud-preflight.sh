@@ -47,7 +47,10 @@ if [ ! -f config/security-policies.json ]; then
   exit 2
 fi
 
-PUBLIC_IP="$(curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)"
+PUBLIC_IP="$(
+  curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d \
+    '[:space:]' || true
+)"
 SUGGESTED_ADMIN_ARN=""
 case "$CALLER_ARN" in
   arn:aws:sts::*:assumed-role/*/*)

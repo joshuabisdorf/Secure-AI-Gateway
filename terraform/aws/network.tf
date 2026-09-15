@@ -78,7 +78,11 @@ resource "aws_route_table_association" "public" {
 }
 
 resource "aws_eip" "nat" {
-  for_each = var.nat_gateway_mode == "per_az" ? aws_subnet.public : { primary = aws_subnet.public[local.azs[0]] }
+  for_each = (
+    var.nat_gateway_mode == "per_az" ?
+    aws_subnet.public :
+    { primary = aws_subnet.public[local.azs[0]] }
+  )
 
   domain = "vpc"
 
@@ -91,7 +95,11 @@ resource "aws_nat_gateway" "gateway" {
   for_each = aws_eip.nat
 
   allocation_id = each.value.id
-  subnet_id     = var.nat_gateway_mode == "per_az" ? aws_subnet.public[each.key].id : aws_subnet.public[local.azs[0]].id
+  subnet_id = (
+    var.nat_gateway_mode == "per_az" ?
+    aws_subnet.public[each.key].id :
+    aws_subnet.public[local.azs[0]].id
+  )
 
   tags = {
     Name = "${local.name}-nat-${each.key}"
@@ -107,7 +115,11 @@ resource "aws_route_table" "private" {
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = var.nat_gateway_mode == "per_az" ? aws_nat_gateway.gateway[each.key].id : aws_nat_gateway.gateway["primary"].id
+    nat_gateway_id = (
+      var.nat_gateway_mode == "per_az" ?
+      aws_nat_gateway.gateway[each.key].id :
+      aws_nat_gateway.gateway["primary"].id
+    )
   }
 
   tags = {

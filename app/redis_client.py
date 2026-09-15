@@ -17,7 +17,10 @@ _ELASTICACHE_REFRESH_SECONDS = 720
 
 
 class RedisClientConfigurationError(ValueError):
-    """Raised when shared Redis/Valkey client configuration is unsafe or incomplete."""
+    """
+    Raised when shared Redis/Valkey client configuration is unsafe or
+    incomplete.
+    """
 
 
 class ElastiCacheIamCredentialProvider(CredentialProvider):
@@ -79,6 +82,25 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         self._refresh_at = 0.0
 
     def _generate_token(self) -> str:
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Performs the generate token operation.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - A value matching the declared str return contract.
+        """
         credentials = self._session.get_credentials()
         if credentials is None:
             raise AuthenticationError(
@@ -104,7 +126,25 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         return request.url[len("http://") :]
 
     def get_credentials(self) -> tuple[str, str]:
-        """Return a cached or newly generated IAM username/token pair."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Return a cached or newly generated IAM username/token pair.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - A value matching the declared tuple[str, str] return contract.
+        """
         now = self._clock()
         if self._cached_token is not None and now < self._refresh_at:
             return (self._user_id, self._cached_token)
@@ -117,11 +157,50 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             return (self._user_id, self._cached_token)
 
     async def get_credentials_async(self) -> tuple[str, str]:
-        """Generate credentials without blocking the async Redis connection path."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Generate credentials without blocking the async Redis connection
+              path.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - A value matching the declared tuple[str, str] return contract.
+        """
         return await asyncio.to_thread(self.get_credentials)
 
 
 def _elasticache_iam_provider() -> ElastiCacheIamCredentialProvider:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the elasticache iam provider operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared ElastiCacheIamCredentialProvider return
+          contract.
+    """
     user_id = os.getenv("SAG_ELASTICACHE_USER_ID", "")
     cache_name = os.getenv("SAG_ELASTICACHE_CACHE_NAME", "")
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or ""

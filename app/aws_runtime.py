@@ -24,7 +24,9 @@ class SecretsManagerClient(Protocol):
 
 
 class RuntimeSecretError(RuntimeError):
-    """Raised with a safe reason when cloud runtime secret loading fails closed."""
+    """
+    Raised with a safe reason when cloud runtime secret loading fails closed.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -260,7 +262,10 @@ def exec_with_runtime_environment(command: Sequence[str]) -> None:
 
 
 def main() -> None:
-    """Load cloud runtime secrets and exec the gateway command without printing them."""
+    """
+    Load cloud runtime secrets and exec the gateway command without printing
+    them.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Load Secure AI Gateway AWS runtime secrets and exec a command."

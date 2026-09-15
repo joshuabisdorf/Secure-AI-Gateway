@@ -173,7 +173,10 @@ def _gateway_environment(
             "SAG_CLIENT_PROMPT_INJECTION_POLICIES": f"{client_id}:audit",
             "SAG_CLIENT_ALLOWED_TOOLS": f"{client_id}:-",
             "SAG_TOOL_EXECUTION_SIGNING_KEY": (
-                "m10-local-only-signing-key-abcdefghijklmnopqrstuvwxyz0123456789"
+                (
+                    'm10-local-only-signing-key-abcdefghi'
+                    'jklmnopqrstuvwxyz0123456789'
+                )
             ),
             "DATABASE_URL": database_url,
             "REDIS_URL": redis_url,

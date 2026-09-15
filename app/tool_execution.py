@@ -52,7 +52,9 @@ _registry_cache: "ToolExecutionRegistry | None" = None
 
 
 class ToolExecutionUnavailable(RuntimeError):
-    """Raised when execution-time authorization infrastructure is unavailable."""
+    """
+    Raised when execution-time authorization infrastructure is unavailable.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -119,11 +121,48 @@ class PreparedToolExecutionResponse:
 
 class ToolExecutionReplayStore(Protocol):
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """Atomically claim one execution authorization ID for one-time use."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Atomically claim one execution authorization ID for one-time use.
+
+        Inputs:
+            - execution_id: Function input.
+            - ttl_seconds: Function input.
+
+        Outputs:
+            - A value matching the declared bool return contract.
+        """
         ...
 
     async def close(self) -> None:
-        """Release resources owned by the replay store."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Release resources owned by the replay store.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         ...
 
 
@@ -201,7 +240,25 @@ def _sha256_text(value: str) -> str:
 def _object_without_duplicate_keys(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
-    """Reject duplicate JSON keys while parsing a trusted tool registry."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Reject duplicate JSON keys while parsing a trusted tool registry.
+
+    Inputs:
+        - pairs: Function input.
+
+    Outputs:
+        - A value matching the declared dict[str, Any] return contract.
+    """
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -813,11 +870,47 @@ class InMemoryToolExecutionReplayStore:
             return True
 
     def reset(self) -> None:
-        """Clear process-local replay state for deterministic tests."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Clear process-local replay state for deterministic tests.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         self._claimed.clear()
 
     async def close(self) -> None:
-        """No-op close for the process-local replay store."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - No-op close for the process-local replay store.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         return None
 
 
@@ -880,7 +973,25 @@ class RedisToolExecutionReplayStore:
         return bool(result)
 
     async def close(self) -> None:
-        """Close the Redis connection pool owned by this replay store."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Close the Redis connection pool owned by this replay store.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         await self._client.aclose()
 
 

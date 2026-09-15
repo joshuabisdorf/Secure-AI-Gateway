@@ -69,7 +69,10 @@ _indicators = (
             ),
             re.compile(
                 r"\bwhat\s+(?:were|are)\s+(?:your\s+)?(?:exact\s+)?"
-                r"(?:system\s+|developer\s+|hidden\s+|initial\s+)?instructions\b",
+                (
+                    '(?:system\\s+|developer\\s+|hidden\\s+|'
+                    'initial\\s+)?instructions\\b'
+                ),
                 re.IGNORECASE,
             ),
         ),
@@ -80,12 +83,18 @@ _indicators = (
         patterns=(
             re.compile(
                 r"\byou\s+are\s+now\s+(?:in\s+)?"
-                r"(?:developer|admin|administrator|root|debug|unrestricted)\s+mode\b",
+                (
+                    '(?:developer|admin|administrator|roo'
+                    't|debug|unrestricted)\\s+mode\\b'
+                ),
                 re.IGNORECASE,
             ),
             re.compile(
                 r"\bact\s+as\s+(?:an?\s+)?"
-                r"(?:unrestricted|uncensored|developer|system|administrator|root)\b",
+                (
+                    '(?:unrestricted|uncensored|developer'
+                    '|system|administrator|root)\\b'
+                ),
                 re.IGNORECASE,
             ),
         ),
@@ -96,7 +105,11 @@ _indicators = (
         patterns=(
             re.compile(
                 r"\b(?:bypass|disable|circumvent|override|ignore)\b.{0,48}"
-                r"\b(?:safety|security|policy|policies|guardrails?|restrictions?|filters?)\b",
+                (
+                    '\\b(?:safety|security|policy|policies'
+                    '|guardrails?|restrictions?|filters?)'
+                    '\\b'
+                ),
                 re.IGNORECASE | re.DOTALL,
             ),
         ),
@@ -252,6 +265,25 @@ def _decode_hex(candidate: str) -> str | None:
 
 
 def _match_encoded_indicators(text: str) -> set[str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the match encoded indicators operation.
+
+    Inputs:
+        - text: Function input.
+
+    Outputs:
+        - A value matching the declared set[str] return contract.
+    """
     matched: set[str] = set()
     processed = 0
 

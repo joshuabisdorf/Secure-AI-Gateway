@@ -153,6 +153,25 @@ async def list_migrations(database_url: str) -> list[tuple[str, str]]:
 
 
 async def _run_command(args: argparse.Namespace) -> None:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the run command operation.
+
+    Inputs:
+        - args: Function input.
+
+    Outputs:
+        - None.
+    """
     database_url = get_database_url()
     if args.command == "migrate":
         applied = await migrate_database(database_url)

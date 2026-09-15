@@ -37,7 +37,9 @@ class ClientRegistry(Protocol):
 
 
 class EnvironmentClientRegistry:
-    """Legacy/test registry backed by SAG_CLIENTS rather than persistent storage."""
+    """
+    Legacy/test registry backed by SAG_CLIENTS rather than persistent storage.
+    """
 
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
         """
@@ -209,7 +211,26 @@ class PostgresClientRegistry:
 
 class UnavailableClientRegistry:
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
-        """Fail closed when no usable registry backend is configured."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Fail closed when no usable registry backend is configured.
+
+        Inputs:
+            - key_id: Function input.
+
+        Outputs:
+            - A value matching the declared ClientKeyRecord | None return
+              contract.
+        """
         raise ClientRegistryUnavailable("client_registry_not_configured")
 
 

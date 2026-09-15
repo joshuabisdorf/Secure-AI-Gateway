@@ -82,7 +82,10 @@ def get_api_docs_enabled() -> bool:
 
 
 class RequestBodyLimitMiddleware:
-    """Production ASGI boundary for request-size, docs, and response-header hardening."""
+    """
+    Production ASGI boundary for request-size, docs, and response-header
+    hardening.
+    """
 
     def __init__(
         self,
@@ -260,6 +263,25 @@ class RequestBodyLimitMiddleware:
         replayed = False
 
         async def replay_receive() -> dict[str, Any]:
+            """
+            RME
+
+            Requires:
+                - Arguments satisfy their declared contracts and required
+                  configured dependencies are available.
+
+            Modifies:
+                - No state beyond delegated dependency behavior.
+
+            Effects:
+                - Performs the replay receive operation.
+
+            Inputs:
+                - None.
+
+            Outputs:
+                - A value matching the declared dict[str, Any] return contract.
+            """
             nonlocal replayed
             if disconnected:
                 return {"type": "http.disconnect"}
@@ -273,6 +295,25 @@ class RequestBodyLimitMiddleware:
             return {"type": "http.disconnect"}
 
         async def hardened_send(message: dict[str, Any]) -> None:
+            """
+            RME
+
+            Requires:
+                - Arguments satisfy their declared contracts and required
+                  configured dependencies are available.
+
+            Modifies:
+                - No state beyond delegated dependency behavior.
+
+            Effects:
+                - Performs the hardened send operation.
+
+            Inputs:
+                - message: Function input.
+
+            Outputs:
+                - None.
+            """
             if message.get("type") == "http.response.start":
                 existing = {
                     name.lower() for name, _ in message.get("headers", [])

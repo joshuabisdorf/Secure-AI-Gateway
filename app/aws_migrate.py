@@ -28,6 +28,25 @@ def _admin_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the runtime credentials operation.
+
+    Inputs:
+        - value: Function input.
+
+    Outputs:
+        - A value matching the declared tuple[str, str] return contract.
+    """
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
     username = _required_text(
@@ -42,6 +61,25 @@ def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def _database_coordinates() -> tuple[str, int, str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the database coordinates operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared tuple[str, int, str] return contract.
+    """
     host = os.getenv("SAG_DATABASE_HOST", "").strip()
     database = os.getenv("SAG_DATABASE_NAME", "").strip()
     try:

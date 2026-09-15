@@ -204,7 +204,48 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
         pii_type: str,
         replacement: str,
     ) -> str:
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Performs the redact pattern operation.
+
+        Inputs:
+            - current_text: Function input.
+            - pattern: Function input.
+            - pii_type: Function input.
+            - replacement: Function input.
+
+        Outputs:
+            - A value matching the declared str return contract.
+        """
         def replace(_: re.Match[str]) -> str:
+            """
+            RME
+
+            Requires:
+                - Arguments satisfy their declared contracts and required
+                  configured dependencies are available.
+
+            Modifies:
+                - No state beyond delegated dependency behavior.
+
+            Effects:
+                - Performs the replace operation.
+
+            Inputs:
+                - _: Function input.
+
+            Outputs:
+                - A value matching the declared str return contract.
+            """
             detected_types.append(pii_type)
             return replacement
 
@@ -217,6 +258,25 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
     )
 
     def replace_card(match: re.Match[str]) -> str:
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Performs the replace card operation.
+
+        Inputs:
+            - match: Function input.
+
+        Outputs:
+            - A value matching the declared str return contract.
+        """
         candidate = match.group(0)
         if not _luhn_valid(candidate):
             return candidate

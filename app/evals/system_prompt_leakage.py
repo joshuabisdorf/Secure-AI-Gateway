@@ -117,6 +117,26 @@ def build_synthetic_system_prompt(canary: str) -> str:
 
 
 def _direct_signals(text: str, *, canary: str) -> set[str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the direct signals operation.
+
+    Inputs:
+        - text: Function input.
+        - canary: Function input.
+
+    Outputs:
+        - A value matching the declared set[str] return contract.
+    """
     signals: set[str] = set()
     normalized = _normalize(text)
 
@@ -268,6 +288,25 @@ async def run_live_evaluation(
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the build parser operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared argparse.ArgumentParser return contract.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Run synthetic system-prompt leakage probes against the configured"
@@ -291,6 +330,25 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 async def _main_async(args: argparse.Namespace) -> int:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the main async operation.
+
+    Inputs:
+        - args: Function input.
+
+    Outputs:
+        - A value matching the declared int return contract.
+    """
     if not args.live:
         print(
             "Live provider evaluation is opt-in. Re-run with --live after"

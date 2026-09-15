@@ -69,7 +69,25 @@ class SharedRedisToolExecutionReplayStore:
         return bool(result)
 
     async def close(self) -> None:
-        """Close the shared Redis/Valkey client pool."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Close the shared Redis/Valkey client pool.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         await self._client.aclose()
 
 

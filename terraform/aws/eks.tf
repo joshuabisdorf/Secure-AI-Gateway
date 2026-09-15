@@ -57,7 +57,11 @@ resource "aws_eks_cluster" "gateway" {
     subnet_ids              = values(aws_subnet.private)[*].id
     endpoint_private_access = true
     endpoint_public_access  = length(var.eks_public_access_cidrs) > 0
-    public_access_cidrs     = length(var.eks_public_access_cidrs) > 0 ? var.eks_public_access_cidrs : null
+    public_access_cidrs = (
+      length(var.eks_public_access_cidrs) > 0 ?
+      var.eks_public_access_cidrs :
+      null
+    )
   }
 
   depends_on = [

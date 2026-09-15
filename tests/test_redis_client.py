@@ -60,7 +60,10 @@ def test_elasticache_iam_credentials_are_short_lived_and_cached() -> None:
 
 
 def test_elasticache_iam_requires_tls(monkeypatch) -> None:
-    """Verify IAM authentication cannot be configured over plaintext Redis transport."""
+    """
+    Verify IAM authentication cannot be configured over plaintext Redis
+    transport.
+    """
     monkeypatch.setenv("SAG_REDIS_AUTH_MODE", "elasticache_iam")
     monkeypatch.setenv("SAG_ELASTICACHE_USER_ID", "sag-dev-gateway")
     monkeypatch.setenv("SAG_ELASTICACHE_CACHE_NAME", "sag-dev-cache")
@@ -71,7 +74,10 @@ def test_elasticache_iam_requires_tls(monkeypatch) -> None:
 
 
 def test_elasticache_iam_rejects_embedded_credentials(monkeypatch) -> None:
-    """Verify IAM-mode connection URLs cannot also carry static username/password credentials."""
+    """
+    Verify IAM-mode connection URLs cannot also carry static username/password
+    credentials.
+    """
     monkeypatch.setenv("SAG_REDIS_AUTH_MODE", "elasticache_iam")
     monkeypatch.setenv("SAG_ELASTICACHE_USER_ID", "sag-dev-gateway")
     monkeypatch.setenv("SAG_ELASTICACHE_CACHE_NAME", "sag-dev-cache")

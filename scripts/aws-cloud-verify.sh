@@ -107,8 +107,16 @@ USAGE_TWO="$(header_value X-Usage-Tokens-Used /tmp/sag-aws-two-headers.txt)"
 TRACE_ONE="$(header_value X-Trace-ID /tmp/sag-aws-one-headers.txt)"
 TRACE_TWO="$(header_value X-Trace-ID /tmp/sag-aws-two-headers.txt)"
 
-echo "gateway_pod_1=${PODS[0]} status=$STATUS_ONE rate_remaining=$RATE_ONE usage_tokens=$USAGE_ONE trace_id_length=${#TRACE_ONE}"
-echo "gateway_pod_2=${PODS[1]} status=$STATUS_TWO rate_remaining=$RATE_TWO usage_tokens=$USAGE_TWO trace_id_length=${#TRACE_TWO}"
+echo \
+  "gateway_pod_1=${PODS[0]} status=$STATUS_ONE" \
+  "rate_remaining=$RATE_ONE" \
+  "usage_tokens=$USAGE_ONE" \
+  "trace_id_length=${#TRACE_ONE}"
+echo \
+  "gateway_pod_2=${PODS[1]} status=$STATUS_TWO" \
+  "rate_remaining=$RATE_TWO" \
+  "usage_tokens=$USAGE_TWO" \
+  "trace_id_length=${#TRACE_TWO}"
 
 if [ "$STATUS_ONE" != "200" ] || [ "$STATUS_TWO" != "200" ]; then
   echo "ERROR gateway_request_failed" >&2
@@ -158,7 +166,10 @@ if [ "$HEALTHY_TARGETS" -lt 2 ]; then
 fi
 
 sleep 8
-TRACE_LOGS="$(kubectl -n "$NAMESPACE" logs deployment/sag-otel-collector --since=60s 2>&1 || true)"
+TRACE_LOGS="$(
+  kubectl -n "$NAMESPACE" logs deployment/sag-otel-collector --since=60s \
+    2>&1 || true
+)"
 if printf '%s\n' "$TRACE_LOGS" | grep -q 'otelcol.signal.*traces'; then
   echo "otel_trace_export=observed"
 else
@@ -166,10 +177,16 @@ else
   exit 1
 fi
 
-READY_REPLICAS="$(kubectl -n "$NAMESPACE" get deployment sag-gateway -o jsonpath='{.status.readyReplicas}')"
+READY_REPLICAS="$(
+  kubectl -n "$NAMESPACE" get deployment sag-gateway -o \
+    jsonpath='{.status.readyReplicas}'
+)"
 if [ "$READY_REPLICAS" != "2" ]; then
   echo "ERROR gateway_ready_replicas=$READY_REPLICAS" >&2
   exit 1
 fi
 
-echo "gateway_replicas=2 shared_valkey=true shared_rds=true prometheus=true otel=true public_endpoint=false"
+echo \
+  "gateway_replicas=2 shared_valkey=true" \
+  "shared_rds=true prometheus=true otel=true" \
+  "public_endpoint=false"

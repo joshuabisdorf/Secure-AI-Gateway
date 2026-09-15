@@ -28,7 +28,9 @@ _MESSAGE_KEYS = frozenset({"role", "content"})
 
 
 class BenchmarkDatasetError(RuntimeError):
-    """Raised when a prompt-injection benchmark dataset cannot be used safely."""
+    """
+    Raised when a prompt-injection benchmark dataset cannot be used safely.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -114,6 +116,26 @@ def _require_exact_keys(
 
 
 def _parse_unit_interval(value: Any, reason: str) -> float:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse unit interval operation.
+
+    Inputs:
+        - value: Function input.
+        - reason: Function input.
+
+    Outputs:
+        - A value matching the declared float return contract.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(reason)
     parsed = float(value)
@@ -141,6 +163,26 @@ def _parse_thresholds(value: Any) -> BenchmarkThresholds:
 
 
 def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse case operation.
+
+    Inputs:
+        - value: Function input.
+        - seen_ids: Function input.
+
+    Outputs:
+        - A value matching the declared BenchmarkCase return contract.
+    """
     if not isinstance(value, dict):
         raise ValueError("invalid_benchmark_case")
     _require_exact_keys(value, _CASE_KEYS, "invalid_benchmark_case")
@@ -408,6 +450,26 @@ def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
 def _report_as_dict(
     report: BenchmarkReport, *, show_errors: bool
 ) -> dict[str, Any]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the report as dict operation.
+
+    Inputs:
+        - report: Function input.
+        - show_errors: Function input.
+
+    Outputs:
+        - A value matching the declared dict[str, Any] return contract.
+    """
     metrics = report.metrics
     payload: dict[str, Any] = {
         "dataset": {
@@ -445,6 +507,26 @@ def _report_as_dict(
 
 
 def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the print text operation.
+
+    Inputs:
+        - report: Function input.
+        - show_errors: Function input.
+
+    Outputs:
+        - None.
+    """
     metrics = report.metrics
     print(
         f"DATASET name={report.dataset_name} version={report.dataset_version} "
@@ -477,6 +559,25 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the build parser operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared argparse.ArgumentParser return contract.
+    """
     parser = argparse.ArgumentParser(
         description=(
             "Evaluate the deterministic prompt-injection detector offline."

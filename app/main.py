@@ -206,7 +206,25 @@ async def add_request_context(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """Return the gateway process health status."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Return the gateway process health status.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared dict[str, str] return contract.
+    """
     return {"status": "ok"}
 
 

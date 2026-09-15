@@ -21,7 +21,9 @@ for command in aws terraform docker kubectl jq openssl git sed python; do
 done
 
 if [ ! -f "$BOOTSTRAP_VARS" ]; then
-  echo "ERROR missing_file=$BOOTSTRAP_VARS run=scripts/aws-cloud-preflight.sh" >&2
+  echo \
+    "ERROR missing_file=$BOOTSTRAP_VARS" \
+    "run=scripts/aws-cloud-preflight.sh" \ >&2
   exit 2
 fi
 if [ ! -f "$AWS_VARS" ]; then
@@ -47,8 +49,14 @@ require_apply_confirmation() {
 }
 
 bootstrap_outputs() {
-  STATE_BUCKET="$(terraform -chdir=terraform/bootstrap output -raw state_bucket_name 2>/dev/null || true)"
-  STATE_KMS_KEY="$(terraform -chdir=terraform/bootstrap output -raw state_kms_key_arn 2>/dev/null || true)"
+  STATE_BUCKET="$(
+    terraform -chdir=terraform/bootstrap output -raw state_bucket_name \
+      2>/dev/null || true
+  )"
+  STATE_KMS_KEY="$(
+    terraform -chdir=terraform/bootstrap output -raw state_kms_key_arn \
+      2>/dev/null || true
+  )"
   if [ -z "$STATE_BUCKET" ] || [ -z "$STATE_KMS_KEY" ]; then
     echo "ERROR terraform_bootstrap_not_applied=true" >&2
     exit 2
@@ -126,20 +134,48 @@ case "$MODE" in
     init_application_backend
 
     REGION="$(terraform -chdir=terraform/aws output -raw aws_region)"
-    CLUSTER_NAME="$(terraform -chdir=terraform/aws output -raw eks_cluster_name)"
-    ECR_REPOSITORY="$(terraform -chdir=terraform/aws output -raw ecr_repository_url)"
-    DATABASE_HOST="$(terraform -chdir=terraform/aws output -raw postgres_endpoint)"
+    CLUSTER_NAME="$(
+      terraform -chdir=terraform/aws output -raw eks_cluster_name
+    )"
+    ECR_REPOSITORY="$(
+      terraform -chdir=terraform/aws output -raw ecr_repository_url
+    )"
+    DATABASE_HOST="$(
+      terraform -chdir=terraform/aws output -raw postgres_endpoint
+    )"
     DATABASE_PORT="$(terraform -chdir=terraform/aws output -raw postgres_port)"
-    DATABASE_NAME="$(terraform -chdir=terraform/aws output -raw postgres_database_name)"
-    RDS_ADMIN_SECRET="$(terraform -chdir=terraform/aws output -raw postgres_master_secret_arn)"
-    VALKEY_HOST="$(terraform -chdir=terraform/aws output -raw valkey_primary_endpoint)"
+    DATABASE_NAME="$(
+      terraform -chdir=terraform/aws output -raw postgres_database_name
+    )"
+    RDS_ADMIN_SECRET="$(
+      terraform -chdir=terraform/aws output -raw \
+        postgres_master_secret_arn
+    )"
+    VALKEY_HOST="$(
+      terraform -chdir=terraform/aws output -raw valkey_primary_endpoint
+    )"
     VALKEY_PORT="$(terraform -chdir=terraform/aws output -raw valkey_port)"
-    VALKEY_CACHE_NAME="$(terraform -chdir=terraform/aws output -raw valkey_replication_group_id)"
-    VALKEY_USER_ID="$(terraform -chdir=terraform/aws output -raw valkey_iam_user_id)"
-    PRIVATE_CIDRS_JSON="$(terraform -chdir=terraform/aws output -json private_subnet_cidrs)"
-    DATA_CIDRS_JSON="$(terraform -chdir=terraform/aws output -json data_subnet_cidrs)"
-    DATABASE_SECRET="$(terraform -chdir=terraform/aws output -json runtime_secret_arns | jq -r '.database_credentials')"
-    SIGNING_SECRET="$(terraform -chdir=terraform/aws output -json runtime_secret_arns | jq -r '.tool_signing_key')"
+    VALKEY_CACHE_NAME="$(
+      terraform -chdir=terraform/aws output -raw \
+        valkey_replication_group_id
+    )"
+    VALKEY_USER_ID="$(
+      terraform -chdir=terraform/aws output -raw valkey_iam_user_id
+    )"
+    PRIVATE_CIDRS_JSON="$(
+      terraform -chdir=terraform/aws output -json private_subnet_cidrs
+    )"
+    DATA_CIDRS_JSON="$(
+      terraform -chdir=terraform/aws output -json data_subnet_cidrs
+    )"
+    DATABASE_SECRET="$(
+      terraform -chdir=terraform/aws output -json runtime_secret_arns | jq \
+        -r '.database_credentials'
+    )"
+    SIGNING_SECRET="$(
+      terraform -chdir=terraform/aws output -json runtime_secret_arns | jq \
+        -r '.tool_signing_key'
+    )"
 
     aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER_NAME" \
       >/dev/null
@@ -260,7 +296,10 @@ case "$MODE" in
     fi
 
     CLIENT_SECRET_FILE="/tmp/sag-cloud-client-key-$$"
-    CLIENT_METADATA="$(kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- python -m app.clients list)"
+    CLIENT_METADATA="$(
+      kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- python -m app.clients \
+        list
+    )"
     if printf '%s\n' "$CLIENT_METADATA" \
         | grep -q \
           'client_id=local-dev .*client_active=true .*key_active=true'; then
@@ -276,7 +315,10 @@ case "$MODE" in
           --api-key-file "$CLIENT_SECRET_FILE"
       )"
     fi
-    CLIENT_KEY="$(kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- cat "$CLIENT_SECRET_FILE")"
+    CLIENT_KEY="$(
+      kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- cat \
+        "$CLIENT_SECRET_FILE"
+    )"
     kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE"
     CLIENT_SECRET_FILE=""
     if [ -z "$CLIENT_KEY" ]; then
@@ -295,7 +337,9 @@ case "$MODE" in
     ;;
 
   *)
-    echo "Usage: $0 {bootstrap-plan|bootstrap-apply|plan|infra-apply|deploy}" >&2
+    echo \
+      "Usage: $0" \
+      "{bootstrap-plan|bootstrap-apply|plan|infra-apply|deploy}" \ >&2
     exit 2
     ;;
 esac

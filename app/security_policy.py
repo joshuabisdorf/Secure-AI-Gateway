@@ -36,7 +36,9 @@ _cache_registry: "SecurityPolicyRegistry | None" = None
 
 
 class SecurityPolicyUnavailable(RuntimeError):
-    """Raised when the configured unified security policy cannot be used safely."""
+    """
+    Raised when the configured unified security policy cannot be used safely.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -134,6 +136,28 @@ def _parse_string_list(
     allow_empty: bool,
     invalid_reason: str,
 ) -> frozenset[str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse string list operation.
+
+    Inputs:
+        - value: Function input.
+        - pattern: Function input.
+        - allow_empty: Function input.
+        - invalid_reason: Function input.
+
+    Outputs:
+        - A value matching the declared frozenset[str] return contract.
+    """
     if not isinstance(value, list):
         raise ValueError(invalid_reason)
     if not value and not allow_empty:
@@ -150,6 +174,25 @@ def _parse_string_list(
 
 
 def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse daily budget operation.
+
+    Inputs:
+        - value: Function input.
+
+    Outputs:
+        - A value matching the declared DailyBudgetPolicy return contract.
+    """
     if not isinstance(value, dict):
         raise ValueError("invalid_daily_budget")
     _require_exact_keys(value, _daily_budget_keys, "invalid_daily_budget")
@@ -195,6 +238,25 @@ def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
 
 
 def _parse_profile(value: Any) -> SecurityPolicyProfile:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse profile operation.
+
+    Inputs:
+        - value: Function input.
+
+    Outputs:
+        - A value matching the declared SecurityPolicyProfile return contract.
+    """
     if not isinstance(value, dict):
         raise ValueError("invalid_security_profile")
     _require_exact_keys(value, _profile_keys, "invalid_security_profile")
@@ -323,7 +385,26 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
 
 def clear_security_policy_cache() -> None:
-    """Clear the process-local parsed policy cache used by tests and file reloads."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Clear the process-local parsed policy cache used by tests and file
+          reloads.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - None.
+    """
     global _cache_signature, _cache_registry
     with _cache_lock:
         _cache_signature = None

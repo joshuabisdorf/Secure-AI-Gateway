@@ -54,7 +54,27 @@ class UsageLedger(Protocol):
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
-        """Return current daily usage and whether another request may be forwarded."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Return current daily usage and whether another request may be
+              forwarded.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         ...
 
     async def record(
@@ -65,7 +85,29 @@ class UsageLedger(Protocol):
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
-        """Atomically add provider-reported usage and return updated daily totals."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Atomically add provider-reported usage and return updated daily
+              totals.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+            - total_tokens: Function input.
+            - cost_usd: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         ...
 
 
@@ -402,7 +444,25 @@ class InMemoryUsageLedger:
             )
 
     def reset(self) -> None:
-        """Clear process-local test usage state."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Clear process-local test usage state.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         with self._lock:
             self._buckets.clear()
 
@@ -642,8 +702,11 @@ class PostgresUsageLedger:
                         VALUES (%s, %s, %s, %s)
                         ON CONFLICT (client_id, usage_date)
                         DO UPDATE SET
-                            tokens_used = gateway_daily_usage.tokens_used + EXCLUDED.tokens_used,
-                            cost_used_usd = gateway_daily_usage.cost_used_usd + EXCLUDED.cost_used_usd,
+                            tokens_used = gateway_daily_usage.tokens_used + \
+                                EXCLUDED.tokens_used,
+                            cost_used_usd = \
+                                gateway_daily_usage.cost_used_usd + \
+                                    EXCLUDED.cost_used_usd,
                             updated_at = NOW()
                         RETURNING tokens_used, cost_used_usd
                         """,
@@ -664,7 +727,25 @@ class PostgresUsageLedger:
         )
 
     async def close(self) -> None:
-        """Close the PostgreSQL pool when it was opened."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Close the PostgreSQL pool when it was opened.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         if self._is_open:
             await self._pool.close()
             self._is_open = False
@@ -676,7 +757,26 @@ class UnavailableUsageLedger:
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
-        """Fail closed when no usable durable ledger is configured."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Fail closed when no usable durable ledger is configured.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         raise UsageLedgerUnavailable("usage_ledger_not_configured")
 
     async def record(
@@ -687,7 +787,28 @@ class UnavailableUsageLedger:
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
-        """Fail closed when no usable durable ledger is configured."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Fail closed when no usable durable ledger is configured.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+            - total_tokens: Function input.
+            - cost_usd: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         raise UsageLedgerUnavailable("usage_ledger_not_configured")
 
 
