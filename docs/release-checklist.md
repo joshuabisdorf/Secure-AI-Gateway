@@ -62,7 +62,8 @@ Only after the immutable artifact and release commit are verified:
 - [ ] Create annotated tag `v1.0.0` at the reviewed release commit.
 - [ ] Confirm the tagged release workflow is green.
 - [ ] Confirm `ghcr.io/joshuabisdorf/secure-ai-gateway:v1.0.0` exists.
-- [ ] Confirm `:v1.0.0` resolves to the same OCI digest as the immutable SHA tag.
+- [ ] Confirm `:v1.0.0` resolves to the same OCI digest as the immutable
+  SHA tag.
 - [ ] Confirm an unauthenticated pull of `:v1.0.0` succeeds.
 - [ ] Confirm an unauthenticated pull of the immutable SHA tag still succeeds.
 - [ ] Record final release identities in `docs/portfolio-evidence.md` or the
