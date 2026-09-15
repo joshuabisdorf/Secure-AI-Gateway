@@ -30,6 +30,14 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Repair temporary migrator guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          sed -i \
+            's/if not body:/if not isinstance(body, list) or not body:/' \
+            .github/style_migrate.py
+
       - name: Apply project-owned migration
         run: python .github/style_migrate.py
 
