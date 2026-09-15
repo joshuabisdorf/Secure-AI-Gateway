@@ -48,6 +48,9 @@ Module constants use `UPPER_SNAKE_CASE`. Functions, methods, variables, and
 modules use `snake_case`. Classes use `CapWords`. Private implementation names
 begin with one leading underscore when they are intentionally non-public.
 
+The project-owned style checker enforces module, function, method, and class
+naming where the rule can be validated safely from Python syntax.
+
 ## RMEIO documentation contract
 
 RMEIO remains a project requirement and is not replaced by another docstring
@@ -59,6 +62,9 @@ these sections when the function has behavior beyond a trivial wrapper:
 - `Effects` -- externally visible behavior and important failure behavior.
 - `Inputs` -- parameters and relevant environmental inputs.
 - `Outputs` -- returned values or produced artifacts.
+
+The headings appear in exactly that order. The checker validates both presence
+and order for functions that require a full RMEIO contract.
 
 Security-sensitive functions should state fail-open/fail-closed behavior and
 secret-handling effects explicitly where relevant.
@@ -80,14 +86,15 @@ they are verification code rather than runtime project interfaces.
 
 ## Shell
 
-Shell scripts use a POSIX-compatible shebang when possible. Bash-specific
-scripts declare Bash explicitly. Variables are quoted unless deliberate word
-splitting is required. Temporary files and secrets are cleaned up with traps
-when failure could otherwise leave sensitive material behind.
+Repository shell scripts use `#!/usr/bin/env bash` and enable
+`set -euo pipefail` near the beginning of the script. Variables are quoted
+unless deliberate word splitting is required. Temporary files and secrets are
+cleaned up with traps when failure could otherwise leave sensitive material
+behind.
 
 Long commands are split with backslash continuations at semantic boundaries.
-Security-sensitive scripts fail on command errors and undefined critical
-variables. Any intentional exception should be documented next to the command.
+Any intentional exception to strict failure behavior should be documented next
+to the command.
 
 ## Configuration and infrastructure
 
@@ -136,9 +143,12 @@ The strict command is the end-state conformance check. The baseline is fixed;
 it must never be moved forward to absorb new violations. It may be removed
 once the whole repository passes strict mode.
 
-CI runs the incremental command. The checker is intentionally conservative: it
-rejects clear violations and leaves subjective review decisions to code review
-rather than rewriting source automatically.
+CI runs the incremental command. Machine-enforced checks include text hygiene,
+the 80-character limit, Python syntax and structural hazards, Python naming,
+RMEIO presence and order, and Bash shebang and strict-mode requirements.
+The checker is intentionally conservative: it rejects clear violations and
+leaves subjective review decisions to code review rather than rewriting source
+automatically.
 
 A change that requires a line-length exception should normally make the reason
 obvious from the line itself. The checker recognizes a narrow set of atomic
