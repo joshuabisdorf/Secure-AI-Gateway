@@ -37,6 +37,21 @@ jobs:
           sed -i \
             's/if not body:/if not isinstance(body, list) or not body:/' \
             .github/style_migrate.py
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path(".github/style_migrate.py")
+          text = path.read_text(encoding="utf-8")
+          marker = "    for path in _tracked_files():\n"
+          replacement = (
+              marker
+              + "        if path.parts[:2] == (\".github\", \"workflows\"):\n"
+              + "            continue\n"
+          )
+          if replacement not in text:
+              text = text.replace(marker, replacement, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
 
       - name: Apply project-owned migration
         run: python .github/style_migrate.py
