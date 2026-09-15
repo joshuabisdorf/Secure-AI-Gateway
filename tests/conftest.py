@@ -2,9 +2,12 @@ import os
 
 import pytest
 
-# Keep the test suite deterministic, offline, database-free, Redis-free, and free of
-# provider API charges. This must run during test collection, before test modules import
-# app.main/app.auth. Locally exported runtime policy/backend settings must not override tests.
+# Keep the test suite deterministic, offline, database-free, Redis-free, and
+# free of
+# provider API charges. This must run during test collection, before test
+# modules import
+# app.main/app.auth. Locally exported runtime policy/backend settings must not
+# override tests.
 os.environ.pop("SAG_SECURITY_POLICY_FILE", None)
 os.environ.pop("SAG_SECURITY_POLICY_ACTIVE", None)
 os.environ.pop("SAG_SECURITY_POLICY_ERROR", None)
@@ -38,13 +41,16 @@ def reset_process_local_policy_state():
     RME
 
     Requires:
-        - Tests configure in-memory rate-limit, usage-ledger, and tool-replay backends.
+        - Tests configure in-memory rate-limit, usage-ledger, and tool-replay
+        - backends.
 
     Modifies:
-        - Process-local gateway rate-limit, usage-budget, and execution-replay state around each test.
+        - Process-local gateway rate-limit, usage-budget, and execution-replay
+        - state around each test.
 
     Effects:
-        - Prevents request counts, usage totals, and claimed execution tickets from leaking between tests.
+        - Prevents request counts, usage totals, and claimed execution tickets
+        - from leaking between tests.
 
     Inputs:
         - None.

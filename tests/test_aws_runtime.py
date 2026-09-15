@@ -33,7 +33,8 @@ def test_load_gateway_runtime_environment(monkeypatch) -> None:
         - Test-only environment variables and fake secret-request history.
 
     Effects:
-        - Verifies database/signing/provider secrets are mapped to child environment values.
+        - Verifies database/signing/provider secrets are mapped to child
+        - environment values.
         - Verifies generated database connection configuration requires TLS.
 
     Inputs:
@@ -76,7 +77,9 @@ def test_load_gateway_runtime_environment(monkeypatch) -> None:
 
 def test_database_secret_rejects_unknown_fields() -> None:
     """Verify runtime database secret schema is exact rather than permissive."""
-    with pytest.raises(RuntimeSecretError, match="database_secret_schema_invalid"):
+    with pytest.raises(
+        RuntimeSecretError, match="database_secret_schema_invalid"
+    ):
         build_database_conninfo(
             {
                 "username": "sag_runtime",
@@ -90,7 +93,9 @@ def test_database_secret_rejects_unknown_fields() -> None:
 
 
 def test_load_json_secret_rejects_non_object() -> None:
-    """Verify runtime secret loader fails closed on unexpected JSON structure."""
+    """
+    Verify runtime secret loader fails closed on unexpected JSON structure.
+    """
     fake = _FakeSecretsManager({"bad": ["not", "an", "object"]})
     with pytest.raises(RuntimeSecretError, match="secret_json_object_required"):
         load_json_secret("bad", client=fake)

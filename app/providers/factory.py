@@ -19,8 +19,10 @@ def build_provider() -> Provider:
 
     Effects:
         - Selects the gateway upstream provider.
-        - Returns the concrete provider type; provider methods own observability instrumentation.
-        - Fails closed for unsupported provider names or invalid provider configuration.
+        - Returns the concrete provider type; provider methods own observability
+        - instrumentation.
+        - Fails closed for unsupported provider names or invalid provider
+        - configuration.
 
     Inputs:
         - None.

@@ -42,7 +42,8 @@ def test_audit_log_attributes_client_without_secrets(
     RME
 
     Requires:
-        - Gateway authentication, rate, model, and usage-budget policy are configured.
+        - Gateway authentication, rate, model, and usage-budget policy are
+        - configured.
 
     Modifies:
         - Temporarily configures gateway environment variables and log capture.
@@ -50,7 +51,8 @@ def test_audit_log_attributes_client_without_secrets(
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
-        - Verifies client identity, rate state, usage accounting, and models are recorded.
+        - Verifies client identity, rate state, usage accounting, and models are
+        - recorded.
         - Verifies prompt content and bearer credentials are not logged.
 
     Inputs:
@@ -97,20 +99,26 @@ def test_audit_log_attributes_client_without_secrets(
     assert authentication_event["client_id"] == "test-client"
     assert authentication_event["key_id"] == "testkey"
 
-    rate_limit_event = next(event for event in events if event["event"] == "rate_limit")
+    rate_limit_event = next(
+        event for event in events if event["event"] == "rate_limit"
+    )
     assert rate_limit_event["outcome"] == "allow"
     assert rate_limit_event["client_id"] == "test-client"
     assert rate_limit_event["key_id"] == "testkey"
     assert rate_limit_event["limit_rpm"] == 10
     assert rate_limit_event["remaining"] == 9
 
-    policy_event = next(event for event in events if event["event"] == "model_policy")
+    policy_event = next(
+        event for event in events if event["event"] == "model_policy"
+    )
     assert policy_event["outcome"] == "allow"
     assert policy_event["client_id"] == "test-client"
     assert policy_event["key_id"] == "testkey"
     assert policy_event["requested_model"] == "mock-model"
 
-    usage_event = next(event for event in events if event["event"] == "usage_budget")
+    usage_event = next(
+        event for event in events if event["event"] == "usage_budget"
+    )
     assert usage_event["outcome"] == "recorded"
     assert usage_event["client_id"] == "test-client"
     assert usage_event["key_id"] == "testkey"

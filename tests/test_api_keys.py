@@ -77,7 +77,8 @@ def test_parse_client_records_rejects_duplicate_key_ids() -> None:
     RME
 
     Requires:
-        - Duplicate public key identifiers may appear in candidate configuration.
+        - Duplicate public key identifiers may appear in candidate
+        - configuration.
 
     Modifies:
         - Nothing.
@@ -139,7 +140,8 @@ def test_api_key_secret_file_is_removed_when_delivery_fails(tmp_path) -> None:
         - Creates and then removes one temporary API-key secret file.
 
     Effects:
-        - Verifies failed provisioning does not leave a partial raw credential on disk.
+        - Verifies failed provisioning does not leave a partial raw credential
+        - on disk.
 
     Inputs:
         - tmp_path: pytest temporary-directory fixture.

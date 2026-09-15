@@ -118,38 +118,29 @@ reference-only, or optional behavior.
 
 ## Enforcement
 
-`scripts/style_check.py` is the repository-owned checker for rules that can be
-validated safely without importing a third-party formatting or linting policy.
+`scripts/style_check.py` is the repository-owned checker for rules that
+can be validated safely without importing a third-party formatting or
+linting policy.
 
-The repository had substantial style debt before this standard was introduced.
-`.style-baseline` anchors that debt to the exact pre-standard commit. Normal CI
-checks every new or modified file in full. An unchanged pre-standard file is
-not a policy exception; it is deferred migration work. As soon as such a file
-is modified, the entire file must comply with the current standard.
+The checker evaluates the entire tracked repository on every run. There
+is no legacy baseline, moving exemption, or grandfathered file set.
+Existing and newly modified project files are held to the same standard.
 
-Run the normal incremental gate with:
+Run the whole-repository gate with:
 
 ```bash
 make style
 ```
 
-Run the entire repository with no baseline deferral using:
+CI runs the same whole-repository command. Machine-enforced checks include
+text hygiene, the 80-character limit, Python syntax and structural
+hazards, Python naming, RMEIO presence and order, and Bash shebang and
+strict-mode requirements.
 
-```bash
-make style-strict
-```
+The checker is intentionally conservative: it rejects clear violations
+and leaves subjective review decisions to code review rather than
+rewriting source automatically.
 
-The strict command is the end-state conformance check. The baseline is fixed;
-it must never be moved forward to absorb new violations. It may be removed
-once the whole repository passes strict mode.
-
-CI runs the incremental command. Machine-enforced checks include text hygiene,
-the 80-character limit, Python syntax and structural hazards, Python naming,
-RMEIO presence and order, and Bash shebang and strict-mode requirements.
-The checker is intentionally conservative: it rejects clear violations and
-leaves subjective review decisions to code review rather than rewriting source
-automatically.
-
-A change that requires a line-length exception should normally make the reason
-obvious from the line itself. The checker recognizes a narrow set of atomic
-forms; new blanket exclusions should not be added merely to make CI pass.
+A line-length exception should make its necessity obvious from the line
+itself. The checker recognizes only narrow atomic or canonical forms;
+new blanket exclusions must not be added merely to make CI pass.

@@ -16,7 +16,8 @@ def test_parse_client_rate_limits() -> None:
     RME
 
     Requires:
-        - Per-client rate-limit records use client_id:requests_per_minute format.
+        - Per-client rate-limit records use client_id:requests_per_minute
+        - format.
 
     Modifies:
         - Nothing.
@@ -116,20 +117,23 @@ def test_redis_rate_limiter_uses_atomic_portable_window() -> None:
     RME
 
     Requires:
-        - RedisRateLimiter accepts a deterministic Redis/Valkey-compatible test client.
+        - RedisRateLimiter accepts a deterministic Redis/Valkey-compatible test
+        - client.
 
     Modifies:
         - Fake shared-backend call history and queued responses.
 
     Effects:
         - Verifies allowed and denied distributed rate-limit decisions.
-        - Verifies one-key Lua execution carries the fixed limit/window without relying on Redis-only commands.
+        - Verifies one-key Lua execution carries the fixed limit/window without
+        - relying on Redis-only commands.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether distributed enforcement is configured correctly.
+        - None. Assertions determine whether distributed enforcement is
+        - configured correctly.
     """
     fake = _FakeRedis()
     limiter = RedisRateLimiter("redis://unused", client=fake)
@@ -177,7 +181,8 @@ def test_chat_rate_limit_returns_429(monkeypatch, gateway_api_key) -> None:
         - gateway_api_key: Raw API key for the configured test client.
 
     Outputs:
-        - None. Assertions determine whether endpoint throttling works correctly.
+        - None. Assertions determine whether endpoint throttling works
+        - correctly.
     """
     monkeypatch.setenv("SAG_CLIENT_RATE_LIMITS", "test-client:2")
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")

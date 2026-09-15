@@ -18,22 +18,68 @@ def _required_text(value: Any, reason: str) -> str:
 
 
 def _admin_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
-    username = _required_text(value.get("username"), "rds_admin_username_invalid")
-    password = _required_text(value.get("password"), "rds_admin_password_invalid")
+    username = _required_text(
+        value.get("username"), "rds_admin_username_invalid"
+    )
+    password = _required_text(
+        value.get("password"), "rds_admin_password_invalid"
+    )
     return username, password
 
 
 def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the runtime credentials operation.
+
+    Inputs:
+        - value: Function input.
+
+    Outputs:
+        - A value matching the declared tuple[str, str] return contract.
+    """
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
-    username = _required_text(value.get("username"), "database_username_invalid")
-    password = _required_text(value.get("password"), "database_password_invalid")
+    username = _required_text(
+        value.get("username"), "database_username_invalid"
+    )
+    password = _required_text(
+        value.get("password"), "database_password_invalid"
+    )
     if len(password.encode("utf-8")) < 32:
         raise RuntimeSecretError("database_password_invalid")
     return username, password
 
 
 def _database_coordinates() -> tuple[str, int, str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the database coordinates operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared tuple[str, int, str] return contract.
+    """
     host = os.getenv("SAG_DATABASE_HOST", "").strip()
     database = os.getenv("SAG_DATABASE_NAME", "").strip()
     try:
@@ -72,7 +118,8 @@ async def provision_runtime_role(
     RME
 
     Requires:
-        - admin_conninfo authenticates as the RDS administrative database role over TLS.
+        - admin_conninfo authenticates as the RDS administrative database role
+        - over TLS.
         - Database migrations have already created the gateway runtime tables.
         - runtime_username/password are generated deployment credentials.
 
@@ -80,9 +127,11 @@ async def provision_runtime_role(
         - PostgreSQL role metadata and grants for the gateway runtime login.
 
     Effects:
-        - Creates or rotates the gateway login without granting DDL/admin capabilities.
+        - Creates or rotates the gateway login without granting DDL/admin
+        - capabilities.
         - Grants CONNECT, schema USAGE, DML on current tables, and sequence use.
-        - Configures equivalent default privileges for future objects created by the migration role.
+        - Configures equivalent default privileges for future objects created by
+        - the migration role.
 
     Inputs:
         - admin_conninfo: Administrative PostgreSQL connection string.
@@ -99,7 +148,9 @@ async def provision_runtime_role(
     admin_identifier = sql.Identifier(admin_username)
     database_identifier = sql.Identifier(database)
 
-    async with await psycopg.AsyncConnection.connect(admin_conninfo) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        admin_conninfo
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 "SELECT 1 FROM pg_roles WHERE rolname = %s",
@@ -110,15 +161,15 @@ async def provision_runtime_role(
         if exists is None:
             await connection.execute(
                 sql.SQL(
-                    "CREATE ROLE {} LOGIN PASSWORD {} "
-                    "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+                    "CREATE ROLE {} LOGIN PASSWORD {} NOSUPERUSER NOCREATEDB"
+                    " NOCREATEROLE NOREPLICATION NOBYPASSRLS"
                 ).format(runtime_identifier, runtime_password_literal)
             )
         else:
             await connection.execute(
                 sql.SQL(
-                    "ALTER ROLE {} WITH LOGIN PASSWORD {} "
-                    "NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
+                    "ALTER ROLE {} WITH LOGIN PASSWORD {} NOSUPERUSER"
+                    " NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS"
                 ).format(runtime_identifier, runtime_password_literal)
             )
 
@@ -129,16 +180,20 @@ async def provision_runtime_role(
             )
         )
         await connection.execute(
-            sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(runtime_identifier)
+            sql.SQL("GRANT USAGE ON SCHEMA public TO {}").format(
+                runtime_identifier
+            )
         )
         await connection.execute(
             sql.SQL(
-                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO {}"
+                "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA"
+                " public TO {}"
             ).format(runtime_identifier)
         )
         await connection.execute(
             sql.SQL(
-                "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {}"
+                "GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public"
+                " TO {}"
             ).format(runtime_identifier)
         )
         await connection.execute(
@@ -161,11 +216,14 @@ async def migrate_aws_database() -> tuple[str, ...]:
     RME
 
     Requires:
-        - Migration Pod Identity can read the RDS-managed admin secret and runtime DB secret.
-        - Private RDS endpoint coordinates are supplied as non-secret environment variables.
+        - Migration Pod Identity can read the RDS-managed admin secret and
+        - runtime DB secret.
+        - Private RDS endpoint coordinates are supplied as non-secret
+        - environment variables.
 
     Modifies:
-        - PostgreSQL schema, migration metadata, runtime role password, and grants.
+        - PostgreSQL schema, migration metadata, runtime role password, and
+        - grants.
 
     Effects:
         - Applies versioned schema migrations using the administrative role.
@@ -212,7 +270,8 @@ def main() -> None:
 
     Effects:
         - Applies cloud database migrations and runtime-role grants.
-        - Exits nonzero with a safe reason when secret/configuration loading fails.
+        - Exits nonzero with a safe reason when secret/configuration loading
+        - fails.
 
     Inputs:
         - None.
@@ -223,7 +282,9 @@ def main() -> None:
     try:
         applied = asyncio.run(migrate_aws_database())
     except RuntimeSecretError as exc:
-        raise SystemExit(f"AWS migration configuration failed: {exc.reason}") from exc
+        raise SystemExit(
+            f"AWS migration configuration failed: {exc.reason}"
+        ) from exc
     if applied:
         print("Applied migrations: " + ", ".join(applied))
     else:

@@ -22,13 +22,15 @@ class OpenRouterProvider(OpenAIProvider):
 
         Requires:
             - api_key or OPENROUTER_API_KEY provides an OpenRouter API key.
-            - base_url, when provided, identifies an OpenRouter-compatible API root.
+            - base_url, when provided, identifies an OpenRouter-compatible API
+            - root.
 
         Modifies:
             - Provider instance configuration.
 
         Effects:
-            - Configures the shared OpenAI-compatible chat transport for OpenRouter.
+            - Configures the shared OpenAI-compatible chat transport for
+            - OpenRouter.
             - Requests OpenRouter token and cost usage accounting.
             - Fails closed when no OpenRouter API key is configured.
 
@@ -36,7 +38,8 @@ class OpenRouterProvider(OpenAIProvider):
             - api_key: Optional explicit OpenRouter API key.
             - base_url: Optional OpenRouter API root override.
             - timeout_seconds: Maximum duration of an upstream request.
-            - transport: Optional httpx transport used for deterministic testing.
+            - transport: Optional httpx transport used for deterministic
+            - testing.
 
         Outputs:
             - A configured OpenRouter provider instance.

@@ -5,12 +5,19 @@ from time import perf_counter
 from typing import Any, Iterator, Mapping
 
 from opentelemetry import propagate, trace
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Span, SpanKind, Status, StatusCode
-from prometheus_client import CollectorRegistry, Counter, Histogram, generate_latest
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Histogram,
+    generate_latest,
+)
 
 _service_name = "secure-ai-gateway"
 _safe_label_pattern = re.compile(r"^[A-Za-z0-9_.:-]{1,64}$")
@@ -130,7 +137,8 @@ def _env_enabled(name: str, default: bool = False) -> bool:
         - Nothing.
 
     Effects:
-        - Interprets common true values without accepting arbitrary configuration.
+        - Interprets common true values without accepting arbitrary
+        - configuration.
 
     Inputs:
         - name: Environment variable name.
@@ -150,14 +158,16 @@ def configure_tracing() -> None:
     RME
 
     Requires:
-        - OTLP environment variables may identify a trace collector when tracing is enabled.
+        - OTLP environment variables may identify a trace collector when tracing
+        - is enabled.
 
     Modifies:
         - Global OpenTelemetry tracer provider once per process when enabled.
 
     Effects:
         - Leaves tracing as the OpenTelemetry no-op provider by default.
-        - Configures batched OTLP/HTTP trace export when SAG_OTEL_ENABLED is true.
+        - Configures batched OTLP/HTTP trace export when SAG_OTEL_ENABLED is
+        - true.
 
     Inputs:
         - None.
@@ -166,7 +176,10 @@ def configure_tracing() -> None:
         - None.
     """
     global _owned_tracer_provider
-    if not _env_enabled("SAG_OTEL_ENABLED") or _owned_tracer_provider is not None:
+    if (
+        not _env_enabled("SAG_OTEL_ENABLED")
+        or _owned_tracer_provider is not None
+    ):
         return
 
     resource = Resource.create(
@@ -219,7 +232,8 @@ def bounded_route(path: str) -> str:
         - Nothing.
 
     Effects:
-        - Prevents arbitrary paths from creating unbounded Prometheus label cardinality.
+        - Prevents arbitrary paths from creating unbounded Prometheus label
+        - cardinality.
 
     Inputs:
         - path: Incoming request path.
@@ -237,7 +251,9 @@ def _safe_label(value: str | None, fallback: str = "unknown") -> str:
     return value
 
 
-def observe_http_request(method: str, route: str, status_code: int, elapsed: float) -> None:
+def observe_http_request(
+    method: str, route: str, status_code: int, elapsed: float
+) -> None:
     """
     RME
 
@@ -259,13 +275,21 @@ def observe_http_request(method: str, route: str, status_code: int, elapsed: flo
     Outputs:
         - None.
     """
-    method_label = method.upper() if method.upper() in {"GET", "POST", "PUT", "PATCH", "DELETE"} else "OTHER"
+    method_label = (
+        method.upper()
+        if method.upper() in {"GET", "POST", "PUT", "PATCH", "DELETE"}
+        else "OTHER"
+    )
     status_class = f"{max(1, min(5, status_code // 100))}xx"
     http_requests_total.labels(method_label, route, status_class).inc()
-    http_request_duration_seconds.labels(method_label, route).observe(max(0.0, elapsed))
+    http_request_duration_seconds.labels(method_label, route).observe(
+        max(0.0, elapsed)
+    )
 
 
-def observe_provider_request(provider: str, outcome: str, elapsed: float) -> None:
+def observe_provider_request(
+    provider: str, outcome: str, elapsed: float
+) -> None:
     """
     RME
 
@@ -289,7 +313,9 @@ def observe_provider_request(provider: str, outcome: str, elapsed: float) -> Non
     provider_label = _safe_label(provider)
     outcome_label = outcome if outcome in {"success", "error"} else "other"
     provider_requests_total.labels(provider_label, outcome_label).inc()
-    provider_request_duration_seconds.labels(provider_label).observe(max(0.0, elapsed))
+    provider_request_duration_seconds.labels(provider_label).observe(
+        max(0.0, elapsed)
+    )
     if outcome_label == "error":
         backend_failures_total.labels("provider").inc()
 
@@ -306,7 +332,8 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
 
     Effects:
         - Derives bounded counters from existing audit decisions.
-        - Never uses request IDs, client IDs, key IDs, model names, tool names, or reasons as labels.
+        - Never uses request IDs, client IDs, key IDs, model names, tool names,
+        - or reasons as labels.
 
     Inputs:
         - payload: Sanitized audit event mapping.
@@ -330,7 +357,11 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
         indicators = payload.get("prompt_injection_indicators")
         if isinstance(indicators, str):
             for indicator in set(indicators.split(",")):
-                label = indicator if indicator in _known_injection_indicators else "other"
+                label = (
+                    indicator
+                    if indicator in _known_injection_indicators
+                    else "other"
+                )
                 prompt_injection_findings_total.labels(label).inc()
 
     stage_by_event = {
@@ -341,18 +372,28 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
     stage = stage_by_event.get(event)
     if stage is not None:
         risk = payload.get("tool_execution_risk")
-        risk_label = risk if risk in {"read", "write", "destructive"} else "none"
-        tool_authorization_decisions_total.labels(stage, outcome, risk_label).inc()
+        risk_label = (
+            risk if risk in {"read", "write", "destructive"} else "none"
+        )
+        tool_authorization_decisions_total.labels(
+            stage, outcome, risk_label
+        ).inc()
 
     if event == "usage_budget" and outcome == "recorded":
         provider = _safe_label(
-            payload.get("provider") if isinstance(payload.get("provider"), str) else None
+            payload.get("provider")
+            if isinstance(payload.get("provider"), str)
+            else None
         )
         tokens = payload.get("request_tokens")
         cost = payload.get("request_cost_usd")
         if isinstance(tokens, int) and tokens >= 0:
             usage_tokens_total.labels(provider).inc(tokens)
-        if isinstance(cost, (int, float)) and not isinstance(cost, bool) and cost >= 0:
+        if (
+            isinstance(cost, (int, float))
+            and not isinstance(cost, bool)
+            and cost >= 0
+        ):
             usage_cost_usd_total.labels(provider).inc(float(cost))
 
     if outcome == "error":
@@ -413,7 +454,8 @@ def request_trace(
         - method: HTTP method.
         - route: Bounded route label.
         - request_id: Gateway request correlation ID.
-        - headers: Incoming request headers used only for standard trace-context extraction.
+        - headers: Incoming request headers used only for standard trace-context
+        - extraction.
 
     Outputs:
         - Active request span context manager value.
@@ -443,7 +485,8 @@ def finish_request_span(span: Span, status_code: int) -> str | None:
         - Span status and response-status attributes.
 
     Effects:
-        - Marks 5xx responses as errors and returns a printable trace ID when sampled/valid.
+        - Marks 5xx responses as errors and returns a printable trace ID when
+        - sampled/valid.
 
     Inputs:
         - span: Active OpenTelemetry span.
@@ -473,7 +516,8 @@ def provider_trace(provider: str) -> Iterator[Span]:
         - Current OpenTelemetry span context during the upstream request.
 
     Effects:
-        - Starts a child span that records provider identity but no prompts, responses, or credentials.
+        - Starts a child span that records provider identity but no prompts,
+        - responses, or credentials.
 
     Inputs:
         - provider: Provider identifier.

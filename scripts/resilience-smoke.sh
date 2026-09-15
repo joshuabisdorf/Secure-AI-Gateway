@@ -19,11 +19,15 @@ fi
 export SAG_PROVIDER=mock
 export SAG_ALLOWED_MODELS=mock-model
 export SAG_SECURITY_POLICY_HOST_FILE=./config/demo-security-policies.json
-export SAG_TOOL_EXECUTION_SIGNING_KEY="${SAG_TOOL_EXECUTION_SIGNING_KEY:-$(python - <<'PY'
+if [ -z "${SAG_TOOL_EXECUTION_SIGNING_KEY:-}" ]; then
+  SAG_TOOL_EXECUTION_SIGNING_KEY="$(
+    python - <<'PY'
 import secrets
 print(secrets.token_urlsafe(48))
 PY
-)}"
+  )"
+  export SAG_TOOL_EXECUTION_SIGNING_KEY
+fi
 
 TMP_DIR="$(mktemp -d)"
 API_KEY=""
@@ -32,7 +36,8 @@ CONTAINER_API_KEY_FILE="/tmp/sag-resilience-client-key-$$"
 
 wait_for_redis() {
   for _ in $(seq 1 30); do
-    if docker compose exec -T redis redis-cli ping 2>/dev/null | grep -Fq PONG; then
+    if docker compose exec -T redis redis-cli ping 2>/dev/null | grep -Fq \
+      PONG; then
       return 0
     fi
     sleep 1
@@ -42,7 +47,8 @@ wait_for_redis() {
 
 wait_for_postgres() {
   for _ in $(seq 1 30); do
-    if docker compose exec -T postgres pg_isready -U sag -d secure_ai_gateway >/dev/null 2>&1; then
+    if docker compose exec -T postgres pg_isready -U sag -d \
+      secure_ai_gateway >/dev/null 2>&1; then
       return 0
     fi
     sleep 1
@@ -56,13 +62,15 @@ cleanup() {
   docker compose start postgres >/dev/null 2>&1 || true
   if wait_for_postgres >/dev/null 2>&1 && [[ -n "$KEY_ID" ]]; then
     for _ in $(seq 1 10); do
-      if docker compose exec -T gateway python -m app.clients revoke "$KEY_ID" >/dev/null 2>&1; then
+      if docker compose exec -T gateway python -m app.clients revoke \
+        "$KEY_ID" >/dev/null 2>&1; then
         break
       fi
       sleep 1
     done
   fi
-  docker compose exec -T gateway rm -f "$CONTAINER_API_KEY_FILE" >/dev/null 2>&1 || true
+  docker compose exec -T gateway rm -f "$CONTAINER_API_KEY_FILE" >/dev/null \
+    2>&1 || true
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
@@ -73,7 +81,9 @@ chat_status() {
     -w '%{http_code}' \
     -H "Authorization: Bearer $API_KEY" \
     -H 'Content-Type: application/json' \
-    --data-binary '{"model":"mock-model","messages":[{"role":"user","content":"Resilience probe."}]}' \
+    --data-binary \
+      '{"model":"mock-model","messages":['\
+'{"role":"user","content":"Resilience probe."}]}' \
     http://127.0.0.1:8000/v1/chat/completions
 }
 
@@ -135,7 +145,8 @@ if [[ -z "$API_KEY" || -z "$KEY_ID" ]]; then
 fi
 echo "PASS step=create_resilience_client key_id=$KEY_ID raw_key_logged=false"
 
-docker compose exec -T redis redis-cli DEL 'sag:rate_limit:portfolio-demo' >/dev/null
+docker compose exec -T redis redis-cli DEL 'sag:rate_limit:portfolio-demo' \
+  >/dev/null
 
 STATUS="$(chat_status)"
 assert_status "$STATUS" "200" "baseline_chat"

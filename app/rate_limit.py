@@ -44,7 +44,9 @@ return {next_value, 1, ttl}
 
 
 class RateLimiterUnavailable(RuntimeError):
-    """Raised when the configured rate-limit state backend cannot be used safely."""
+    """
+    Raised when the configured rate-limit state backend cannot be used safely.
+    """
 
 
 @dataclass(frozen=True)
@@ -67,11 +69,9 @@ class _RedisClient(Protocol):
         script: str,
         numkeys: int,
         *keys_and_args: object,
-    ) -> object:
-        ...
+    ) -> object: ...
 
-    async def aclose(self) -> None:
-        ...
+    async def aclose(self) -> None: ...
 
 
 def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
@@ -79,7 +79,8 @@ def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
     RME
 
     Requires:
-        - configured_limits uses client_id:requests_per_minute records separated by commas.
+        - configured_limits uses client_id:requests_per_minute records separated
+        - by commas.
 
     Modifies:
         - Nothing.
@@ -95,7 +96,8 @@ def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
         - Mapping from client ID to requests-per-minute limit.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or out of range.
+        - ValueError: Configuration is empty, malformed, duplicated, or out of
+        - range.
     """
     limits: dict[str, int] = {}
 
@@ -134,13 +136,15 @@ def get_client_rate_limit(client_id: str) -> int:
 
     Requires:
         - client_id identifies an authenticated gateway client.
-        - SAG_CLIENT_RATE_LIMITS may define per-client requests-per-minute limits.
+        - SAG_CLIENT_RATE_LIMITS may define per-client requests-per-minute
+        - limits.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Fails closed when rate-limit policy is absent, malformed, or missing the client.
+        - Fails closed when rate-limit policy is absent, malformed, or missing
+        - the client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -220,14 +224,16 @@ class InMemoryRateLimiter:
             - Process-local request-count state when a request is allowed.
 
         Effects:
-            - Applies a fixed-window rate limit atomically for the current process.
+            - Applies a fixed-window rate limit atomically for the current
+            - process.
 
         Inputs:
             - client_id: Authenticated gateway client identity.
             - limit_rpm: Maximum requests allowed during the current window.
 
         Outputs:
-            - RateLimitDecision describing allow/deny, remaining capacity, and retry delay.
+            - RateLimitDecision describing allow/deny, remaining capacity, and
+            - retry delay.
         """
         if limit_rpm < 1:
             raise ValueError("invalid_rate_limit")
@@ -268,7 +274,24 @@ class InMemoryRateLimiter:
             )
 
     def reset(self) -> None:
-        """Clear all process-local test rate-limit state."""
+        """
+        RME
+
+        Requires:
+            - The in-memory limiter may contain process-local test state.
+
+        Modifies:
+            - All process-local rate-limit buckets owned by this limiter.
+
+        Effects:
+            - Clears rate-limit state under the limiter lock.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         with self._lock:
             self._buckets.clear()
 
@@ -285,7 +308,8 @@ class RedisRateLimiter:
         RME
 
         Requires:
-            - redis_url identifies a compatible Redis or Valkey server when client is not injected.
+            - redis_url identifies a compatible Redis or Valkey server when
+            - client is not injected.
             - window_seconds is a positive integer.
 
         Modifies:
@@ -293,7 +317,8 @@ class RedisRateLimiter:
 
         Effects:
             - Creates a lazily connected distributed fixed-window rate limiter.
-            - Uses the central Redis factory for local Redis or TLS/IAM-authenticated ElastiCache.
+            - Uses the central Redis factory for local Redis or
+            - TLS/IAM-authenticated ElastiCache.
 
         Inputs:
             - redis_url: Redis-compatible connection URL.
@@ -317,7 +342,8 @@ class RedisRateLimiter:
         RME
 
         Requires:
-            - The configured Redis/Valkey backend supports EVAL, GET, SET, TTL, and INCR.
+            - The configured Redis/Valkey backend supports EVAL, GET, SET, TTL,
+            - and INCR.
             - client_id identifies an authenticated gateway client.
             - limit_rpm is a positive requests-per-minute limit.
 
@@ -325,8 +351,10 @@ class RedisRateLimiter:
             - Shared fixed-window counter for the client when capacity remains.
 
         Effects:
-            - Atomically increments and caps the shared counter with a portable Lua script.
-            - Preserves the original window expiration instead of extending it per request.
+            - Atomically increments and caps the shared counter with a portable
+            - Lua script.
+            - Preserves the original window expiration instead of extending it
+            - per request.
             - Fails closed on malformed shared state or backend errors.
 
         Inputs:
@@ -348,8 +376,13 @@ class RedisRateLimiter:
                 limit_rpm,
                 self._window_seconds,
             )
-            if not isinstance(raw_result, (list, tuple)) or len(raw_result) != 3:
-                raise RateLimiterUnavailable("invalid_redis_rate_limit_response")
+            if (
+                not isinstance(raw_result, (list, tuple))
+                or len(raw_result) != 3
+            ):
+                raise RateLimiterUnavailable(
+                    "invalid_redis_rate_limit_response"
+                )
 
             current_value = int(raw_result[0])
             applied_increment = int(raw_result[1])
@@ -377,13 +410,52 @@ class RedisRateLimiter:
         )
 
     async def close(self) -> None:
-        """Close the shared-backend client's connection pool."""
+        """
+        RME
+
+        Requires:
+            - The Redis-compatible client may own open connections.
+
+        Modifies:
+            - Shared-backend client connection-pool state.
+
+        Effects:
+            - Closes the Redis-compatible client cleanly.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         await self._client.aclose()
 
 
 class UnavailableRateLimiter:
-    async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
-        """Fail closed when no usable rate-limit backend is configured."""
+    async def check(
+        self,
+        client_id: str,
+        limit_rpm: int,
+    ) -> RateLimitDecision:
+        """
+        RME
+
+        Requires:
+            - No usable rate-limit backend is configured.
+
+        Modifies:
+            - Nothing.
+
+        Effects:
+            - Fails closed instead of allowing an unthrottled request.
+
+        Inputs:
+            - client_id: Authenticated client identity.
+            - limit_rpm: Requested rate-limit ceiling.
+
+        Outputs:
+            - No decision; always raises RateLimiterUnavailable.
+        """
         raise RateLimiterUnavailable("rate_limiter_not_configured")
 
 
@@ -401,7 +473,8 @@ def build_rate_limiter():
     Effects:
         - Selects shared Redis/Valkey enforcement by default for runtime.
         - Retains the in-memory backend for deterministic tests.
-        - Fails closed through UnavailableRateLimiter when configuration is unusable.
+        - Fails closed through UnavailableRateLimiter when configuration is
+        - unusable.
 
     Inputs:
         - None.

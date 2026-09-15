@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 import ast
 import re
 import subprocess
@@ -8,7 +7,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE_FILE = ROOT / ".style-baseline"
 MAX_LINE_LENGTH = 80
 
 _TEXT_SUFFIXES = {
@@ -29,7 +27,6 @@ _TEXT_NAMES = {
     ".editorconfig",
     ".env.example",
     ".gitignore",
-    ".style-baseline",
     "Dockerfile",
     "Makefile",
     "NOTICE",
@@ -43,6 +40,9 @@ _EXCLUDED_PREFIXES = ("evals/datasets/",)
 _URL_RE = re.compile(r"https?://\S+")
 _ACTION_RE = re.compile(
     r"^\s*uses:\s*[^\s]+@[0-9a-f]{40}(?:\s+#.*)?$"
+)
+_TF_BLOCK_HEADER_RE = re.compile(
+    r'^\s*(?:resource|data)\s+"[^"]+"\s+"[^"]+"\s+\{$'
 )
 _LONG_ATOM_RE = re.compile(r"\S{81,}")
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
@@ -109,48 +109,6 @@ def _run_git(
     )
 
 
-def _baseline_commit() -> str:
-    """Return the commit that predates project style enforcement.
-
-    Requires:
-        BASELINE_FILE contains one full Git commit SHA.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads the repository-owned style baseline file.
-    Inputs:
-        None.
-    Outputs:
-        Forty-character lowercase Git commit SHA.
-    """
-    baseline = BASELINE_FILE.read_text(encoding="utf-8").strip()
-    if not re.fullmatch(r"[0-9a-f]{40}", baseline):
-        raise ValueError("invalid .style-baseline commit")
-    return baseline
-
-
-def _baseline_available(baseline: str) -> bool:
-    """Return whether the baseline commit exists in the local clone.
-
-    Requires:
-        baseline is a full Git commit SHA.
-    Modifies:
-        Nothing.
-    Effects:
-        Queries the local Git object database.
-    Inputs:
-        baseline: Commit used for transitional style comparison.
-    Outputs:
-        True when Git can resolve the baseline commit locally.
-    """
-    result = _run_git(
-        "cat-file",
-        "-e",
-        f"{baseline}^{{commit}}",
-        check=False,
-    )
-    return result.returncode == 0
-
 
 def _tracked_files() -> list[Path]:
     """Return tracked text candidates in deterministic order.
@@ -181,36 +139,6 @@ def _tracked_files() -> list[Path]:
     return sorted(candidates)
 
 
-def _changed_since_baseline(path: Path, baseline: str) -> bool:
-    """Return whether a tracked file differs from the style baseline.
-
-    Requires:
-        baseline exists in the local Git object database.
-        path is repository-relative and currently tracked.
-    Modifies:
-        Nothing.
-    Effects:
-        Compares current tracked content with the baseline commit.
-    Inputs:
-        path: Repository-relative path.
-        baseline: Commit predating style enforcement.
-    Outputs:
-        True for new or modified files, otherwise False.
-    """
-    result = _run_git(
-        "diff",
-        "--quiet",
-        baseline,
-        "--",
-        str(path),
-        check=False,
-    )
-    if result.returncode not in (0, 1):
-        raise RuntimeError(
-            f"unable to compare {path} with style baseline"
-        )
-    return result.returncode == 1
-
 
 def _line_length_exception(path: Path, line: str) -> bool:
     """Return whether an overlong line is indivisible by project policy.
@@ -231,6 +159,11 @@ def _line_length_exception(path: Path, line: str) -> bool:
     if not stripped:
         return False
     if path.suffix == ".md" and stripped.startswith("|"):
+        return True
+    if (
+        path.suffix == ".tf"
+        and _TF_BLOCK_HEADER_RE.fullmatch(line)
+    ):
         return True
     if _ACTION_RE.fullmatch(line):
         return True
@@ -383,6 +316,13 @@ def _requires_rmeio(
         True for non-trivial project functions.
     """
     if _is_dunder(node.name):
+        return False
+    if (
+        len(node.body) == 1
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and node.body[0].value.value is Ellipsis
+    ):
         return False
     if node.name.startswith("_") and len(node.body) <= 3:
         return False
@@ -578,37 +518,23 @@ def _check_shell(path: Path) -> list[Violation]:
     return violations
 
 
-def collect_violations(
-    *,
-    strict: bool,
-) -> tuple[list[Violation], int, int]:
+def collect_violations() -> tuple[list[Violation], int]:
     """Collect machine-checkable project style violations.
 
     Requires:
         Repository files are readable and Git is available.
-        The baseline commit is available for non-strict checks.
     Modifies:
         Nothing.
     Effects:
-        Reads tracked files and parses selected source files.
+        Reads every tracked project text file and parses source files.
     Inputs:
-        strict: Whether to check unchanged pre-standard files too.
+        None.
     Outputs:
-        Violations, checked-file count, and skipped legacy-file count.
+        Violations and the checked-file count.
     """
-    baseline = _baseline_commit()
-    if not strict and not _baseline_available(baseline):
-        raise RuntimeError(
-            "style baseline is unavailable; use a full Git clone"
-        )
-
     violations: list[Violation] = []
     checked_files = 0
-    legacy_skipped = 0
     for path in _tracked_files():
-        if not strict and not _changed_since_baseline(path, baseline):
-            legacy_skipped += 1
-            continue
         checked_files += 1
         violations.extend(_check_text_file(path))
         if path.suffix == ".py":
@@ -624,53 +550,24 @@ def collect_violations(
             item.message,
         )
     )
-    return violations, checked_files, legacy_skipped
-
-
-def _build_parser() -> argparse.ArgumentParser:
-    """Build the project style command-line parser.
-
-    Requires:
-        Nothing.
-    Modifies:
-        Nothing.
-    Effects:
-        None.
-    Inputs:
-        None.
-    Outputs:
-        Configured argument parser.
-    """
-    parser = argparse.ArgumentParser(
-        description="Check Secure AI Gateway project style.",
-    )
-    parser.add_argument(
-        "--strict",
-        action="store_true",
-        help="check the entire tree, including pre-standard files",
-    )
-    return parser
-
+    return violations, checked_files
 
 def main() -> int:
-    """Run the repository style gate and print stable diagnostics.
+    """Run the whole-repository style gate and print diagnostics.
 
     Requires:
         The command runs from a Git checkout of this project.
     Modifies:
         Nothing.
     Effects:
-        Prints style violations and migration status.
+        Checks all tracked project text and prints style violations.
     Inputs:
-        Command-line arguments parsed by `_build_parser`.
+        None.
     Outputs:
         Process status 0 when clean, otherwise 1.
     """
-    args = _build_parser().parse_args()
     try:
-        violations, checked_files, legacy_skipped = collect_violations(
-            strict=args.strict,
-        )
+        violations, checked_files = collect_violations()
     except (OSError, RuntimeError, ValueError) as exc:
         print(f"style_check=ERROR detail={exc}")
         return 2
@@ -684,23 +581,19 @@ def main() -> int:
             f"{violation.message}"
         )
 
-    mode = "strict" if args.strict else "incremental"
     if violations:
         print(
-            f"style_check=FAIL mode={mode} "
+            "style_check=FAIL mode=whole-tree "
             f"violations={len(violations)} "
-            f"checked_files={checked_files} "
-            f"legacy_skipped={legacy_skipped}"
+            f"checked_files={checked_files}"
         )
         return 1
 
     print(
-        f"style_check=PASS mode={mode} violations=0 "
-        f"checked_files={checked_files} "
-        f"legacy_skipped={legacy_skipped}"
+        "style_check=PASS mode=whole-tree violations=0 "
+        f"checked_files={checked_files}"
     )
     return 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

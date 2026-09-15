@@ -31,13 +31,16 @@ RUN apt-get update \
     && /usr/local/bin/python -m pip uninstall -y setuptools \
     && /usr/local/bin/python -m pip uninstall -y pip \
     && groupadd --system --gid 10001 sag \
-    && useradd --system --uid 10001 --gid sag --home-dir /home/sag --create-home sag
+    && useradd --system --uid 10001 --gid sag --home-dir /home/sag \
+    --create-home sag
 
 COPY --from=builder /opt/venv /opt/venv
 COPY app ./app
 COPY db ./db
-COPY config/security-policies.example.json ./config/security-policies.example.json
-COPY config/tool-execution-policies.example.json ./config/tool-execution-policies.example.json
+COPY config/security-policies.example.json \
+    ./config/security-policies.example.json
+COPY config/tool-execution-policies.example.json \
+    ./config/tool-execution-policies.example.json
 COPY LICENSE NOTICE ./
 COPY docker/entrypoint.sh /usr/local/bin/sag-entrypoint
 
@@ -49,7 +52,10 @@ USER sag:sag
 EXPOSE 8000
 
 HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=5 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()" || exit 1
+    CMD python -c \
+    "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()" || exit 1
 
 ENTRYPOINT ["sag-entrypoint"]
-CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000", "--limit-concurrency", "256", "--timeout-keep-alive", "5", "--no-server-header", "--no-proxy-headers"]
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8000", \
+    "--limit-concurrency", "256", "--timeout-keep-alive", "5", \
+    "--no-server-header", "--no-proxy-headers"]

@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 from app.observability import observe_audit_event
 
-
 audit_logger = logging.getLogger("secure_ai_gateway.audit")
 audit_logger.setLevel(logging.INFO)
 audit_logger.propagate = False
@@ -62,15 +61,19 @@ def emit_audit_event(
 
     Modifies:
         - The process logging stream through the audit logger.
-        - Best-effort bounded Prometheus counters derived from sanitized metadata.
+        - Best-effort bounded Prometheus counters derived from sanitized
+        - metadata.
 
     Effects:
         - Emits one JSON audit record to application stderr.
         - Derives metrics only from already-sanitized audit metadata.
-        - Observability failures do not interrupt authorization or audit logging.
-        - Omits prompt content, detected PII values, credentials, execution tickets,
+        - Observability failures do not interrupt authorization or audit
+        - logging.
+        - Omits prompt content, detected PII values, credentials, execution
+        - tickets,
           tool arguments, and tool outputs from the audit record.
-        - Records prompt-injection and tool-authorization metadata only as safe labels/names/IDs.
+        - Records prompt-injection and tool-authorization metadata only as safe
+        - labels/names/IDs.
 
     Inputs:
         - request_id: Correlation identifier for the request.
@@ -84,8 +87,10 @@ def emit_audit_event(
         - reason: Optional non-secret decision reason.
         - latency_ms: Optional elapsed request latency in milliseconds.
         - limit_rpm: Optional requests-per-minute limit applied to the client.
-        - remaining: Optional requests remaining in the current rate-limit window.
-        - retry_after_seconds: Optional delay before a denied client should retry.
+        - remaining: Optional requests remaining in the current rate-limit
+        - window.
+        - retry_after_seconds: Optional delay before a denied client should
+        - retry.
         - request_tokens: Optional provider-reported tokens used by one request.
         - request_cost_usd: Optional provider-reported USD cost for one request.
         - token_limit_daily: Optional configured daily token budget.
@@ -97,15 +102,23 @@ def emit_audit_event(
         - budget_reset_at: Optional ISO timestamp for the next budget reset.
         - pii_detected_count: Optional count of PII findings without raw values.
         - pii_types: Optional comma-separated PII type names without raw values.
-        - prompt_injection_detected_count: Optional count of unique injection indicators.
-        - prompt_injection_score: Optional aggregate deterministic injection score.
-        - prompt_injection_indicators: Optional comma-separated safe indicator labels.
-        - tool_requested_count: Optional number of distinct function tools exposed.
-        - tool_requested_names: Optional comma-separated validated function names.
-        - tool_denied_names: Optional comma-separated function names denied by policy.
+        - prompt_injection_detected_count: Optional count of unique injection
+        - indicators.
+        - prompt_injection_score: Optional aggregate deterministic injection
+        - score.
+        - prompt_injection_indicators: Optional comma-separated safe indicator
+        - labels.
+        - tool_requested_count: Optional number of distinct function tools
+        - exposed.
+        - tool_requested_names: Optional comma-separated validated function
+        - names.
+        - tool_denied_names: Optional comma-separated function names denied by
+        - policy.
         - tool_call_id: Optional provider-issued tool-call identifier.
-        - tool_execution_id: Optional gateway-issued one-time execution identifier.
-        - tool_execution_risk: Optional read/write/destructive risk classification.
+        - tool_execution_id: Optional gateway-issued one-time execution
+        - identifier.
+        - tool_execution_risk: Optional read/write/destructive risk
+        - classification.
         - source_request_id: Optional chat request that produced the tool call.
 
     Outputs:
@@ -160,7 +173,10 @@ def emit_audit_event(
     try:
         observe_audit_event(payload)
     except Exception:
-        # Telemetry is never part of an allow/deny decision. Audit logging remains authoritative.
+        # Telemetry is never part of an allow/deny decision. Audit logging
+        # remains authoritative.
         pass
 
-    audit_logger.info(json.dumps(payload, separators=(",", ":"), sort_keys=True))
+    audit_logger.info(
+        json.dumps(payload, separators=(",", ":"), sort_keys=True)
+    )

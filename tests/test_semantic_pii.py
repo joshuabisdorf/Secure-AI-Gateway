@@ -21,7 +21,8 @@ class FixedSemanticAnalyzer:
             - Nothing.
 
         Effects:
-            - Supplies a deterministic semantic finding without loading an NLP model.
+            - Supplies a deterministic semantic finding without loading an NLP
+            - model.
 
         Inputs:
             - text: Test message after structured redaction.
@@ -36,19 +37,23 @@ class FixedSemanticAnalyzer:
         return (SemanticPIIFinding("person_name", start, start + len(marker)),)
 
 
-def test_structured_and_semantic_pii_are_redacted_in_one_copied_request() -> None:
+def test_structured_and_semantic_pii_are_redacted_in_one_copied_request() -> (
+    None
+):
     """
     RME
 
     Requires:
-        - Structured PII and a deterministic semantic finding appear in one request.
+        - Structured PII and a deterministic semantic finding appear in one
+        - request.
 
     Modifies:
         - Nothing.
 
     Effects:
         - Verifies structured redaction runs before semantic redaction.
-        - Verifies the original request remains unchanged and raw values are absent downstream.
+        - Verifies the original request remains unchanged and raw values are
+        - absent downstream.
 
     Inputs:
         - None.
@@ -86,13 +91,15 @@ def test_spacy_semantic_layer_detects_street_address_without_network() -> None:
         - Lazy process-local spaCy model state.
 
     Effects:
-        - Verifies the runtime semantic analyzer can load locally and redact a supported address.
+        - Verifies the runtime semantic analyzer can load locally and redact a
+        - supported address.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether local semantic PII processing is operational.
+        - None. Assertions determine whether local semantic PII processing is
+        - operational.
     """
     analyzer = SpacySemanticPIIAnalyzer()
     text = "My address is 742 Evergreen Terrace."
@@ -114,7 +121,8 @@ def test_missing_semantic_model_fails_closed_with_sanitized_503() -> None:
         - Temporary analyzer lazy-load state only.
 
     Effects:
-        - Verifies model-loading failure becomes a sanitized fail-closed HTTP response.
+        - Verifies model-loading failure becomes a sanitized fail-closed HTTP
+        - response.
 
     Inputs:
         - None.

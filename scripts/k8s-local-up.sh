@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -74,7 +74,8 @@ kubectl apply -k k8s/local >/dev/null
 
 kubectl -n "$NAMESPACE" rollout status statefulset/sag-postgres --timeout=180s
 kubectl -n "$NAMESPACE" rollout status statefulset/sag-redis --timeout=180s
-kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector --timeout=180s
+kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector \
+  --timeout=180s
 
 kubectl -n "$NAMESPACE" delete job sag-migrate --ignore-not-found >/dev/null
 kubectl apply -k k8s/migration >/dev/null
@@ -98,7 +99,11 @@ if [ -z "$GATEWAY_POD" ]; then
 fi
 
 CLIENT_SECRET_FILE="/tmp/sag-client-key-$$"
-trap 'kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true' EXIT
+cleanup_client_secret() {
+  kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+    rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true
+}
+trap cleanup_client_secret EXIT
 
 CLIENT_METADATA="$(
   kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \

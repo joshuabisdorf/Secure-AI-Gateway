@@ -10,8 +10,12 @@ from app.models import ChatCompletionRequest
 
 _client_id_pattern = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 _supported_actions = frozenset({"audit", "deny", "off"})
-_base64_candidate_pattern = re.compile(r"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/=])")
-_hex_candidate_pattern = re.compile(r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){16,}(?![0-9A-Fa-f])")
+_base64_candidate_pattern = re.compile(
+    r"(?<![A-Za-z0-9+/=])[A-Za-z0-9+/]{24,}={0,2}(?![A-Za-z0-9+/=])"
+)
+_hex_candidate_pattern = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}){16,}(?![0-9A-Fa-f])"
+)
 _max_encoded_candidates = 32
 _max_encoded_candidate_chars = 4096
 
@@ -58,14 +62,17 @@ _indicators = (
         weight=4,
         patterns=(
             re.compile(
-                r"\b(?:reveal|show|print|display|repeat|output|provide)\b.{0,48}"
+                r"\b(?:reveal|show|print|display|repeat|"
+                r"output|provide)\b.{0,48}"
                 r"\b(?:system|developer|hidden|initial)\s+"
                 r"(?:prompt|message|instructions?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
             re.compile(
-                r"\bwhat\s+(?:were|are)\s+(?:your\s+)?(?:exact\s+)?"
-                r"(?:system\s+|developer\s+|hidden\s+|initial\s+)?instructions\b",
+                r"\bwhat\s+(?:were|are)\s+(?:your\s+)?"
+                r"(?:exact\s+)?"
+                r"(?:system\s+|developer\s+|hidden\s+|initial\s+)?"
+                r"instructions\b",
                 re.IGNORECASE,
             ),
         ),
@@ -76,12 +83,14 @@ _indicators = (
         patterns=(
             re.compile(
                 r"\byou\s+are\s+now\s+(?:in\s+)?"
-                r"(?:developer|admin|administrator|root|debug|unrestricted)\s+mode\b",
+                r"(?:developer|admin|administrator|root|debug|"
+                r"unrestricted)\s+mode\b",
                 re.IGNORECASE,
             ),
             re.compile(
                 r"\bact\s+as\s+(?:an?\s+)?"
-                r"(?:unrestricted|uncensored|developer|system|administrator|root)\b",
+                r"(?:unrestricted|uncensored|developer|system|"
+                r"administrator|root)\b",
                 re.IGNORECASE,
             ),
         ),
@@ -91,8 +100,10 @@ _indicators = (
         weight=3,
         patterns=(
             re.compile(
-                r"\b(?:bypass|disable|circumvent|override|ignore)\b.{0,48}"
-                r"\b(?:safety|security|policy|policies|guardrails?|restrictions?|filters?)\b",
+                r"\b(?:bypass|disable|circumvent|override|"
+                r"ignore)\b.{0,48}"
+                r"\b(?:safety|security|policy|policies|guardrails?|"
+                r"restrictions?|filters?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
         ),
@@ -102,14 +113,18 @@ _indicators = (
         weight=4,
         patterns=(
             re.compile(
-                r"\b(?:reveal|show|print|display|output|provide|give\s+me)\b.{0,64}"
-                r"\b(?:api[ _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
+                r"\b(?:reveal|show|print|display|output|provide|"
+                r"give\s+me)\b.{0,64}"
+                r"\b(?:api["
+                r" _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
         ),
     ),
 )
-_indicator_weights = {indicator.name: indicator.weight for indicator in _indicators}
+_indicator_weights = {
+    indicator.name: indicator.weight for indicator in _indicators
+}
 _indicator_weights["encoded_payload"] = 5
 
 
@@ -137,7 +152,8 @@ def parse_client_prompt_injection_policies(
         - Mapping from client ID to validated PromptInjectionPolicy.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or unsupported.
+        - ValueError: Configuration is empty, malformed, duplicated, or
+        - unsupported.
     """
     policies: dict[str, PromptInjectionPolicy] = {}
 
@@ -179,7 +195,8 @@ def get_client_prompt_injection_policy(client_id: str) -> PromptInjectionPolicy:
         - Nothing.
 
     Effects:
-        - Fails closed when prompt-injection policy is absent, malformed, or missing the client.
+        - Fails closed when prompt-injection policy is absent, malformed, or
+        - missing the client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -243,6 +260,25 @@ def _decode_hex(candidate: str) -> str | None:
 
 
 def _match_encoded_indicators(text: str) -> set[str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the match encoded indicators operation.
+
+    Inputs:
+        - text: Function input.
+
+    Outputs:
+        - A value matching the declared set[str] return contract.
+    """
     matched: set[str] = set()
     processed = 0
 
@@ -267,7 +303,9 @@ def _match_encoded_indicators(text: str) -> set[str]:
     return matched
 
 
-def inspect_prompt_injection(request: ChatCompletionRequest) -> PromptInjectionResult:
+def inspect_prompt_injection(
+    request: ChatCompletionRequest,
+) -> PromptInjectionResult:
     """
     RME
 
@@ -278,16 +316,21 @@ def inspect_prompt_injection(request: ChatCompletionRequest) -> PromptInjectionR
         - Nothing.
 
     Effects:
-        - Inspects textual client-supplied message content for explicit prompt-injection indicators.
-        - Decodes bounded Base64/hex candidates only to inspect them for the same indicators.
+        - Inspects textual client-supplied message content for explicit
+        - prompt-injection indicators.
+        - Decodes bounded Base64/hex candidates only to inspect them for the
+        - same indicators.
         - Ignores non-text assistant/tool-call fields.
-        - Returns only indicator labels and scores; raw prompt fragments are never retained.
+        - Returns only indicator labels and scores; raw prompt fragments are
+        - never retained.
 
     Inputs:
-        - request: Chat-completion request to inspect before provider forwarding.
+        - request: Chat-completion request to inspect before provider
+        - forwarding.
 
     Outputs:
-        - PromptInjectionResult with unique indicator count, aggregate score, and labels.
+        - PromptInjectionResult with unique indicator count, aggregate score,
+        - and labels.
     """
     matched: set[str] = set()
 

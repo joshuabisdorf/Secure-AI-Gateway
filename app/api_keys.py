@@ -32,7 +32,8 @@ def hash_api_key(api_key: str) -> str:
 
     Requires:
         - api_key is the complete gateway bearer credential.
-        - Gateway API keys are generated with at least 256 bits of CSPRNG entropy.
+        - Gateway API keys are generated with at least 256 bits of CSPRNG
+        - entropy.
 
     Modifies:
         - Nothing.
@@ -91,7 +92,8 @@ def parse_client_records(configured_clients: str) -> dict[str, ClientKeyRecord]:
     RME
 
     Requires:
-        - configured_clients uses client_id:key_id:sha256 records separated by commas.
+        - configured_clients uses client_id:key_id:sha256 records separated by
+        - commas.
 
     Modifies:
         - Nothing.
@@ -107,7 +109,8 @@ def parse_client_records(configured_clients: str) -> dict[str, ClientKeyRecord]:
         - Mapping from key ID to validated client-key record.
 
     Raises:
-        - ValueError: The configuration is empty, malformed, or contains duplicates.
+        - ValueError: The configuration is empty, malformed, or contains
+        - duplicates.
     """
     records: dict[str, ClientKeyRecord] = {}
 
@@ -148,10 +151,12 @@ def generate_api_key(client_id: str) -> tuple[str, ClientKeyRecord]:
     RME
 
     Requires:
-        - client_id is 1-64 characters using letters, digits, dot, underscore, or hyphen.
+        - client_id is 1-64 characters using letters, digits, dot, underscore,
+        - or hyphen.
 
     Modifies:
-        - Cryptographic random generator state maintained by the operating system.
+        - Cryptographic random generator state maintained by the operating
+        - system.
 
     Effects:
         - Generates a new high-entropy structured gateway API key.
@@ -181,7 +186,8 @@ def format_client_record(record: ClientKeyRecord) -> str:
     RME
 
     Requires:
-        - record contains a validated client identity, key ID, and API-key digest.
+        - record contains a validated client identity, key ID, and API-key
+        - digest.
 
     Modifies:
         - Nothing.
@@ -209,7 +215,8 @@ def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
         - Creates the requested filesystem path with owner-only permissions.
 
     Effects:
-        - Opens a new API-key delivery file without following or overwriting an existing path.
+        - Opens a new API-key delivery file without following or overwriting an
+        - existing path.
         - Uses mode 0600 so only the creating user can read or write the file.
 
     Inputs:
@@ -219,7 +226,8 @@ def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
         - Writable UTF-8 text stream for the newly created secret file.
 
     Raises:
-        - FileExistsError: The destination already exists, including a pre-existing symlink.
+        - FileExistsError: The destination already exists, including a
+        - pre-existing symlink.
         - OSError: The file cannot be created securely.
     """
     secret_path = Path(path)
@@ -266,7 +274,9 @@ def write_api_key_secret(secret_file: TextIO, api_key: str) -> None:
 
 
 @contextmanager
-def managed_api_key_secret_file(path: str | os.PathLike[str]) -> Iterator[TextIO]:
+def managed_api_key_secret_file(
+    path: str | os.PathLike[str],
+) -> Iterator[TextIO]:
     """
     RME
 
@@ -274,11 +284,13 @@ def managed_api_key_secret_file(path: str | os.PathLike[str]) -> Iterator[TextIO
         - path satisfies open_api_key_secret_file requirements.
 
     Modifies:
-        - Creates a 0600 secret file and removes it when the protected operation fails.
+        - Creates a 0600 secret file and removes it when the protected operation
+        - fails.
 
     Effects:
         - Keeps a successfully written secret file after normal completion.
-        - Removes partial or stale secret output when an exception escapes the context.
+        - Removes partial or stale secret output when an exception escapes the
+        - context.
 
     Inputs:
         - path: Destination path for API-key delivery.
@@ -303,7 +315,8 @@ def main() -> None:
     RME
 
     Requires:
-        - A client ID and explicit API-key output path are supplied on the command line.
+        - A client ID and explicit API-key output path are supplied on the
+        - command line.
 
     Modifies:
         - Creates the requested 0600 API-key output file.
@@ -319,7 +332,8 @@ def main() -> None:
 
     Outputs:
         - Raw client API key in the requested secret file.
-        - Client identity, secret-file path, and server record on standard output.
+        - Client identity, secret-file path, and server record on standard
+        - output.
     """
     parser = argparse.ArgumentParser(
         description="Generate a Secure AI Gateway client API key."

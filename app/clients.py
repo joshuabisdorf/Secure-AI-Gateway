@@ -77,7 +77,9 @@ async def initialize_database(database_url: str) -> None:
         if statement.strip()
     ]
 
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         for statement in statements:
             await connection.execute(statement)
 
@@ -109,7 +111,9 @@ async def insert_client_key_record(
     Outputs:
         - None.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         await connection.execute(
             """
             INSERT INTO gateway_clients (client_id)
@@ -135,7 +139,9 @@ async def insert_client_key_record(
         except UniqueViolation:
             await connection.rollback()
 
-        async with await psycopg.AsyncConnection.connect(database_url) as connection:
+        async with await psycopg.AsyncConnection.connect(
+            database_url
+        ) as connection:
             async with connection.cursor() as cursor:
                 await cursor.execute(
                     """
@@ -164,7 +170,8 @@ async def create_client_key(
     Requires:
         - database_url identifies an initialized PostgreSQL database.
         - client_id is valid for gateway identity generation.
-        - secret_file, when provided, is an exclusive owner-only writable stream.
+        - secret_file, when provided, is an exclusive owner-only writable
+        - stream.
 
     Modifies:
         - gateway_clients and gateway_api_keys database tables.
@@ -173,9 +180,11 @@ async def create_client_key(
 
     Effects:
         - Generates a new high-entropy gateway key.
-        - Writes the candidate raw key to the secret stream before persistence when provided.
+        - Writes the candidate raw key to the secret stream before persistence
+        - when provided.
         - Persists only its SHA-256 digest and public key metadata.
-        - Rewrites the secret stream if an extremely unlikely key-ID collision requires retry.
+        - Rewrites the secret stream if an extremely unlikely key-ID collision
+        - requires retry.
 
     Inputs:
         - database_url: PostgreSQL connection string.
@@ -221,9 +230,12 @@ async def revoke_client_key(database_url: str, key_id: str) -> bool:
         - key_id: Public gateway key identifier to revoke.
 
     Outputs:
-        - True when this call changed an active key to revoked; False when already revoked.
+        - True when this call changed an active key to revoked; False when
+        - already revoked.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 """
@@ -261,8 +273,10 @@ async def rotate_client_keys(
 
     Requires:
         - database_url identifies an initialized PostgreSQL database.
-        - client_id identifies an active client with at least one active API key.
-        - secret_file, when provided, is an exclusive owner-only writable stream.
+        - client_id identifies an active client with at least one active API
+        - key.
+        - secret_file, when provided, is an exclusive owner-only writable
+        - stream.
 
     Modifies:
         - gateway_api_keys rows for the client.
@@ -271,9 +285,12 @@ async def rotate_client_keys(
 
     Effects:
         - Creates one replacement API key and stores only its hash.
-        - Writes and synchronizes the replacement secret before revoking existing keys.
-        - Revokes all previously active keys for the client in the same transaction.
-        - Rolls back the full rotation when secret delivery or any database step fails.
+        - Writes and synchronizes the replacement secret before revoking
+        - existing keys.
+        - Revokes all previously active keys for the client in the same
+        - transaction.
+        - Rolls back the full rotation when secret delivery or any database step
+        - fails.
 
     Inputs:
         - database_url: PostgreSQL connection string.
@@ -283,7 +300,9 @@ async def rotate_client_keys(
     Outputs:
         - Tuple containing the new raw API key, new key ID, and revoked key IDs.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.transaction():
             async with connection.cursor() as cursor:
                 await cursor.execute(
@@ -318,7 +337,9 @@ async def rotate_client_keys(
                 new_api_key: str | None = None
                 new_key_id: str | None = None
                 for _ in range(3):
-                    candidate_api_key, candidate_record = generate_api_key(client_id)
+                    candidate_api_key, candidate_record = generate_api_key(
+                        client_id
+                    )
                     await cursor.execute(
                         """
                         INSERT INTO gateway_api_keys (
@@ -378,7 +399,8 @@ async def import_environment_records(database_url: str) -> int:
         - gateway_clients and gateway_api_keys database tables.
 
     Effects:
-        - Migrates existing hashed client records without requiring raw API keys.
+        - Migrates existing hashed client records without requiring raw API
+        - keys.
 
     Inputs:
         - database_url: PostgreSQL connection string.
@@ -397,7 +419,9 @@ async def import_environment_records(database_url: str) -> int:
     return len(records)
 
 
-async def list_client_keys(database_url: str) -> list[tuple[str, str, bool, bool]]:
+async def list_client_keys(
+    database_url: str,
+) -> list[tuple[str, str, bool, bool]]:
     """
     RME
 
@@ -416,7 +440,9 @@ async def list_client_keys(database_url: str) -> list[tuple[str, str, bool, bool
     Outputs:
         - Tuples of client_id, key_id, client_active, and key_active.
     """
-    async with await psycopg.AsyncConnection.connect(database_url) as connection:
+    async with await psycopg.AsyncConnection.connect(
+        database_url
+    ) as connection:
         async with connection.cursor() as cursor:
             await cursor.execute(
                 """
@@ -484,11 +510,15 @@ async def _run_command(args: argparse.Namespace) -> None:
         if key_id is None:
             raise RuntimeError("generated_invalid_api_key")
         print(f"Client ID: {args.client_id}")
-        # key_id is intentionally public metadata; only the trailing token is secret.
+        # key_id is intentionally public metadata; only the trailing token is
+        # secret.
         # codeql[py/clear-text-logging-sensitive-data]
         print(f"Key ID: {key_id}")
         print(f"API key file: {args.api_key_file}")
-        print("Store the secret file securely and delete it after client provisioning.")
+        print(
+            "Store the secret file securely and delete it after client"
+            " provisioning."
+        )
         return
 
     if args.command == "revoke":
@@ -510,7 +540,10 @@ async def _run_command(args: argparse.Namespace) -> None:
         print(f"New key ID: {key_id}")
         print(f"API key file: {args.api_key_file}")
         print("Revoked key IDs: " + ",".join(revoked_key_ids))
-        print("Store the secret file securely and delete it after client provisioning.")
+        print(
+            "Store the secret file securely and delete it after client"
+            " provisioning."
+        )
         return
 
     if args.command == "list":
@@ -543,9 +576,11 @@ def main() -> None:
         - Terminal output containing non-secret metadata only.
 
     Effects:
-        - Initializes schema, migrates records, creates keys, revokes keys, rotates keys,
+        - Initializes schema, migrates records, creates keys, revokes keys,
+        - rotates keys,
           or lists non-secret metadata.
-        - Requires explicit secret-file delivery for newly generated raw credentials.
+        - Requires explicit secret-file delivery for newly generated raw
+        - credentials.
 
     Inputs:
         - Command-line subcommand and arguments.
@@ -559,7 +594,9 @@ def main() -> None:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("init-db", help="Initialize the client registry schema.")
+    subparsers.add_parser(
+        "init-db", help="Initialize the client registry schema."
+    )
     subparsers.add_parser(
         "import-env",
         help="Import existing hashed SAG_CLIENTS records into PostgreSQL.",
@@ -584,7 +621,9 @@ def main() -> None:
 
     rotate_parser = subparsers.add_parser(
         "rotate",
-        help="Create a replacement key and atomically revoke prior active keys.",
+        help=(
+            "Create a replacement key and atomically revoke prior active keys."
+        ),
     )
     rotate_parser.add_argument("client_id")
     rotate_parser.add_argument(

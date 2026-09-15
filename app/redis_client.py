@@ -17,7 +17,10 @@ _ELASTICACHE_REFRESH_SECONDS = 720
 
 
 class RedisClientConfigurationError(ValueError):
-    """Raised when shared Redis/Valkey client configuration is unsafe or incomplete."""
+    """
+    Raised when shared Redis/Valkey client configuration is unsafe or
+    incomplete.
+    """
 
 
 class ElastiCacheIamCredentialProvider(CredentialProvider):
@@ -34,7 +37,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         RME
 
         Requires:
-            - user_id identifies an IAM-authenticated ElastiCache user whose name equals its ID.
+            - user_id identifies an IAM-authenticated ElastiCache user whose
+            - name equals its ID.
             - cache_name identifies a node-based ElastiCache replication group.
             - region identifies the AWS region containing the cache.
 
@@ -42,7 +46,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             - Process-local short-lived IAM token cache.
 
         Effects:
-            - Uses the AWS default credential chain to create SigV4 ElastiCache connect tokens.
+            - Uses the AWS default credential chain to create SigV4 ElastiCache
+            - connect tokens.
             - Caches each token for less than its 15-minute maximum lifetime.
             - Never persists or logs AWS credentials or generated cache tokens.
 
@@ -50,7 +55,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             - user_id: ElastiCache IAM user ID/name.
             - cache_name: ElastiCache replication-group name.
             - region: AWS region.
-            - session: Optional injectable boto3 session for deterministic tests.
+            - session: Optional injectable boto3 session for deterministic
+            - tests.
             - clock: Monotonic time source used for token-cache expiry.
 
         Outputs:
@@ -62,7 +68,9 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             ("region", region),
         ):
             if not value or not value.strip():
-                raise RedisClientConfigurationError(f"missing_elasticache_{label}")
+                raise RedisClientConfigurationError(
+                    f"missing_elasticache_{label}"
+                )
 
         self._user_id = user_id.strip()
         self._cache_name = cache_name.strip().lower()
@@ -74,9 +82,30 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         self._refresh_at = 0.0
 
     def _generate_token(self) -> str:
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Performs the generate token operation.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - A value matching the declared str return contract.
+        """
         credentials = self._session.get_credentials()
         if credentials is None:
-            raise AuthenticationError("AWS credentials are unavailable for ElastiCache IAM auth")
+            raise AuthenticationError(
+                "AWS credentials are unavailable for ElastiCache IAM auth"
+            )
 
         frozen = credentials.get_frozen_credentials()
         request = AWSRequest(
@@ -97,7 +126,25 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         return request.url[len("http://") :]
 
     def get_credentials(self) -> tuple[str, str]:
-        """Return a cached or newly generated IAM username/token pair."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Return a cached or newly generated IAM username/token pair.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - A value matching the declared tuple[str, str] return contract.
+        """
         now = self._clock()
         if self._cached_token is not None and now < self._refresh_at:
             return (self._user_id, self._cached_token)
@@ -110,11 +157,50 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             return (self._user_id, self._cached_token)
 
     async def get_credentials_async(self) -> tuple[str, str]:
-        """Generate credentials without blocking the async Redis connection path."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Generate credentials without blocking the async Redis connection
+              path.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - A value matching the declared tuple[str, str] return contract.
+        """
         return await asyncio.to_thread(self.get_credentials)
 
 
 def _elasticache_iam_provider() -> ElastiCacheIamCredentialProvider:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the elasticache iam provider operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared ElastiCacheIamCredentialProvider return
+          contract.
+    """
     user_id = os.getenv("SAG_ELASTICACHE_USER_ID", "")
     cache_name = os.getenv("SAG_ELASTICACHE_CACHE_NAME", "")
     region = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or ""
@@ -132,13 +218,15 @@ def build_redis_client(redis_url: str, **kwargs: Any) -> Redis:
     Requires:
         - redis_url identifies the configured shared Redis/Valkey endpoint.
         - SAG_REDIS_AUTH_MODE is either none or elasticache_iam.
-        - elasticache_iam mode uses rediss:// and complete AWS/cache identity configuration.
+        - elasticache_iam mode uses rediss:// and complete AWS/cache identity
+        - configuration.
 
     Modifies:
         - Initializes process-local Redis connection-pool state.
 
     Effects:
-        - Centralizes local Redis and AWS ElastiCache IAM/TLS client construction.
+        - Centralizes local Redis and AWS ElastiCache IAM/TLS client
+        - construction.
         - Rejects password/username URLs when IAM authentication is selected.
 
     Inputs:
@@ -162,7 +250,9 @@ def build_redis_client(redis_url: str, **kwargs: Any) -> Redis:
     if parsed.scheme.lower() != "rediss":
         raise RedisClientConfigurationError("elasticache_iam_requires_tls")
     if parsed.username is not None or parsed.password is not None:
-        raise RedisClientConfigurationError("elasticache_iam_url_must_not_embed_credentials")
+        raise RedisClientConfigurationError(
+            "elasticache_iam_url_must_not_embed_credentials"
+        )
 
     provider = _elasticache_iam_provider()
     return Redis.from_url(

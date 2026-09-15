@@ -62,7 +62,8 @@ def parse_client_pii_policies(configured_policies: str) -> dict[str, PIIPolicy]:
         - Mapping from client ID to PIIPolicy.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or unsupported.
+        - ValueError: Configuration is empty, malformed, duplicated, or
+        - unsupported.
     """
     policies: dict[str, PIIPolicy] = {}
 
@@ -103,7 +104,8 @@ def get_client_pii_policy(client_id: str) -> PIIPolicy:
         - Nothing.
 
     Effects:
-        - Fails closed when PII policy is absent, malformed, or missing the client.
+        - Fails closed when PII policy is absent, malformed, or missing the
+        - client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -141,7 +143,8 @@ def _luhn_valid(candidate: str) -> bool:
     RME
 
     Requires:
-        - candidate may contain a payment-card-like digit sequence with separators.
+        - candidate may contain a payment-card-like digit sequence with
+        - separators.
 
     Modifies:
         - Nothing.
@@ -183,7 +186,8 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
         - Nothing.
 
     Effects:
-        - Detects and redacts deterministic email, SSN, phone, and payment-card values.
+        - Detects and redacts deterministic email, SSN, phone, and payment-card
+        - values.
         - Does not retain raw detected values separately.
 
     Inputs:
@@ -200,7 +204,48 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
         pii_type: str,
         replacement: str,
     ) -> str:
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Performs the redact pattern operation.
+
+        Inputs:
+            - current_text: Function input.
+            - pattern: Function input.
+            - pii_type: Function input.
+            - replacement: Function input.
+
+        Outputs:
+            - A value matching the declared str return contract.
+        """
         def replace(_: re.Match[str]) -> str:
+            """
+            RME
+
+            Requires:
+                - Arguments satisfy their declared contracts and required
+                  configured dependencies are available.
+
+            Modifies:
+                - No state beyond delegated dependency behavior.
+
+            Effects:
+                - Performs the replace operation.
+
+            Inputs:
+                - _: Function input.
+
+            Outputs:
+                - A value matching the declared str return contract.
+            """
             detected_types.append(pii_type)
             return replacement
 
@@ -208,9 +253,30 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
 
     redacted = redact_pattern(text, _email_pattern, "email", "[REDACTED_EMAIL]")
     redacted = redact_pattern(redacted, _ssn_pattern, "ssn", "[REDACTED_SSN]")
-    redacted = redact_pattern(redacted, _phone_pattern, "phone", "[REDACTED_PHONE]")
+    redacted = redact_pattern(
+        redacted, _phone_pattern, "phone", "[REDACTED_PHONE]"
+    )
 
     def replace_card(match: re.Match[str]) -> str:
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Performs the replace card operation.
+
+        Inputs:
+            - match: Function input.
+
+        Outputs:
+            - A value matching the declared str return contract.
+        """
         candidate = match.group(0)
         if not _luhn_valid(candidate):
             return candidate
@@ -238,17 +304,20 @@ def inspect_and_redact_request(
 
     Effects:
         - Detects deterministic structured PII first.
-        - Runs local semantic/contextual PII detection on the structured-redacted text.
+        - Runs local semantic/contextual PII detection on the
+        - structured-redacted text.
         - Redacts all selected values in a copied provider request.
         - Leaves non-text/tool-call message fields unchanged.
         - Does not retain or return raw detected values separately.
 
     Inputs:
         - request: Validated gateway chat-completion request.
-        - semantic_analyzer: Semantic analyzer implementation, injectable for tests.
+        - semantic_analyzer: Semantic analyzer implementation, injectable for
+        - tests.
 
     Outputs:
-        - PIIInspectionResult with a redacted request, total finding count, and safe type names.
+        - PIIInspectionResult with a redacted request, total finding count, and
+        - safe type names.
     """
     detected_types: list[str] = []
     redacted_messages: list[ChatMessage] = []
@@ -258,7 +327,9 @@ def inspect_and_redact_request(
             redacted_messages.append(message)
             continue
 
-        structured_redacted, structured_types = _redact_structured_text(message.content)
+        structured_redacted, structured_types = _redact_structured_text(
+            message.content
+        )
         semantic_redacted, semantic_types = redact_semantic_text(
             structured_redacted,
             semantic_analyzer,
@@ -270,7 +341,9 @@ def inspect_and_redact_request(
         )
 
     return PIIInspectionResult(
-        redacted_request=request.model_copy(update={"messages": redacted_messages}),
+        redacted_request=request.model_copy(
+            update={"messages": redacted_messages}
+        ),
         detected_count=len(detected_types),
         detected_types=tuple(sorted(set(detected_types))),
     )

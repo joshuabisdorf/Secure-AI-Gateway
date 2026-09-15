@@ -16,7 +16,10 @@ from app.observability import (
     observe_http_request,
     request_trace,
 )
-from app.tool_authorization import authorize_request_tools, get_client_allowed_tools
+from app.tool_authorization import (
+    authorize_request_tools,
+    get_client_allowed_tools,
+)
 
 bearer_scheme = HTTPBearer(auto_error=False)
 client_registry = build_client_registry()
@@ -34,7 +37,8 @@ async def _authenticate_api_key_once(
         - A usable gateway client registry backend is configured.
         - The caller may provide an Authorization bearer token.
         - Request middleware has assigned a request ID.
-        - Tool authorization policy is configured for authenticated chat clients.
+        - Tool authorization policy is configured for authenticated chat
+        - clients.
 
     Modifies:
         - Client-registry connection/query state, if any.
@@ -43,17 +47,22 @@ async def _authenticate_api_key_once(
     Effects:
         - Resolves a structured gateway API key to an active client identity.
         - Compares a one-way hash of the presented key with the stored hash.
-        - For valid chat request bodies, enforces least-privilege function-tool exposure.
-        - Leaves invalid/non-chat request-body handling to the endpoint's normal validation.
-        - Records decisions without logging credentials, tool arguments, or tool outputs.
+        - For valid chat request bodies, enforces least-privilege function-tool
+        - exposure.
+        - Leaves invalid/non-chat request-body handling to the endpoint's normal
+        - validation.
+        - Records decisions without logging credentials, tool arguments, or tool
+        - outputs.
 
     Inputs:
-        - request: HTTP request containing gateway request context and cached body bytes.
+        - request: HTTP request containing gateway request context and cached
+        - body bytes.
         - response: HTTP response used for safe tool-authorization headers.
         - credentials: Bearer credentials extracted from the request.
 
     Outputs:
-        - Authenticated Principal containing client_id and key_id after applicable tool authorization.
+        - Authenticated Principal containing client_id and key_id after
+        - applicable tool authorization.
     """
     request_id = request.state.request_id
 
@@ -170,7 +179,9 @@ async def _authenticate_api_key_once(
 
     action = "allowed" if decision.requested_tools else "none"
     response.headers["X-Tool-Authorization-Action"] = action
-    response.headers["X-Tool-Requested-Count"] = str(len(decision.requested_tools))
+    response.headers["X-Tool-Requested-Count"] = str(
+        len(decision.requested_tools)
+    )
     emit_audit_event(
         request_id=request_id,
         event="tool_authorization",
@@ -193,23 +204,31 @@ async def authenticate_api_key(
 
     Requires:
         - Request middleware has assigned a safe request ID.
-        - A usable client registry and applicable authorization policy are configured.
+        - A usable client registry and applicable authorization policy are
+        - configured.
 
     Modifies:
-        - Authentication/tool-authorization state described by _authenticate_api_key_once.
-        - Protected-request Prometheus metrics and optional OpenTelemetry span state.
-        - X-Trace-ID response header when tracing is enabled and produces a valid trace context.
+        - Authentication/tool-authorization state described by
+        - _authenticate_api_key_once.
+        - Protected-request Prometheus metrics and optional OpenTelemetry span
+        - state.
+        - X-Trace-ID response header when tracing is enabled and produces a
+        - valid trace context.
 
     Effects:
-        - Authenticates and authorizes the request before yielding the principal to the endpoint.
-        - Measures the complete protected endpoint lifetime, including endpoint errors.
-        - Extracts standard incoming trace context without recording arbitrary headers.
+        - Authenticates and authorizes the request before yielding the principal
+        - to the endpoint.
+        - Measures the complete protected endpoint lifetime, including endpoint
+        - errors.
+        - Extracts standard incoming trace context without recording arbitrary
+        - headers.
         - Uses only bounded route/method/status labels in Prometheus.
 
     Inputs:
         - request: Incoming protected HTTP request.
         - response: FastAPI response object.
-        - credentials: Bearer credentials extracted by FastAPI security handling.
+        - credentials: Bearer credentials extracted by FastAPI security
+        - handling.
 
     Outputs:
         - Yields the authenticated Principal exactly once.
@@ -230,7 +249,9 @@ async def authenticate_api_key(
             response.headers["X-Trace-ID"] = f"{span_context.trace_id:032x}"
 
         try:
-            principal = await _authenticate_api_key_once(request, response, credentials)
+            principal = await _authenticate_api_key_once(
+                request, response, credentials
+            )
             yield principal
         except HTTPException as exc:
             status_code = exc.status_code

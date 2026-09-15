@@ -21,12 +21,15 @@ def observe_provider_chat(
         - The provider instance exposes a non-secret name attribute.
 
     Modifies:
-        - Process-local provider metrics and trace state when the wrapped method runs.
+        - Process-local provider metrics and trace state when the wrapped method
+        - runs.
 
     Effects:
-        - Preserves the concrete provider object type and original method metadata.
+        - Preserves the concrete provider object type and original method
+        - metadata.
         - Records provider request latency and success/error counts.
-        - Creates a child client span without recording prompts, responses, or credentials.
+        - Creates a child client span without recording prompts, responses, or
+        - credentials.
         - Preserves provider return values and exceptions unchanged.
 
     Inputs:
@@ -51,7 +54,8 @@ def observe_provider_chat(
 
         Effects:
             - Measures one exact provider call.
-            - Records exception metadata on the trace without changing the exception.
+            - Records exception metadata on the trace without changing the
+            - exception.
 
         Inputs:
             - self: Concrete provider instance.

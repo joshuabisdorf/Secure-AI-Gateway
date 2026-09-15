@@ -20,7 +20,9 @@ class FakeCursor:
     async def __aexit__(self, exc_type, exc, tb) -> None:
         return None
 
-    async def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
+    async def execute(
+        self, query: str, params: tuple[object, ...] = ()
+    ) -> None:
         normalized = " ".join(query.split())
         keys = self.state["keys"]
         client_id = self.state["client_id"]
@@ -56,7 +58,10 @@ class FakeCursor:
             self._all = []
             return
 
-        if "UPDATE gateway_api_keys" in normalized and "key_id <>" in normalized:
+        if (
+            "UPDATE gateway_api_keys" in normalized
+            and "key_id <>" in normalized
+        ):
             requested_client_id, replacement_key_id = params
             revoked: list[tuple[object, ...]] = []
             for key_id, key in keys.items():
@@ -121,14 +126,16 @@ class FakeConnection:
             - self.state while the simulated transaction is active.
 
         Effects:
-            - Restores the original fake database state when the transaction raises.
+            - Restores the original fake database state when the transaction
+            - raises.
             - Preserves mutations when the transaction completes successfully.
 
         Inputs:
             - None.
 
         Outputs:
-            - Async context manager yielding control to the simulated transaction body.
+            - Async context manager yielding control to the simulated
+            - transaction body.
         """
         snapshot = deepcopy(self.state)
         try:
@@ -149,13 +156,15 @@ def test_rotate_revokes_old_key_and_revoke_is_idempotent(monkeypatch) -> None:
     RME
 
     Requires:
-        - Key-management functions can use a deterministic fake database connection.
+        - Key-management functions can use a deterministic fake database
+        - connection.
 
     Modifies:
         - In-memory fake client/key state.
 
     Effects:
-        - Verifies rotation inserts a replacement key and revokes prior active keys.
+        - Verifies rotation inserts a replacement key and revokes prior active
+        - keys.
         - Verifies explicit revocation is idempotent for an already-revoked key.
 
     Inputs:
@@ -207,7 +216,9 @@ def test_rotate_revokes_old_key_and_revoke_is_idempotent(monkeypatch) -> None:
     assert state["keys"]["oldkey"]["is_active"] is False
     assert state["keys"]["newkey"]["is_active"] is True
 
-    changed = asyncio.run(clients.revoke_client_key("postgresql://test", "oldkey"))
+    changed = asyncio.run(
+        clients.revoke_client_key("postgresql://test", "oldkey")
+    )
     assert changed is False
 
 
@@ -223,8 +234,10 @@ def test_rotation_rolls_back_when_secret_delivery_fails(monkeypatch) -> None:
         - In-memory fake client/key state during the attempted transaction.
 
     Effects:
-        - Verifies secret-delivery failure aborts the replacement-key transaction.
-        - Verifies the previously active key remains active and the new key is not retained.
+        - Verifies secret-delivery failure aborts the replacement-key
+        - transaction.
+        - Verifies the previously active key remains active and the new key is
+        - not retained.
 
     Inputs:
         - monkeypatch: pytest fixture used to inject deterministic dependencies.

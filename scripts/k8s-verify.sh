@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 
 ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 cd "$ROOT_DIR"
@@ -26,7 +26,10 @@ POD_SECURITY_ENFORCE="$(
     -o jsonpath='{.metadata.labels.pod-security\.kubernetes\.io/enforce}'
 )"
 if [ "$POD_SECURITY_ENFORCE" != "restricted" ]; then
-  echo "ERROR pod_security_enforce=$POD_SECURITY_ENFORCE expected=restricted" >&2
+  echo \
+    "ERROR" \
+    "pod_security_enforce=$POD_SECURITY_ENFORCE" \
+    "expected=restricted" \ >&2
   exit 1
 fi
 
@@ -34,10 +37,14 @@ NETWORK_POLICY_COUNT="$(
   kubectl -n "$NAMESPACE" get networkpolicy -o name | wc -l | tr -d ' '
 )"
 if [ "$NETWORK_POLICY_COUNT" -lt 8 ]; then
-  echo "ERROR network_policy_count=$NETWORK_POLICY_COUNT expected_at_least=8" >&2
+  echo \
+    "ERROR" \
+    "network_policy_count=$NETWORK_POLICY_COUNT" \
+    "expected_at_least=8" \ >&2
   exit 1
 fi
-if ! kubectl -n "$NAMESPACE" get networkpolicy sag-default-deny >/dev/null 2>&1; then
+if ! kubectl -n "$NAMESPACE" get networkpolicy sag-default-deny >/dev/null \
+  2>&1; then
   echo "ERROR default_deny_network_policy=missing" >&2
   exit 1
 fi
@@ -72,11 +79,17 @@ MEMORY_REQUEST="$(
   kubectl -n "$NAMESPACE" get deployment sag-gateway \
     -o jsonpath='{.spec.template.spec.containers[0].resources.requests.memory}'
 )"
-if [ -z "$CPU_LIMIT" ] || [ -z "$MEMORY_LIMIT" ] || [ -z "$CPU_REQUEST" ] || [ -z "$MEMORY_REQUEST" ]; then
+if [ -z "$CPU_LIMIT" ] || [ -z "$MEMORY_LIMIT" ] || [ -z "$CPU_REQUEST" ] \
+  || [ -z "$MEMORY_REQUEST" ]; then
   echo "ERROR gateway_resource_bounds=missing" >&2
   exit 1
 fi
-echo "gateway_resources=bounded cpu_request=$CPU_REQUEST memory_request=$MEMORY_REQUEST cpu_limit=$CPU_LIMIT memory_limit=$MEMORY_LIMIT"
+echo \
+  "gateway_resources=bounded" \
+  "cpu_request=$CPU_REQUEST" \
+  "memory_request=$MEMORY_REQUEST" \
+  "cpu_limit=$CPU_LIMIT" \
+  "memory_limit=$MEMORY_LIMIT"
 
 cleanup() {
   kubectl -n "$NAMESPACE" delete pod sag-network-deny-probe --ignore-not-found \
@@ -101,7 +114,8 @@ PF_PIDS+=("$!")
 for port in 18001 18002; do
   ready=0
   for _ in $(seq 1 30); do
-    if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
+    if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null \
+      2>&1; then
       ready=1
       break
     fi
@@ -157,20 +171,30 @@ USAGE_TWO="$(header_value X-Usage-Tokens-Used /tmp/sag-k8s-two-headers.txt)"
 TRACE_ONE="$(header_value X-Trace-ID /tmp/sag-k8s-one-headers.txt)"
 TRACE_TWO="$(header_value X-Trace-ID /tmp/sag-k8s-two-headers.txt)"
 
-echo "gateway_pod_1=${GATEWAY_PODS[0]} status=$STATUS_ONE rate_remaining=$RATE_ONE usage_tokens=$USAGE_ONE trace_id_length=${#TRACE_ONE}"
-echo "gateway_pod_2=${GATEWAY_PODS[1]} status=$STATUS_TWO rate_remaining=$RATE_TWO usage_tokens=$USAGE_TWO trace_id_length=${#TRACE_TWO}"
+echo \
+  "gateway_pod_1=${GATEWAY_PODS[0]}" \
+  "status=$STATUS_ONE rate_remaining=$RATE_ONE" \
+  "usage_tokens=$USAGE_ONE" \
+  "trace_id_length=${#TRACE_ONE}"
+echo \
+  "gateway_pod_2=${GATEWAY_PODS[1]}" \
+  "status=$STATUS_TWO rate_remaining=$RATE_TWO" \
+  "usage_tokens=$USAGE_TWO" \
+  "trace_id_length=${#TRACE_TWO}"
 
 if [ "$STATUS_ONE" != "200" ] || [ "$STATUS_TWO" != "200" ]; then
   echo "ERROR gateway_request_failed" >&2
   exit 1
 fi
 
-if [ -z "$RATE_ONE" ] || [ -z "$RATE_TWO" ] || [ "$RATE_TWO" -ge "$RATE_ONE" ]; then
+if [ -z "$RATE_ONE" ] || [ -z "$RATE_TWO" ] || [ "$RATE_TWO" -ge \
+  "$RATE_ONE" ]; then
   echo "ERROR shared_redis_rate_limit_not_observed" >&2
   exit 1
 fi
 
-if [ -z "$USAGE_ONE" ] || [ -z "$USAGE_TWO" ] || [ "$USAGE_TWO" -le "$USAGE_ONE" ]; then
+if [ -z "$USAGE_ONE" ] || [ -z "$USAGE_TWO" ] || [ "$USAGE_TWO" -le \
+  "$USAGE_ONE" ]; then
   echo "ERROR shared_postgres_usage_not_observed" >&2
   exit 1
 fi
@@ -212,7 +236,10 @@ then
 fi
 
 sleep 8
-TRACE_LOGS="$(kubectl -n "$NAMESPACE" logs deployment/sag-otel-collector --since=30s 2>&1 || true)"
+TRACE_LOGS="$(
+  kubectl -n "$NAMESPACE" logs deployment/sag-otel-collector --since=30s \
+    2>&1 || true
+)"
 if printf '%s\n' "$TRACE_LOGS" | grep -q 'otelcol.signal.*traces'; then
   echo "otel_trace_export=observed"
 else
@@ -274,7 +301,8 @@ if [ "$PROBE_PHASE" != "Failed" ]; then
   exit 1
 fi
 echo "default_deny_network_policy=enforced"
-kubectl -n "$NAMESPACE" delete pod sag-network-deny-probe --wait=false >/dev/null
+kubectl -n "$NAMESPACE" delete pod sag-network-deny-probe --wait=false \
+  >/dev/null
 
 DELETED_POD="${GATEWAY_PODS[1]}"
 kubectl -n "$NAMESPACE" delete pod "$DELETED_POD" --wait=false >/dev/null
@@ -283,7 +311,8 @@ if [ "$SURVIVOR_STATUS" != "200" ]; then
   echo "ERROR surviving_replica_status=$SURVIVOR_STATUS expected=200" >&2
   exit 1
 fi
-kubectl -n "$NAMESPACE" rollout status deployment/sag-gateway --timeout=180s >/dev/null
+kubectl -n "$NAMESPACE" rollout status deployment/sag-gateway \
+  --timeout=180s >/dev/null
 
 mapfile -t RESCHEDULED_PODS < <(
   kubectl -n "$NAMESPACE" get pods \
@@ -292,7 +321,10 @@ mapfile -t RESCHEDULED_PODS < <(
     -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}'
 )
 if [ "${#RESCHEDULED_PODS[@]}" -lt 2 ]; then
-  echo "ERROR rescheduled_gateway_replicas=${#RESCHEDULED_PODS[@]} expected=2" >&2
+  echo \
+    "ERROR" \
+    "rescheduled_gateway_replicas=${#RESCHEDULED_PODS[@]}" \
+    "expected=2" \ >&2
   exit 1
 fi
 REPLACEMENT_POD=""
@@ -327,7 +359,12 @@ if [ "$REPLACEMENT_STATUS" != "200" ]; then
   echo "ERROR replacement_replica_status=$REPLACEMENT_STATUS expected=200" >&2
   exit 1
 fi
-echo "replica_rescheduling=PASS deleted=$DELETED_POD replacement=$REPLACEMENT_POD survivor_status=$SURVIVOR_STATUS replacement_status=$REPLACEMENT_STATUS"
+echo \
+  "replica_rescheduling=PASS" \
+  "deleted=$DELETED_POD" \
+  "replacement=$REPLACEMENT_POD" \
+  "survivor_status=$SURVIVOR_STATUS" \
+  "replacement_status=$REPLACEMENT_STATUS"
 
 LOAD_STATUS_FILE="/tmp/sag-k8s-load-statuses.txt"
 : > "$LOAD_STATUS_FILE"
@@ -339,7 +376,9 @@ for request_number in $(seq 1 8); do
     port=18003
   fi
   (
-    status="$(send_request "$port" "sag-k8s-load-$request_number" || printf '000')"
+    status="$(
+      send_request "$port" "sag-k8s-load-$request_number" || printf '000'
+    )"
     printf '%s\n' "$status" >> "$LOAD_STATUS_FILE"
   ) &
   LOAD_PIDS+=("$!")
@@ -361,9 +400,12 @@ fi
 RESTART_COUNTS="$(
   kubectl -n "$NAMESPACE" get pods \
     -l app.kubernetes.io/component=gateway \
-    -o jsonpath='{range .items[*].status.containerStatuses[*]}{.restartCount}{"\n"}{end}'
+    -o jsonpath='{range .items[*].status.containerStatuses[*]}'\
+'{.restartCount}{"\n"}{end}'
 )"
-RESTART_TOTAL="$(printf '%s\n' "$RESTART_COUNTS" | awk '{sum += $1} END {print sum + 0}')"
+RESTART_TOTAL="$(
+  printf '%s\n' "$RESTART_COUNTS" | awk '{sum += $1} END {print sum + 0}'
+)"
 OOM_KILLED="$(
   kubectl -n "$NAMESPACE" get pods \
     -l app.kubernetes.io/component=gateway \
@@ -384,6 +426,15 @@ if [ "$RESTART_TOTAL" -ne 0 ] || [ "$OOM_KILLED" -ne 0 ]; then
   echo "ERROR bounded_load_restarts=$RESTART_TOTAL oom_killed=$OOM_KILLED" >&2
   exit 1
 fi
-echo "bounded_load=PASS requests=$LOAD_TOTAL status_200=$LOAD_200 status_429=$LOAD_429 restarts=$RESTART_TOTAL oom_killed=$OOM_KILLED"
+echo \
+  "bounded_load=PASS requests=$LOAD_TOTAL" \
+  "status_200=$LOAD_200 status_429=$LOAD_429" \
+  "restarts=$RESTART_TOTAL" \
+  "oom_killed=$OOM_KILLED"
 
-echo "gateway_replicas=2 shared_redis=true shared_postgres=true prometheus=true otel=true network_policy=true pod_security=restricted rescheduling=true resource_bounds=true"
+echo \
+  "gateway_replicas=2 shared_redis=true" \
+  "shared_postgres=true prometheus=true" \
+  "otel=true network_policy=true" \
+  "pod_security=restricted rescheduling=true" \
+  "resource_bounds=true"

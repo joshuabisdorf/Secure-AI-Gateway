@@ -28,7 +28,8 @@ def test_elasticache_iam_credentials_are_short_lived_and_cached() -> None:
     Effects:
         - Verifies generated credentials use user ID plus a SigV4 connect token.
         - Verifies repeated requests before refresh reuse the token.
-        - Verifies the async credentials interface returns the same credential shape.
+        - Verifies the async credentials interface returns the same credential
+        - shape.
 
     Inputs:
         - None.
@@ -59,7 +60,10 @@ def test_elasticache_iam_credentials_are_short_lived_and_cached() -> None:
 
 
 def test_elasticache_iam_requires_tls(monkeypatch) -> None:
-    """Verify IAM authentication cannot be configured over plaintext Redis transport."""
+    """
+    Verify IAM authentication cannot be configured over plaintext Redis
+    transport.
+    """
     monkeypatch.setenv("SAG_REDIS_AUTH_MODE", "elasticache_iam")
     monkeypatch.setenv("SAG_ELASTICACHE_USER_ID", "sag-dev-gateway")
     monkeypatch.setenv("SAG_ELASTICACHE_CACHE_NAME", "sag-dev-cache")
@@ -70,11 +74,16 @@ def test_elasticache_iam_requires_tls(monkeypatch) -> None:
 
 
 def test_elasticache_iam_rejects_embedded_credentials(monkeypatch) -> None:
-    """Verify IAM-mode connection URLs cannot also carry static username/password credentials."""
+    """
+    Verify IAM-mode connection URLs cannot also carry static username/password
+    credentials.
+    """
     monkeypatch.setenv("SAG_REDIS_AUTH_MODE", "elasticache_iam")
     monkeypatch.setenv("SAG_ELASTICACHE_USER_ID", "sag-dev-gateway")
     monkeypatch.setenv("SAG_ELASTICACHE_CACHE_NAME", "sag-dev-cache")
     monkeypatch.setenv("AWS_REGION", "ca-central-1")
 
-    with pytest.raises(RedisClientConfigurationError, match="must_not_embed_credentials"):
+    with pytest.raises(
+        RedisClientConfigurationError, match="must_not_embed_credentials"
+    ):
         build_redis_client("rediss://user:password@cache.example:6379/0")

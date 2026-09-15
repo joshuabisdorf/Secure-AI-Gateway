@@ -15,7 +15,8 @@ def test_chat_completion(monkeypatch, gateway_api_key) -> None:
         - Temporarily configures global and per-client model policy.
 
     Effects:
-        - Exercises an identified, authenticated, and policy-approved chat request.
+        - Exercises an identified, authenticated, and policy-approved chat
+        - request.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.

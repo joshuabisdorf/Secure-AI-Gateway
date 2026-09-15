@@ -145,7 +145,8 @@ data:
           - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
             regex: secure-ai-gateway
             action: keep
-          - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_component]
+          - source_labels:
+              - __meta_kubernetes_pod_label_app_kubernetes_io_component
             regex: gateway
             action: keep
           - source_labels: [__meta_kubernetes_pod_container_port_name]

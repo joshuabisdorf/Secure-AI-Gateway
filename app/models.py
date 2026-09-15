@@ -31,7 +31,8 @@ def _measure_json_shape(value: Any, *, depth: int = 0) -> tuple[int, int]:
 
     Effects:
         - Rejects tool-schema structures deeper than MAX_TOOL_SCHEMA_DEPTH.
-        - Counts container/scalar nodes and textual characters without serializing secrets.
+        - Counts container/scalar nodes and textual characters without
+        - serializing secrets.
 
     Inputs:
         - value: JSON-like value to measure.
@@ -49,12 +50,16 @@ def _measure_json_shape(value: Any, *, depth: int = 0) -> tuple[int, int]:
     if isinstance(value, dict):
         for key, child in value.items():
             text_chars += len(str(key))
-            child_nodes, child_chars = _measure_json_shape(child, depth=depth + 1)
+            child_nodes, child_chars = _measure_json_shape(
+                child, depth=depth + 1
+            )
             nodes += child_nodes
             text_chars += child_chars
     elif isinstance(value, (list, tuple)):
         for child in value:
-            child_nodes, child_chars = _measure_json_shape(child, depth=depth + 1)
+            child_nodes, child_chars = _measure_json_shape(
+                child, depth=depth + 1
+            )
             nodes += child_nodes
             text_chars += child_chars
     elif isinstance(value, str):
@@ -67,7 +72,9 @@ def _measure_json_shape(value: Any, *, depth: int = 0) -> tuple[int, int]:
 
 class ToolFunction(BaseModel):
     name: str = Field(pattern=_tool_name_pattern)
-    description: str | None = Field(default=None, max_length=MAX_TOOL_DESCRIPTION_LENGTH)
+    description: str | None = Field(
+        default=None, max_length=MAX_TOOL_DESCRIPTION_LENGTH
+    )
     parameters: dict[str, Any] = Field(default_factory=dict)
     strict: bool | None = None
 
@@ -131,7 +138,9 @@ class ToolCall(BaseModel):
 
 class ChatMessage(BaseModel):
     role: str = Field(min_length=1, max_length=32)
-    content: str | None = Field(default=None, max_length=MAX_MESSAGE_CONTENT_LENGTH)
+    content: str | None = Field(
+        default=None, max_length=MAX_MESSAGE_CONTENT_LENGTH
+    )
     name: str | None = Field(default=None, max_length=64)
     tool_call_id: str | None = Field(default=None, max_length=128)
     tool_calls: list[ToolCall] | None = Field(
@@ -161,13 +170,15 @@ class ChatCompletionRequest(BaseModel):
             - Nothing.
 
         Effects:
-            - Rejects requests whose combined text/schema content exceeds the gateway budget.
+            - Rejects requests whose combined text/schema content exceeds the
+            - gateway budget.
 
         Inputs:
             - self: Validated chat-completion request candidate.
 
         Outputs:
-            - The same ChatCompletionRequest when aggregate complexity is within bounds.
+            - The same ChatCompletionRequest when aggregate complexity is within
+            - bounds.
         """
         text_chars = len(self.model)
 
@@ -194,7 +205,9 @@ class ChatCompletionRequest(BaseModel):
 
 class ChoiceMessage(BaseModel):
     role: str = Field(min_length=1, max_length=32)
-    content: str | None = Field(default=None, max_length=MAX_MESSAGE_CONTENT_LENGTH)
+    content: str | None = Field(
+        default=None, max_length=MAX_MESSAGE_CONTENT_LENGTH
+    )
     tool_calls: list[ToolCall] | None = Field(
         default=None,
         max_length=MAX_TOOL_CALLS_PER_MESSAGE,

@@ -28,7 +28,9 @@ _MESSAGE_KEYS = frozenset({"role", "content"})
 
 
 class BenchmarkDatasetError(RuntimeError):
-    """Raised when a prompt-injection benchmark dataset cannot be used safely."""
+    """
+    Raised when a prompt-injection benchmark dataset cannot be used safely.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -93,7 +95,9 @@ class BenchmarkReport:
     baseline_passed: bool
 
 
-def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -112,6 +116,26 @@ def _require_exact_keys(
 
 
 def _parse_unit_interval(value: Any, reason: str) -> float:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse unit interval operation.
+
+    Inputs:
+        - value: Function input.
+        - reason: Function input.
+
+    Outputs:
+        - A value matching the declared float return contract.
+    """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(reason)
     parsed = float(value)
@@ -139,6 +163,26 @@ def _parse_thresholds(value: Any) -> BenchmarkThresholds:
 
 
 def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse case operation.
+
+    Inputs:
+        - value: Function input.
+        - seen_ids: Function input.
+
+    Outputs:
+        - A value matching the declared BenchmarkCase return contract.
+    """
     if not isinstance(value, dict):
         raise ValueError("invalid_benchmark_case")
     _require_exact_keys(value, _CASE_KEYS, "invalid_benchmark_case")
@@ -156,7 +200,9 @@ def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
 
     if label not in _LABELS:
         raise ValueError("invalid_case_label")
-    if not isinstance(category, str) or not _CATEGORY_PATTERN.fullmatch(category):
+    if not isinstance(category, str) or not _CATEGORY_PATTERN.fullmatch(
+        category
+    ):
         raise ValueError("invalid_case_category")
     if not isinstance(messages, list) or not messages or len(messages) > 16:
         raise ValueError("invalid_case_messages")
@@ -182,19 +228,24 @@ def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
     )
 
 
-def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> PromptInjectionDataset:
+def parse_benchmark_dataset(
+    document: str, *, sha256: str = "unknown"
+) -> PromptInjectionDataset:
     """
     RME
 
     Requires:
-        - document is intended to be a version-1 prompt-injection benchmark dataset.
+        - document is intended to be a version-1 prompt-injection benchmark
+        - dataset.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Strictly validates dataset structure, thresholds, unique IDs, labels, and messages.
-        - Rejects categories that mix attack and benign labels so per-category rates remain clear.
+        - Strictly validates dataset structure, thresholds, unique IDs, labels,
+        - and messages.
+        - Rejects categories that mix attack and benign labels so per-category
+        - rates remain clear.
 
     Inputs:
         - document: UTF-8 JSON benchmark document.
@@ -204,10 +255,13 @@ def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> Prompt
         - Validated PromptInjectionDataset.
 
     Raises:
-        - ValueError: Dataset content is malformed or violates the benchmark schema.
+        - ValueError: Dataset content is malformed or violates the benchmark
+        - schema.
     """
     try:
-        root = json.loads(document, object_pairs_hook=_object_without_duplicate_keys)
+        root = json.loads(
+            document, object_pairs_hook=_object_without_duplicate_keys
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("invalid_benchmark_json") from exc
 
@@ -219,7 +273,11 @@ def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> Prompt
     version = root["version"]
     if not isinstance(name, str) or not name or len(name) > 96:
         raise ValueError("invalid_benchmark_name")
-    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != 1
+    ):
         raise ValueError("unsupported_benchmark_version")
 
     raw_cases = root["cases"]
@@ -247,7 +305,9 @@ def parse_benchmark_dataset(document: str, *, sha256: str = "unknown") -> Prompt
     )
 
 
-def load_benchmark_dataset(path: Path = _DEFAULT_DATASET) -> PromptInjectionDataset:
+def load_benchmark_dataset(
+    path: Path = _DEFAULT_DATASET,
+) -> PromptInjectionDataset:
     """
     RME
 
@@ -258,7 +318,8 @@ def load_benchmark_dataset(path: Path = _DEFAULT_DATASET) -> PromptInjectionData
         - Nothing.
 
     Effects:
-        - Reads the dataset, computes its SHA-256 digest, and validates its complete schema.
+        - Reads the dataset, computes its SHA-256 digest, and validates its
+        - complete schema.
 
     Inputs:
         - path: Dataset path; defaults to the committed version-1 benchmark.
@@ -267,7 +328,8 @@ def load_benchmark_dataset(path: Path = _DEFAULT_DATASET) -> PromptInjectionData
         - Validated PromptInjectionDataset with reproducibility digest.
 
     Raises:
-        - BenchmarkDatasetError: File is unavailable, oversized, undecodable, or invalid.
+        - BenchmarkDatasetError: File is unavailable, oversized, undecodable, or
+        - invalid.
     """
     try:
         raw = path.read_bytes()
@@ -300,9 +362,11 @@ def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
         - Nothing.
 
     Effects:
-        - Runs the deterministic prompt-injection detector against every benchmark case.
+        - Runs the deterministic prompt-injection detector against every
+        - benchmark case.
         - Computes confusion-matrix metrics and per-category detection rates.
-        - Retains only case IDs for errors; prompt bodies are not copied into the report.
+        - Retains only case IDs for errors; prompt bodies are not copied into
+        - the report.
 
     Inputs:
         - dataset: Validated benchmark dataset.
@@ -383,7 +447,29 @@ def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
     )
 
 
-def _report_as_dict(report: BenchmarkReport, *, show_errors: bool) -> dict[str, Any]:
+def _report_as_dict(
+    report: BenchmarkReport, *, show_errors: bool
+) -> dict[str, Any]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the report as dict operation.
+
+    Inputs:
+        - report: Function input.
+        - show_errors: Function input.
+
+    Outputs:
+        - A value matching the declared dict[str, Any] return contract.
+    """
     metrics = report.metrics
     payload: dict[str, Any] = {
         "dataset": {
@@ -421,6 +507,26 @@ def _report_as_dict(report: BenchmarkReport, *, show_errors: bool) -> dict[str, 
 
 
 def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the print text operation.
+
+    Inputs:
+        - report: Function input.
+        - show_errors: Function input.
+
+    Outputs:
+        - None.
+    """
     metrics = report.metrics
     print(
         f"DATASET name={report.dataset_name} version={report.dataset_version} "
@@ -436,7 +542,8 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
     )
     for item in report.categories:
         print(
-            f"CATEGORY name={item.category} label={item.label} cases={item.cases} "
+            "CATEGORY"
+            f" name={item.category} label={item.label} cases={item.cases} "
             f"detected={item.detected} detection_rate={item.detection_rate:.4f}"
         )
     if show_errors:
@@ -452,14 +559,37 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the build parser operation.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - A value matching the declared argparse.ArgumentParser return contract.
+    """
     parser = argparse.ArgumentParser(
-        description="Evaluate the deterministic prompt-injection detector offline."
+        description=(
+            "Evaluate the deterministic prompt-injection detector offline."
+        )
     )
     parser.add_argument(
         "--dataset",
         type=Path,
         default=_DEFAULT_DATASET,
-        help="Benchmark JSON file; defaults to the committed version-1 dataset.",
+        help=(
+            "Benchmark JSON file; defaults to the committed version-1 dataset."
+        ),
     )
     parser.add_argument(
         "--format",
@@ -470,12 +600,17 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--show-errors",
         action="store_true",
-        help="Include false-positive/false-negative case IDs without prompt bodies.",
+        help=(
+            "Include false-positive/false-negative case IDs without prompt"
+            " bodies."
+        ),
     )
     parser.add_argument(
         "--enforce-baseline",
         action="store_true",
-        help="Exit 1 when committed precision/recall/FPR thresholds are not met.",
+        help=(
+            "Exit 1 when committed precision/recall/FPR thresholds are not met."
+        ),
     )
     return parser
 
@@ -491,8 +626,10 @@ def main() -> None:
         - Terminal output only.
 
     Effects:
-        - Runs an offline reproducible detector evaluation with no provider/network calls.
-        - Exits 2 for dataset errors and, when --enforce-baseline is set, 1 for regression.
+        - Runs an offline reproducible detector evaluation with no
+        - provider/network calls.
+        - Exits 2 for dataset errors and, when --enforce-baseline is set, 1 for
+        - regression.
 
     Inputs:
         - Command-line arguments.
@@ -509,7 +646,12 @@ def main() -> None:
 
     report = evaluate_benchmark(dataset)
     if args.format == "json":
-        print(json.dumps(_report_as_dict(report, show_errors=args.show_errors), sort_keys=True))
+        print(
+            json.dumps(
+                _report_as_dict(report, show_errors=args.show_errors),
+                sort_keys=True,
+            )
+        )
     else:
         _print_text(report, show_errors=args.show_errors)
 

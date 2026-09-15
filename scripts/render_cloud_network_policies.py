@@ -12,7 +12,8 @@ def parse_cidrs_json(value: str, label: str) -> list[str]:
     """Parse and canonicalize a JSON array of IPv4 CIDR strings.
 
     Requires:
-        value is intended to contain a JSON array and label identifies the source.
+        value is intended to contain a JSON array and label identifies the
+        source.
     Modifies:
         Nothing.
     Effects:
@@ -76,7 +77,8 @@ def render_policies(private_cidrs: list[str], data_cidrs: list[str]) -> str:
         Performs no I/O.
     Inputs:
         private_cidrs: EKS worker/private subnet CIDRs from Terraform outputs.
-        data_cidrs: Isolated RDS/ElastiCache subnet CIDRs from Terraform outputs.
+        data_cidrs: Isolated RDS/ElastiCache subnet CIDRs from Terraform
+        outputs.
     Outputs:
         Multi-document Kubernetes YAML for gateway, migration, and Prometheus
         runtime egress.
@@ -178,7 +180,10 @@ def build_parser() -> argparse.ArgumentParser:
         Configured ArgumentParser instance.
     """
     parser = argparse.ArgumentParser(
-        description="Render Secure AI Gateway cloud NetworkPolicies from Terraform CIDRs."
+        description=(
+            "Render Secure AI Gateway cloud NetworkPolicies from Terraform"
+            " CIDRs."
+        )
     )
     parser.add_argument("--private-cidrs-json", required=True)
     parser.add_argument("--data-cidrs-json", required=True)
@@ -204,7 +209,9 @@ def main() -> int:
     args = build_parser().parse_args()
     private_cidrs = parse_cidrs_json(args.private_cidrs_json, "private CIDRs")
     data_cidrs = parse_cidrs_json(args.data_cidrs_json, "data CIDRs")
-    args.output.write_text(render_policies(private_cidrs, data_cidrs), encoding="utf-8")
+    args.output.write_text(
+        render_policies(private_cidrs, data_cidrs), encoding="utf-8"
+    )
     print(
         "cloud_network_policy=rendered "
         f"private_cidrs={len(private_cidrs)} data_cidrs={len(data_cidrs)}"

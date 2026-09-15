@@ -13,7 +13,10 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from jsonschema import Draft202012Validator
-from jsonschema.exceptions import SchemaError, ValidationError as JSONSchemaValidationError
+from jsonschema.exceptions import (
+    SchemaError,
+    ValidationError as JSONSchemaValidationError,
+)
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 
@@ -49,7 +52,9 @@ _registry_cache: "ToolExecutionRegistry | None" = None
 
 
 class ToolExecutionUnavailable(RuntimeError):
-    """Raised when execution-time authorization infrastructure is unavailable."""
+    """
+    Raised when execution-time authorization infrastructure is unavailable.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -116,11 +121,48 @@ class PreparedToolExecutionResponse:
 
 class ToolExecutionReplayStore(Protocol):
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """Atomically claim one execution authorization ID for one-time use."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Atomically claim one execution authorization ID for one-time use.
+
+        Inputs:
+            - execution_id: Function input.
+            - ttl_seconds: Function input.
+
+        Outputs:
+            - A value matching the declared bool return contract.
+        """
         ...
 
     async def close(self) -> None:
-        """Release resources owned by the replay store."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Release resources owned by the replay store.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         ...
 
 
@@ -195,8 +237,28 @@ def _sha256_text(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
-    """Reject duplicate JSON keys while parsing a trusted tool registry."""
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Reject duplicate JSON keys while parsing a trusted tool registry.
+
+    Inputs:
+        - pairs: Function input.
+
+    Outputs:
+        - A value matching the declared dict[str, Any] return contract.
+    """
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -216,7 +278,8 @@ def parse_tool_execution_registry(document: str) -> ToolExecutionRegistry:
         - Nothing.
 
     Effects:
-        - Strictly validates tool names, risk classes, and authoritative JSON Schemas.
+        - Strictly validates tool names, risk classes, and authoritative JSON
+        - Schemas.
         - Rejects unknown fields and malformed schemas.
 
     Inputs:
@@ -226,13 +289,19 @@ def parse_tool_execution_registry(document: str) -> ToolExecutionRegistry:
         - Validated ToolExecutionRegistry.
     """
     try:
-        root = json.loads(document, object_pairs_hook=_object_without_duplicate_keys)
+        root = json.loads(
+            document, object_pairs_hook=_object_without_duplicate_keys
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("invalid_tool_execution_json") from exc
     if not isinstance(root, dict) or frozenset(root) != _root_keys:
         raise ValueError("invalid_tool_execution_root")
     version = root["version"]
-    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != 1
+    ):
         raise ValueError("unsupported_tool_execution_version")
     raw_tools = root["tools"]
     if not isinstance(raw_tools, dict):
@@ -271,14 +340,16 @@ def load_tool_execution_registry(
     RME
 
     Requires:
-        - configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may identify a local JSON registry.
+        - configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may identify a local
+        - JSON registry.
 
     Modifies:
         - Process-local registry cache when the file changes.
 
     Effects:
         - Loads and validates the authoritative tool execution registry.
-        - Fails closed when the registry is absent, unreadable, oversized, or invalid.
+        - Fails closed when the registry is absent, unreadable, oversized, or
+        - invalid.
 
     Inputs:
         - configured_path: Optional explicit registry path.
@@ -293,7 +364,9 @@ def load_tool_execution_registry(
     try:
         stat = path.stat()
     except OSError as exc:
-        raise ToolExecutionUnavailable("tool_execution_policy_unavailable") from exc
+        raise ToolExecutionUnavailable(
+            "tool_execution_policy_unavailable"
+        ) from exc
     if stat.st_size > _max_policy_bytes:
         raise ToolExecutionUnavailable("tool_execution_policy_too_large")
 
@@ -303,13 +376,18 @@ def load_tool_execution_registry(
         return _registry_cache
 
     with _registry_cache_lock:
-        if _registry_cache_signature == signature and _registry_cache is not None:
+        if (
+            _registry_cache_signature == signature
+            and _registry_cache is not None
+        ):
             return _registry_cache
         try:
             document = path.read_text(encoding="utf-8")
             registry = parse_tool_execution_registry(document)
         except (OSError, UnicodeError, ValueError) as exc:
-            raise ToolExecutionUnavailable("invalid_tool_execution_policy") from exc
+            raise ToolExecutionUnavailable(
+                "invalid_tool_execution_policy"
+            ) from exc
         _registry_cache_signature = signature
         _registry_cache = registry
         return registry
@@ -320,7 +398,8 @@ def _get_ticket_ttl_seconds() -> int:
     RME
 
     Requires:
-        - SAG_TOOL_EXECUTION_TTL_SECONDS may contain an integer from 1 through 900.
+        - SAG_TOOL_EXECUTION_TTL_SECONDS may contain an integer from 1 through
+        - 900.
 
     Modifies:
         - Nothing.
@@ -334,7 +413,9 @@ def _get_ticket_ttl_seconds() -> int:
     Outputs:
         - Ticket lifetime in seconds.
     """
-    raw = os.getenv("SAG_TOOL_EXECUTION_TTL_SECONDS", str(_default_ticket_seconds))
+    raw = os.getenv(
+        "SAG_TOOL_EXECUTION_TTL_SECONDS", str(_default_ticket_seconds)
+    )
     try:
         parsed = int(raw)
     except ValueError as exc:
@@ -349,7 +430,8 @@ def _get_signing_key() -> bytes:
     RME
 
     Requires:
-        - SAG_TOOL_EXECUTION_SIGNING_KEY contains at least 32 bytes of secret material.
+        - SAG_TOOL_EXECUTION_SIGNING_KEY contains at least 32 bytes of secret
+        - material.
 
     Modifies:
         - Nothing.
@@ -365,7 +447,9 @@ def _get_signing_key() -> bytes:
     """
     configured = os.getenv("SAG_TOOL_EXECUTION_SIGNING_KEY")
     if configured is None:
-        raise ToolExecutionUnavailable("tool_execution_signing_key_not_configured")
+        raise ToolExecutionUnavailable(
+            "tool_execution_signing_key_not_configured"
+        )
     key = configured.encode("utf-8")
     if len(key) < 32 or len(key) > 1024:
         raise ToolExecutionUnavailable("invalid_tool_execution_signing_key")
@@ -405,7 +489,8 @@ def _issue_execution_ticket(
         - Nothing.
 
     Effects:
-        - Issues a short-lived HMAC-SHA256 ticket without embedding raw tool arguments.
+        - Issues a short-lived HMAC-SHA256 ticket without embedding raw tool
+        - arguments.
 
     Inputs:
         - client_id: Authenticated client identity.
@@ -444,11 +529,18 @@ def _issue_execution_ticket(
         "exp": metadata.expires_at,
     }
     payload_bytes = _canonical_json(payload)
-    signature = hmac.new(_get_signing_key(), payload_bytes, hashlib.sha256).digest()
-    return f"{_b64url_encode(payload_bytes)}.{_b64url_encode(signature)}", metadata
+    signature = hmac.new(
+        _get_signing_key(), payload_bytes, hashlib.sha256
+    ).digest()
+    return (
+        f"{_b64url_encode(payload_bytes)}.{_b64url_encode(signature)}",
+        metadata,
+    )
 
 
-def _validate_tool_arguments(tool_call: ToolCall, spec: ToolExecutionSpec) -> None:
+def _validate_tool_arguments(
+    tool_call: ToolCall, spec: ToolExecutionSpec
+) -> None:
     """
     RME
 
@@ -459,7 +551,8 @@ def _validate_tool_arguments(tool_call: ToolCall, spec: ToolExecutionSpec) -> No
         - Nothing.
 
     Effects:
-        - Parses untrusted model arguments as JSON and validates them against the authoritative schema.
+        - Parses untrusted model arguments as JSON and validates them against
+        - the authoritative schema.
 
     Inputs:
         - tool_call: Model-generated function call.
@@ -500,17 +593,21 @@ def prepare_tool_execution_response(
 
     Requires:
         - response is a validated provider response for request.
-        - allowed_tools is the authenticated client's current function allowlist.
+        - allowed_tools is the authenticated client's current function
+        - allowlist.
 
     Modifies:
         - Nothing in the provider response or request.
 
     Effects:
         - Treats every model-generated tool call as untrusted output.
-        - Requires each call to be declared in the source request and still allowed by policy.
-        - Requires the request-declared parameter schema to match the authoritative execution registry.
+        - Requires each call to be declared in the source request and still
+        - allowed by policy.
+        - Requires the request-declared parameter schema to match the
+        - authoritative execution registry.
         - Validates exact model arguments against the authoritative schema.
-        - Attaches short-lived execution tickets and risk labels to safe copied tool calls.
+        - Attaches short-lived execution tickets and risk labels to safe copied
+        - tool calls.
 
     Inputs:
         - response: Upstream chat completion.
@@ -531,7 +628,8 @@ def prepare_tool_execution_response(
 
     registry = load_tool_execution_registry()
     declared = {
-        tool.function.name: tool.function.parameters for tool in (request.tools or [])
+        tool.function.name: tool.function.parameters
+        for tool in (request.tools or [])
     }
     seen_call_ids: set[str] = set()
     prepared: list[PreparedToolExecution] = []
@@ -542,7 +640,9 @@ def prepare_tool_execution_response(
         for tool_call in choice.message.tool_calls or []:
             name = tool_call.function.name
             if tool_call.id in seen_call_ids:
-                raise ToolExecutionRejected("duplicate_tool_call_id", tool_name=name)
+                raise ToolExecutionRejected(
+                    "duplicate_tool_call_id", tool_name=name
+                )
             seen_call_ids.add(tool_call.id)
             if name not in allowed_tools:
                 raise ToolExecutionRejected("tool_not_allowed", tool_name=name)
@@ -551,7 +651,9 @@ def prepare_tool_execution_response(
                 raise ToolExecutionRejected("tool_not_declared", tool_name=name)
             spec = registry.tools.get(name)
             if spec is None:
-                raise ToolExecutionRejected("tool_execution_policy_missing", tool_name=name)
+                raise ToolExecutionRejected(
+                    "tool_execution_policy_missing", tool_name=name
+                )
             if _sha256_json(declared_schema) != spec.schema_sha256:
                 raise ToolExecutionRejected(
                     "tool_schema_mismatch",
@@ -585,8 +687,12 @@ def prepare_tool_execution_response(
 
         updated_message = choice.message
         if choice.message.tool_calls is not None:
-            updated_message = choice.message.model_copy(update={"tool_calls": updated_calls})
-        updated_choices.append(choice.model_copy(update={"message": updated_message}))
+            updated_message = choice.message.model_copy(
+                update={"tool_calls": updated_calls}
+            )
+        updated_choices.append(
+            choice.model_copy(update={"message": updated_message})
+        )
 
     return PreparedToolExecutionResponse(
         response=response.model_copy(update={"choices": updated_choices}),
@@ -612,8 +718,10 @@ def verify_execution_ticket(
         - Nothing.
 
     Effects:
-        - Verifies ticket signature, expiry, identity, call ID/name, argument digest, schema fingerprint, and risk.
-        - Re-resolves the current authoritative tool registry so stale policies fail closed.
+        - Verifies ticket signature, expiry, identity, call ID/name, argument
+        - digest, schema fingerprint, and risk.
+        - Re-resolves the current authoritative tool registry so stale policies
+        - fail closed.
 
     Inputs:
         - token: Gateway-issued execution authorization ticket.
@@ -629,7 +737,9 @@ def verify_execution_ticket(
     payload_segment, signature_segment = token.split(".", 1)
     payload_bytes = _b64url_decode(payload_segment)
     signature = _b64url_decode(signature_segment)
-    expected = hmac.new(_get_signing_key(), payload_bytes, hashlib.sha256).digest()
+    expected = hmac.new(
+        _get_signing_key(), payload_bytes, hashlib.sha256
+    ).digest()
     if not hmac.compare_digest(signature, expected):
         raise ToolExecutionRejected("invalid_execution_ticket")
     try:
@@ -650,7 +760,9 @@ def verify_execution_ticket(
         "schema_sha256",
         "risk",
     )
-    if any(not isinstance(payload.get(field), str) for field in required_strings):
+    if any(
+        not isinstance(payload.get(field), str) for field in required_strings
+    ):
         raise ToolExecutionRejected("invalid_execution_ticket")
     if payload.get("v") != 1 or not isinstance(payload.get("exp"), int):
         raise ToolExecutionRejected("invalid_execution_ticket")
@@ -667,14 +779,19 @@ def verify_execution_ticket(
         raise ToolExecutionRejected("tool_call_id_mismatch")
     if payload["tool_name"] != tool_call.function.name:
         raise ToolExecutionRejected("tool_name_mismatch")
-    if payload["arguments_sha256"] != _sha256_text(tool_call.function.arguments):
+    if payload["arguments_sha256"] != _sha256_text(
+        tool_call.function.arguments
+    ):
         raise ToolExecutionRejected("tool_arguments_changed")
 
     registry = load_tool_execution_registry()
     spec = registry.tools.get(payload["tool_name"])
     if spec is None:
         raise ToolExecutionRejected("tool_execution_policy_missing")
-    if payload["schema_sha256"] != spec.schema_sha256 or payload["risk"] != spec.risk:
+    if (
+        payload["schema_sha256"] != spec.schema_sha256
+        or payload["risk"] != spec.risk
+    ):
         raise ToolExecutionRejected(
             "tool_execution_policy_changed",
             tool_name=spec.name,
@@ -743,7 +860,9 @@ class InMemoryToolExecutionReplayStore:
         now = time.monotonic()
         async with self._lock:
             self._claimed = {
-                key: expiry for key, expiry in self._claimed.items() if expiry > now
+                key: expiry
+                for key, expiry in self._claimed.items()
+                if expiry > now
             }
             if execution_id in self._claimed:
                 return False
@@ -751,11 +870,47 @@ class InMemoryToolExecutionReplayStore:
             return True
 
     def reset(self) -> None:
-        """Clear process-local replay state for deterministic tests."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Clear process-local replay state for deterministic tests.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         self._claimed.clear()
 
     async def close(self) -> None:
-        """No-op close for the process-local replay store."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - No-op close for the process-local replay store.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         return None
 
 
@@ -793,7 +948,8 @@ class RedisToolExecutionReplayStore:
             - Shared Redis replay state under sag:tool_execution:*.
 
         Effects:
-            - Uses SET NX with expiry so only one gateway replica can authorize the ticket.
+            - Uses SET NX with expiry so only one gateway replica can authorize
+            - the ticket.
             - Fails closed when Redis is unavailable.
 
         Inputs:
@@ -811,11 +967,31 @@ class RedisToolExecutionReplayStore:
                 nx=True,
             )
         except RedisError as exc:
-            raise ToolExecutionUnavailable("tool_execution_replay_store_unavailable") from exc
+            raise ToolExecutionUnavailable(
+                "tool_execution_replay_store_unavailable"
+            ) from exc
         return bool(result)
 
     async def close(self) -> None:
-        """Close the Redis connection pool owned by this replay store."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Close the Redis connection pool owned by this replay store.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         await self._client.aclose()
 
 
@@ -831,7 +1007,8 @@ def build_tool_execution_replay_store() -> ToolExecutionReplayStore:
         - Nothing outside the returned backend object.
 
     Effects:
-        - Selects distributed replay protection for runtime and memory for deterministic tests.
+        - Selects distributed replay protection for runtime and memory for
+        - deterministic tests.
 
     Inputs:
         - None.
@@ -839,12 +1016,16 @@ def build_tool_execution_replay_store() -> ToolExecutionReplayStore:
     Outputs:
         - Configured ToolExecutionReplayStore.
     """
-    backend = os.getenv("SAG_TOOL_EXECUTION_REPLAY_BACKEND", "redis").strip().lower()
+    backend = (
+        os.getenv("SAG_TOOL_EXECUTION_REPLAY_BACKEND", "redis").strip().lower()
+    )
     if backend == "memory":
         return InMemoryToolExecutionReplayStore()
     if backend == "redis":
         redis_url = os.getenv("REDIS_URL", "redis://127.0.0.1:6379/0").strip()
         if not redis_url:
-            raise ToolExecutionUnavailable("tool_execution_replay_store_not_configured")
+            raise ToolExecutionUnavailable(
+                "tool_execution_replay_store_not_configured"
+            )
         return RedisToolExecutionReplayStore(redis_url)
     raise ToolExecutionUnavailable("unsupported_tool_execution_replay_backend")

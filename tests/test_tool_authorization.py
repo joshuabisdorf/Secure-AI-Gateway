@@ -71,10 +71,14 @@ def _configure_chat_policy(monkeypatch) -> None:
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_MODELS", "test-client:mock-model")
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "test-client:redact")
-    monkeypatch.setenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit")
+    monkeypatch.setenv(
+        "SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit"
+    )
 
 
-def test_parse_client_allowed_tools_supports_explicit_none_and_multiple_grants() -> None:
+def test_allowed_tools_support_none_and_multiple_grants() -> (
+    None
+):
     """
     RME
 
@@ -112,13 +116,15 @@ def test_named_tool_choice_must_be_declared_in_request() -> None:
         - Nothing.
 
     Effects:
-        - Verifies tool_choice cannot select an undeclared function even if policy allows it.
+        - Verifies tool_choice cannot select an undeclared function even if
+        - policy allows it.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether undeclared forced tools are rejected.
+        - None. Assertions determine whether undeclared forced tools are
+        - rejected.
     """
     request = ChatCompletionRequest(
         model="mock-model",
@@ -153,7 +159,8 @@ def test_chat_denies_unauthorized_tool_before_provider(
         - Temporarily replaces the provider with a capturing provider.
 
     Effects:
-        - Verifies unauthorized tool exposure returns 403 before provider execution.
+        - Verifies unauthorized tool exposure returns 403 before provider
+        - execution.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure policy/provider state.
@@ -200,7 +207,8 @@ def test_chat_forwards_only_explicitly_allowed_tool(
         - Temporarily replaces the provider with a capturing provider.
 
     Effects:
-        - Verifies an authorized tool definition and named choice reach the provider.
+        - Verifies an authorized tool definition and named choice reach the
+        - provider.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure policy/provider state.
@@ -239,7 +247,9 @@ def test_chat_forwards_only_explicitly_allowed_tool(
     assert provider.request.tool_choice.function.name == "calculator"
 
 
-def test_chat_fails_closed_without_tool_policy(monkeypatch, gateway_api_key) -> None:
+def test_chat_fails_closed_without_tool_policy(
+    monkeypatch, gateway_api_key
+) -> None:
     """
     RME
 
@@ -250,7 +260,8 @@ def test_chat_fails_closed_without_tool_policy(monkeypatch, gateway_api_key) -> 
         - Temporarily removes SAG_CLIENT_ALLOWED_TOOLS.
 
     Effects:
-        - Verifies valid protected chat requests fail closed without tool policy.
+        - Verifies valid protected chat requests fail closed without tool
+        - policy.
 
     Inputs:
         - monkeypatch: pytest fixture used to remove policy configuration.
@@ -272,7 +283,9 @@ def test_chat_fails_closed_without_tool_policy(monkeypatch, gateway_api_key) -> 
     )
 
     assert response.status_code == 503
-    assert response.json() == {"detail": "Tool authorization policy is not configured."}
+    assert response.json() == {
+        "detail": "Tool authorization policy is not configured."
+    }
 
 
 def test_openai_provider_forwards_tools_and_normalizes_tool_calls() -> None:
@@ -280,14 +293,16 @@ def test_openai_provider_forwards_tools_and_normalizes_tool_calls() -> None:
     RME
 
     Requires:
-        - A deterministic HTTP transport can stand in for an OpenAI-compatible provider.
+        - A deterministic HTTP transport can stand in for an OpenAI-compatible
+        - provider.
 
     Modifies:
         - Captured in-memory request payload only.
 
     Effects:
         - Verifies authorized tools/tool_choice are serialized upstream.
-        - Verifies an assistant function tool call is accepted by the gateway response model.
+        - Verifies an assistant function tool call is accepted by the gateway
+        - response model.
 
     Inputs:
         - None.
@@ -317,7 +332,7 @@ def test_openai_provider_forwards_tools_and_normalizes_tool_calls() -> None:
                                     "type": "function",
                                     "function": {
                                         "name": "calculator",
-                                        "arguments": "{\"value\":\"2+2\"}",
+                                        "arguments": '{"value":"2+2"}',
                                     },
                                 }
                             ],

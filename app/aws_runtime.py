@@ -20,12 +20,13 @@ _provider_secret_fields = frozenset(
 
 
 class SecretsManagerClient(Protocol):
-    def get_secret_value(self, **kwargs: Any) -> Mapping[str, Any]:
-        ...
+    def get_secret_value(self, **kwargs: Any) -> Mapping[str, Any]: ...
 
 
 class RuntimeSecretError(RuntimeError):
-    """Raised with a safe reason when cloud runtime secret loading fails closed."""
+    """
+    Raised with a safe reason when cloud runtime secret loading fails closed.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -46,19 +47,23 @@ def load_json_secret(
     RME
 
     Requires:
-        - secret_id identifies a Secrets Manager secret containing a JSON object in SecretString.
-        - The current AWS identity has least-privilege access to the requested secret.
+        - secret_id identifies a Secrets Manager secret containing a JSON object
+        - in SecretString.
+        - The current AWS identity has least-privilege access to the requested
+        - secret.
 
     Modifies:
         - Short-lived AWS SDK request/session state only.
 
     Effects:
         - Retrieves one secret through the AWS default credential chain.
-        - Rejects binary, malformed, or non-object secret values without exposing contents.
+        - Rejects binary, malformed, or non-object secret values without
+        - exposing contents.
 
     Inputs:
         - secret_id: Secret ARN or name.
-        - client: Optional injected Secrets Manager client for deterministic tests.
+        - client: Optional injected Secrets Manager client for deterministic
+        - tests.
 
     Outputs:
         - Parsed JSON object.
@@ -67,7 +72,9 @@ def load_json_secret(
         raise RuntimeSecretError("secret_id_not_configured")
 
     try:
-        response = (client or _secrets_client()).get_secret_value(SecretId=secret_id)
+        response = (client or _secrets_client()).get_secret_value(
+            SecretId=secret_id
+        )
     except Exception as exc:
         raise RuntimeSecretError("secret_unavailable") from exc
 
@@ -84,11 +91,32 @@ def load_json_secret(
 
 
 def _database_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
+    """
+    RME
+
+    Requires:
+        - value is the parsed runtime database secret object.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Validates the exact credential schema, username, and password length.
+        - Rejects malformed credentials without exposing their values.
+
+    Inputs:
+        - value: Candidate runtime database credentials.
+
+    Outputs:
+        - Validated username and password.
+    """
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
     username = value.get("username")
     password = value.get("password")
-    if not isinstance(username, str) or not _database_user_pattern.fullmatch(username):
+    if not isinstance(username, str) or not _database_user_pattern.fullmatch(
+        username
+    ):
         raise RuntimeSecretError("database_username_invalid")
     if not isinstance(password, str) or len(password.encode("utf-8")) < 32:
         raise RuntimeSecretError("database_password_invalid")
@@ -114,7 +142,8 @@ def build_database_conninfo(
 
     Effects:
         - Produces a libpq connection string with TLS required.
-        - Escapes connection fields using psycopg rather than string concatenation.
+        - Escapes connection fields using psycopg rather than string
+        - concatenation.
 
     Inputs:
         - credentials: Runtime database secret JSON object.
@@ -148,6 +177,25 @@ def build_database_conninfo(
 
 
 def _tool_signing_key(value: Mapping[str, Any]) -> str:
+    """
+    RME
+
+    Requires:
+        - value is the parsed execution-ticket signing secret object.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Validates exact schema and safe signing-key byte-length bounds.
+        - Fails closed without logging or returning malformed secret material.
+
+    Inputs:
+        - value: Candidate signing-key secret object.
+
+    Outputs:
+        - Validated execution-ticket signing key.
+    """
     if frozenset(value) != {"signing_key"}:
         raise RuntimeSecretError("tool_signing_secret_schema_invalid")
     signing_key = value.get("signing_key")
@@ -160,6 +208,25 @@ def _tool_signing_key(value: Mapping[str, Any]) -> str:
 
 
 def _provider_environment(value: Mapping[str, Any]) -> dict[str, str]:
+    """
+    RME
+
+    Requires:
+        - value is the parsed optional provider secret object.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Allows only the explicitly supported provider environment fields.
+        - Rejects non-string or unexpected fields without exposing values.
+
+    Inputs:
+        - value: Candidate provider-secret mapping.
+
+    Outputs:
+        - Validated provider environment additions.
+    """
     if not frozenset(value).issubset(_provider_secret_fields):
         raise RuntimeSecretError("provider_secret_schema_invalid")
     environment: dict[str, str] = {}
@@ -179,18 +246,22 @@ def load_gateway_runtime_environment(
 
     Requires:
         - Cloud runtime non-secret endpoint/secret-ID environment is configured.
-        - The Pod Identity role can read only the gateway runtime secret containers.
+        - The Pod Identity role can read only the gateway runtime secret
+        - containers.
 
     Modifies:
         - Nothing; returns environment additions for the child gateway process.
 
     Effects:
-        - Resolves database credentials and execution-ticket signing material from Secrets Manager.
-        - Optionally resolves provider credentials when a provider-secret ID is configured.
+        - Resolves database credentials and execution-ticket signing material
+        - from Secrets Manager.
+        - Optionally resolves provider credentials when a provider-secret ID is
+        - configured.
         - Never returns AWS credentials or logs secret values.
 
     Inputs:
-        - client: Optional injected Secrets Manager client for deterministic tests.
+        - client: Optional injected Secrets Manager client for deterministic
+        - tests.
 
     Outputs:
         - Environment variables required by the gateway child process.
@@ -248,9 +319,31 @@ def exec_with_runtime_environment(command: Sequence[str]) -> None:
 
 
 def main() -> None:
-    """Load cloud runtime secrets and exec the gateway command without printing them."""
+    """
+    RME
+
+    Requires:
+        - CLI arguments contain the gateway command after optional `--`.
+        - Required AWS runtime secret configuration is available.
+
+    Modifies:
+        - Process state when the runtime command is executed.
+
+    Effects:
+        - Loads cloud runtime secrets and execs the gateway command.
+        - Converts safe RuntimeSecretError reasons into CLI parser errors.
+        - Does not print secret values.
+
+    Inputs:
+        - Command-line arguments and AWS runtime environment configuration.
+
+    Outputs:
+        - None; successful execution replaces the current process.
+    """
     parser = argparse.ArgumentParser(
-        description="Load Secure AI Gateway AWS runtime secrets and exec a command."
+        description=(
+            "Load Secure AI Gateway AWS runtime secrets and exec a command."
+        )
     )
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()

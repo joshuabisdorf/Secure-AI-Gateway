@@ -27,7 +27,8 @@ class ClientRegistry(Protocol):
             - Looks up an active gateway key and its active client identity.
 
         Inputs:
-            - key_id: Public identifier embedded in a structured gateway API key.
+            - key_id: Public identifier embedded in a structured gateway API
+            - key.
 
         Outputs:
             - Matching ClientKeyRecord, or None when no active key exists.
@@ -36,7 +37,9 @@ class ClientRegistry(Protocol):
 
 
 class EnvironmentClientRegistry:
-    """Legacy/test registry backed by SAG_CLIENTS rather than persistent storage."""
+    """
+    Legacy/test registry backed by SAG_CLIENTS rather than persistent storage.
+    """
 
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
         """
@@ -120,7 +123,9 @@ class PostgresClientRegistry:
             try:
                 await self._pool.open(wait=True)
             except PsycopgError as exc:
-                raise ClientRegistryUnavailable("client_registry_unavailable") from exc
+                raise ClientRegistryUnavailable(
+                    "client_registry_unavailable"
+                ) from exc
 
             self._is_open = True
 
@@ -130,7 +135,8 @@ class PostgresClientRegistry:
 
         Requires:
             - key_id is a validated public gateway key identifier.
-            - Database schema for gateway_clients and gateway_api_keys has been initialized.
+            - Database schema for gateway_clients and gateway_api_keys has been
+            - initialized.
 
         Modifies:
             - PostgreSQL connection-pool state.
@@ -165,7 +171,9 @@ class PostgresClientRegistry:
                     )
                     row = await cursor.fetchone()
         except PsycopgError as exc:
-            raise ClientRegistryUnavailable("client_registry_unavailable") from exc
+            raise ClientRegistryUnavailable(
+                "client_registry_unavailable"
+            ) from exc
 
         if row is None:
             return None
@@ -203,7 +211,26 @@ class PostgresClientRegistry:
 
 class UnavailableClientRegistry:
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
-        """Fail closed when no usable registry backend is configured."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Fail closed when no usable registry backend is configured.
+
+        Inputs:
+            - key_id: Function input.
+
+        Outputs:
+            - A value matching the declared ClientKeyRecord | None return
+              contract.
+        """
         raise ClientRegistryUnavailable("client_registry_not_configured")
 
 
@@ -221,7 +248,8 @@ def build_client_registry() -> ClientRegistry:
     Effects:
         - Selects persistent PostgreSQL storage by default.
         - Retains an explicit environment backend for deterministic tests only.
-        - Fails closed through UnavailableClientRegistry for unusable configuration.
+        - Fails closed through UnavailableClientRegistry for unusable
+        - configuration.
 
     Inputs:
         - None.
@@ -229,7 +257,9 @@ def build_client_registry() -> ClientRegistry:
     Outputs:
         - Configured ClientRegistry implementation.
     """
-    backend = os.getenv("SAG_CLIENT_REGISTRY_BACKEND", "postgres").strip().lower()
+    backend = (
+        os.getenv("SAG_CLIENT_REGISTRY_BACKEND", "postgres").strip().lower()
+    )
 
     if backend == "environment":
         return EnvironmentClientRegistry()

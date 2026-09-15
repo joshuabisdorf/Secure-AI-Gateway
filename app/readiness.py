@@ -18,14 +18,16 @@ async def _postgres_ready(database_url: str) -> bool:
         - A short-lived PostgreSQL connection/session.
 
     Effects:
-        - Verifies PostgreSQL connectivity and the required migrated gateway tables.
+        - Verifies PostgreSQL connectivity and the required migrated gateway
+        - tables.
         - Returns False instead of exposing backend exception details.
 
     Inputs:
         - database_url: PostgreSQL connection string.
 
     Outputs:
-        - True only when PostgreSQL is reachable and required schema objects exist.
+        - True only when PostgreSQL is reachable and required schema objects
+        - exist.
     """
     try:
         async with await psycopg.AsyncConnection.connect(
@@ -60,7 +62,8 @@ async def _redis_ready(redis_url: str) -> bool:
 
     Effects:
         - Pings Redis/Valkey using bounded connect/read timeouts.
-        - Uses the same local or ElastiCache IAM/TLS authentication path as runtime controls.
+        - Uses the same local or ElastiCache IAM/TLS authentication path as
+        - runtime controls.
         - Returns False instead of exposing backend exception details.
 
     Inputs:
@@ -113,15 +116,18 @@ async def runtime_ready() -> tuple[bool, tuple[str, ...]]:
     RME
 
     Requires:
-        - Runtime backend-selection environment variables describe the active deployment.
+        - Runtime backend-selection environment variables describe the active
+        - deployment.
 
     Modifies:
         - Short-lived backend connection state for required shared services.
 
     Effects:
         - Checks only backends required by the current runtime configuration.
-        - Treats missing backend URLs, failed connectivity, or missing PostgreSQL schema as not ready.
-        - Returns safe component names without connection strings or exception contents.
+        - Treats missing backend URLs, failed connectivity, or missing
+        - PostgreSQL schema as not ready.
+        - Returns safe component names without connection strings or exception
+        - contents.
 
     Inputs:
         - None.
@@ -156,8 +162,10 @@ def main() -> None:
 
     Effects:
         - Runs the backend readiness checks for Kubernetes exec probes.
-        - Exits zero when required backends and schema are ready, nonzero otherwise.
-        - Prints only safe component names and never prints connection strings or credentials.
+        - Exits zero when required backends and schema are ready, nonzero
+        - otherwise.
+        - Prints only safe component names and never prints connection strings
+        - or credentials.
 
     Inputs:
         - None.

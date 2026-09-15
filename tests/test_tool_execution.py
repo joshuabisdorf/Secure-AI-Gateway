@@ -58,7 +58,8 @@ def _write_registry(tmp_path, monkeypatch) -> None:
         - tmp_path and monkeypatch are pytest fixtures.
 
     Modifies:
-        - Creates a temporary execution registry and sets its process-local path.
+        - Creates a temporary execution registry and sets its process-local
+        - path.
 
     Effects:
         - Configures deterministic authoritative tool metadata for one test.
@@ -97,7 +98,9 @@ def _configure_chat_policy(monkeypatch) -> None:
     monkeypatch.setenv("SAG_ALLOWED_MODELS", "mock-model")
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_MODELS", "test-client:mock-model")
     monkeypatch.setenv("SAG_CLIENT_PII_POLICIES", "test-client:redact")
-    monkeypatch.setenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit")
+    monkeypatch.setenv(
+        "SAG_CLIENT_PROMPT_INJECTION_POLICIES", "test-client:audit"
+    )
     monkeypatch.setenv("SAG_CLIENT_ALLOWED_TOOLS", "test-client:status_check")
 
 
@@ -112,7 +115,8 @@ def _tool_definition() -> dict[str, object]:
         - Nothing.
 
     Effects:
-        - Produces the client-visible tool declaration expected to match the authoritative registry.
+        - Produces the client-visible tool declaration expected to match the
+        - authoritative registry.
 
     Inputs:
         - None.
@@ -134,18 +138,22 @@ def _tool_definition() -> dict[str, object]:
     }
 
 
-def _request_tool_call(client: TestClient, gateway_api_key: str) -> dict[str, object]:
+def _request_tool_call(
+    client: TestClient, gateway_api_key: str
+) -> dict[str, object]:
     """
     RME
 
     Requires:
-        - Gateway test policy, mock provider, execution registry, and signing key are configured.
+        - Gateway test policy, mock provider, execution registry, and signing
+        - key are configured.
 
     Modifies:
         - Test gateway rate/usage state through one chat request.
 
     Effects:
-        - Requests a deterministic mock model tool call and verifies a ticket was issued.
+        - Requests a deterministic mock model tool call and verifies a ticket
+        - was issued.
 
     Inputs:
         - client: FastAPI test client.
@@ -187,7 +195,8 @@ def test_parse_tool_execution_registry_validates_risk_and_schema() -> None:
         - Nothing.
 
     Effects:
-        - Verifies authoritative schemas receive deterministic fingerprints and risk labels.
+        - Verifies authoritative schemas receive deterministic fingerprints and
+        - risk labels.
 
     Inputs:
         - None.
@@ -218,7 +227,8 @@ def test_tool_call_requires_execution_authorization_and_ticket_is_one_time(
 
     Effects:
         - Verifies a provider tool call receives a short-lived execution ticket.
-        - Verifies independent execution authorization succeeds once and replay returns 409.
+        - Verifies independent execution authorization succeeds once and replay
+        - returns 409.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -226,7 +236,8 @@ def test_tool_call_requires_execution_authorization_and_ticket_is_one_time(
         - gateway_api_key: Test client credential.
 
     Outputs:
-        - None. Assertions determine whether complete mediation/replay protection works.
+        - None. Assertions determine whether complete mediation/replay
+        - protection works.
     """
     _write_registry(tmp_path, monkeypatch)
     _configure_chat_policy(monkeypatch)
@@ -268,7 +279,8 @@ def test_execution_ticket_rejects_argument_tampering(
         - Temporary policy file only.
 
     Effects:
-        - Verifies changing model arguments after ticket issuance invalidates authorization.
+        - Verifies changing model arguments after ticket issuance invalidates
+        - authorization.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -308,7 +320,8 @@ def test_execution_rechecks_current_client_tool_policy(
         - Test-only client tool policy between issue and authorization.
 
     Effects:
-        - Verifies revocation after model output prevents stale-ticket execution.
+        - Verifies revocation after model output prevents stale-ticket
+        - execution.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -332,7 +345,7 @@ def test_execution_rechecks_current_client_tool_policy(
     assert response.status_code == 403
 
 
-def test_gateway_rejects_request_schema_that_differs_from_authoritative_registry(
+def test_gateway_rejects_schema_different_from_registry(
     tmp_path,
     monkeypatch,
     gateway_api_key,
@@ -347,7 +360,8 @@ def test_gateway_rejects_request_schema_that_differs_from_authoritative_registry
         - Temporary tool registry and normal in-memory test usage state.
 
     Effects:
-        - Verifies a client cannot substitute a looser argument schema under an allowed tool name.
+        - Verifies a client cannot substitute a looser argument schema under an
+        - allowed tool name.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -397,7 +411,8 @@ def test_ticket_is_bound_to_authenticated_client_and_key(
         - Temporary policy file only.
 
     Effects:
-        - Verifies ticket verification rejects a different authenticated identity.
+        - Verifies ticket verification rejects a different authenticated
+        - identity.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -434,13 +449,15 @@ def test_openai_provider_never_forwards_gateway_execution_ticket() -> None:
         - Captures one deterministic in-memory provider request payload.
 
     Effects:
-        - Verifies gateway-only execution credentials/risk metadata never leave for OpenAI-compatible providers.
+        - Verifies gateway-only execution credentials/risk metadata never leave
+        - for OpenAI-compatible providers.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether upstream serialization is credential-safe.
+        - None. Assertions determine whether upstream serialization is
+        - credential-safe.
     """
     captured: dict[str, object] = {}
 
@@ -455,7 +472,8 @@ def test_openai_provider_never_forwards_gateway_execution_ticket() -> None:
             - captured dictionary.
 
         Effects:
-            - Records outbound JSON and returns a minimal valid provider response.
+            - Records outbound JSON and returns a minimal valid provider
+            - response.
 
         Inputs:
             - request: MockTransport HTTP request.

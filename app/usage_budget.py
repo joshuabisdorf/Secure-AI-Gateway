@@ -54,7 +54,27 @@ class UsageLedger(Protocol):
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
-        """Return current daily usage and whether another request may be forwarded."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Return current daily usage and whether another request may be
+              forwarded.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         ...
 
     async def record(
@@ -65,7 +85,29 @@ class UsageLedger(Protocol):
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
-        """Atomically add provider-reported usage and return updated daily totals."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Atomically add provider-reported usage and return updated daily
+              totals.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+            - total_tokens: Function input.
+            - cost_usd: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         ...
 
 
@@ -93,7 +135,8 @@ def parse_client_usage_budgets(
         - Mapping from client ID to validated ClientUsageBudget.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or out of range.
+        - ValueError: Configuration is empty, malformed, duplicated, or out of
+        - range.
     """
     budgets: dict[str, ClientUsageBudget] = {}
 
@@ -164,7 +207,8 @@ def get_client_usage_budget(client_id: str) -> ClientUsageBudget:
         - Nothing.
 
     Effects:
-        - Fails closed when budget policy is absent, malformed, or missing the client.
+        - Fails closed when budget policy is absent, malformed, or missing the
+        - client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -249,7 +293,8 @@ def _build_decision(
         - now: Current UTC time.
 
     Outputs:
-        - UsageBudgetDecision describing current allowance and remaining capacity.
+        - UsageBudgetDecision describing current allowance and remaining
+        - capacity.
     """
     token_remaining = (
         None
@@ -263,7 +308,10 @@ def _build_decision(
     )
 
     reason = None
-    if budget.token_limit_daily is not None and tokens_used >= budget.token_limit_daily:
+    if (
+        budget.token_limit_daily is not None
+        and tokens_used >= budget.token_limit_daily
+    ):
         reason = "token_budget_exceeded"
     elif (
         budget.cost_limit_daily_usd is not None
@@ -396,7 +444,25 @@ class InMemoryUsageLedger:
             )
 
     def reset(self) -> None:
-        """Clear process-local test usage state."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Clear process-local test usage state.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         with self._lock:
             self._buckets.clear()
 
@@ -408,7 +474,8 @@ class InMemoryUsageLedger:
             - now is UTC-aware.
 
         Modifies:
-            - Process-local bucket mapping when the client/day has no current bucket.
+            - Process-local bucket mapping when the client/day has no current
+            - bucket.
 
         Effects:
             - Resets usage automatically at a UTC day boundary.
@@ -455,8 +522,10 @@ class PostgresUsageLedger:
             - Initializes process-local PostgreSQL pool state.
 
         Effects:
-            - Creates a closed async pool and defers connections until first use.
-            - Bounds pool acquisition waits so exhaustion fails closed instead of stalling indefinitely.
+            - Creates a closed async pool and defers connections until first
+            - use.
+            - Bounds pool acquisition waits so exhaustion fails closed instead
+            - of stalling indefinitely.
 
         Inputs:
             - database_url: PostgreSQL connection string.
@@ -514,7 +583,9 @@ class PostgresUsageLedger:
                     timeout=self._connection_timeout_seconds,
                 )
             except (PsycopgError, PoolTimeout) as exc:
-                raise UsageLedgerUnavailable("usage_ledger_unavailable") from exc
+                raise UsageLedgerUnavailable(
+                    "usage_ledger_unavailable"
+                ) from exc
             self._is_open = True
 
     async def check(
@@ -535,7 +606,8 @@ class PostgresUsageLedger:
         Effects:
             - Reads persisted usage for the current UTC day.
             - Treats a missing daily row as zero accumulated usage.
-            - Fails closed when PostgreSQL cannot be queried or a connection cannot be acquired within the configured timeout.
+            - Fails closed when PostgreSQL cannot be queried or a connection
+            - cannot be acquired within the configured timeout.
 
         Inputs:
             - client_id: Authenticated client identity.
@@ -588,7 +660,8 @@ class PostgresUsageLedger:
         Requires:
             - gateway_daily_usage schema has been initialized.
             - client_id identifies a stored gateway client.
-            - total_tokens and cost_usd are non-negative provider-reported usage.
+            - total_tokens and cost_usd are non-negative provider-reported
+            - usage.
 
         Modifies:
             - gateway_daily_usage for the client and current UTC day.
@@ -596,13 +669,15 @@ class PostgresUsageLedger:
         Effects:
             - Atomically inserts or increments durable token/cost totals.
             - Prevents concurrent successful requests from losing increments.
-            - Fails closed when usage cannot be persisted or a connection cannot be acquired within the configured timeout.
+            - Fails closed when usage cannot be persisted or a connection cannot
+            - be acquired within the configured timeout.
 
         Inputs:
             - client_id: Authenticated client identity.
             - budget: Configured daily token/cost limits.
             - total_tokens: Provider-reported tokens for the completed request.
-            - cost_usd: Provider-reported cost, or zero when cost is unavailable and not required.
+            - cost_usd: Provider-reported cost, or zero when cost is unavailable
+            - and not required.
 
         Outputs:
             - Updated daily UsageBudgetDecision.
@@ -627,8 +702,11 @@ class PostgresUsageLedger:
                         VALUES (%s, %s, %s, %s)
                         ON CONFLICT (client_id, usage_date)
                         DO UPDATE SET
-                            tokens_used = gateway_daily_usage.tokens_used + EXCLUDED.tokens_used,
-                            cost_used_usd = gateway_daily_usage.cost_used_usd + EXCLUDED.cost_used_usd,
+                            tokens_used = gateway_daily_usage.tokens_used + \
+                                EXCLUDED.tokens_used,
+                            cost_used_usd = \
+                                gateway_daily_usage.cost_used_usd + \
+                                    EXCLUDED.cost_used_usd,
                             updated_at = NOW()
                         RETURNING tokens_used, cost_used_usd
                         """,
@@ -649,7 +727,25 @@ class PostgresUsageLedger:
         )
 
     async def close(self) -> None:
-        """Close the PostgreSQL pool when it was opened."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Close the PostgreSQL pool when it was opened.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         if self._is_open:
             await self._pool.close()
             self._is_open = False
@@ -661,7 +757,26 @@ class UnavailableUsageLedger:
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
-        """Fail closed when no usable durable ledger is configured."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - No state beyond delegated dependency behavior.
+
+        Effects:
+            - Fail closed when no usable durable ledger is configured.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         raise UsageLedgerUnavailable("usage_ledger_not_configured")
 
     async def record(
@@ -672,7 +787,28 @@ class UnavailableUsageLedger:
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
-        """Fail closed when no usable durable ledger is configured."""
+        """
+        RME
+
+        Requires:
+            - Arguments satisfy their declared contracts and required configured
+              dependencies are available.
+
+        Modifies:
+            - Owned runtime or dependency state, as described by the operation.
+
+        Effects:
+            - Fail closed when no usable durable ledger is configured.
+
+        Inputs:
+            - client_id: Function input.
+            - budget: Function input.
+            - total_tokens: Function input.
+            - cost_usd: Function input.
+
+        Outputs:
+            - A value matching the declared UsageBudgetDecision return contract.
+        """
         raise UsageLedgerUnavailable("usage_ledger_not_configured")
 
 
@@ -691,7 +827,8 @@ def build_usage_ledger() -> UsageLedger:
         - Selects durable PostgreSQL usage accounting by default.
         - Retains the in-memory backend for deterministic tests.
         - Applies a bounded default PostgreSQL pool wait.
-        - Fails closed through UnavailableUsageLedger for unusable configuration.
+        - Fails closed through UnavailableUsageLedger for unusable
+        - configuration.
 
     Inputs:
         - None.
@@ -715,7 +852,8 @@ def _validate_usage(*, total_tokens: int, cost_usd: Decimal) -> None:
     RME
 
     Requires:
-        - total_tokens and cost_usd are candidate provider-reported usage values.
+        - total_tokens and cost_usd are candidate provider-reported usage
+        - values.
 
     Modifies:
         - Nothing.

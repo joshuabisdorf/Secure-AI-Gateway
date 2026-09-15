@@ -7,7 +7,9 @@ from app.main import app as gateway_app
 DEFAULT_MAX_REQUEST_BODY_BYTES = 1_048_576
 MIN_MAX_REQUEST_BODY_BYTES = 1_024
 MAX_MAX_REQUEST_BODY_BYTES = 16_777_216
-_BLOCKED_DOC_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"})
+_BLOCKED_DOC_PATHS = frozenset(
+    {"/docs", "/docs/oauth2-redirect", "/redoc", "/openapi.json"}
+)
 _SECURITY_HEADERS = (
     (b"cache-control", b"no-store"),
     (b"content-security-policy", b"default-src 'none'; frame-ancestors 'none'"),
@@ -28,7 +30,8 @@ def get_max_request_body_bytes() -> int:
         - Nothing.
 
     Effects:
-        - Fails application startup when the configured limit is invalid or outside the safe range.
+        - Fails application startup when the configured limit is invalid or
+        - outside the safe range.
 
     Inputs:
         - None.
@@ -67,7 +70,8 @@ def get_api_docs_enabled() -> bool:
         - None.
 
     Outputs:
-        - Whether production HTTP routing should expose interactive/OpenAPI docs.
+        - Whether production HTTP routing should expose interactive/OpenAPI
+        - docs.
     """
     value = os.getenv("SAG_ENABLE_API_DOCS", "false").strip().lower()
     if value in {"true", "1", "yes", "on"}:
@@ -78,7 +82,10 @@ def get_api_docs_enabled() -> bool:
 
 
 class RequestBodyLimitMiddleware:
-    """Production ASGI boundary for request-size, docs, and response-header hardening."""
+    """
+    Production ASGI boundary for request-size, docs, and response-header
+    hardening.
+    """
 
     def __init__(
         self,
@@ -104,7 +111,8 @@ class RequestBodyLimitMiddleware:
         Inputs:
             - app: Wrapped ASGI application.
             - max_body_bytes: Maximum accepted body size in bytes.
-            - block_api_docs: Whether production documentation routes are hidden.
+            - block_api_docs: Whether production documentation routes are
+            - hidden.
 
         Outputs:
             - Configured middleware instance.
@@ -148,7 +156,13 @@ class RequestBodyLimitMiddleware:
             (b"content-length", str(len(body)).encode("ascii")),
             *_SECURITY_HEADERS,
         ]
-        await send({"type": "http.response.start", "status": status, "headers": headers})
+        await send(
+            {
+                "type": "http.response.start",
+                "status": status,
+                "headers": headers,
+            }
+        )
         await send({"type": "http.response.body", "body": body})
 
     async def __call__(
@@ -167,10 +181,14 @@ class RequestBodyLimitMiddleware:
             - HTTP request receive stream and response headers.
 
         Effects:
-            - Rejects declared or streamed request bodies above max_body_bytes with HTTP 413.
-            - Buffers only a bounded request body before entering FastAPI, preventing parser amplification.
-            - Optionally hides interactive/OpenAPI documentation routes with HTTP 404.
-            - Adds cache, framing, MIME-sniffing, referrer, and CSP response protections.
+            - Rejects declared or streamed request bodies above max_body_bytes
+            - with HTTP 413.
+            - Buffers only a bounded request body before entering FastAPI,
+            - preventing parser amplification.
+            - Optionally hides interactive/OpenAPI documentation routes with
+            - HTTP 404.
+            - Adds cache, framing, MIME-sniffing, referrer, and CSP response
+            - protections.
             - Passes non-HTTP traffic through unchanged.
 
         Inputs:
@@ -245,6 +263,25 @@ class RequestBodyLimitMiddleware:
         replayed = False
 
         async def replay_receive() -> dict[str, Any]:
+            """
+            RME
+
+            Requires:
+                - Arguments satisfy their declared contracts and required
+                  configured dependencies are available.
+
+            Modifies:
+                - No state beyond delegated dependency behavior.
+
+            Effects:
+                - Performs the replay receive operation.
+
+            Inputs:
+                - None.
+
+            Outputs:
+                - A value matching the declared dict[str, Any] return contract.
+            """
             nonlocal replayed
             if disconnected:
                 return {"type": "http.disconnect"}
@@ -258,10 +295,28 @@ class RequestBodyLimitMiddleware:
             return {"type": "http.disconnect"}
 
         async def hardened_send(message: dict[str, Any]) -> None:
+            """
+            RME
+
+            Requires:
+                - Arguments satisfy their declared contracts and required
+                  configured dependencies are available.
+
+            Modifies:
+                - No state beyond delegated dependency behavior.
+
+            Effects:
+                - Performs the hardened send operation.
+
+            Inputs:
+                - message: Function input.
+
+            Outputs:
+                - None.
+            """
             if message.get("type") == "http.response.start":
                 existing = {
-                    name.lower()
-                    for name, _ in message.get("headers", [])
+                    name.lower() for name, _ in message.get("headers", [])
                 }
                 headers = list(message.get("headers", []))
                 headers.extend(

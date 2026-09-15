@@ -36,7 +36,9 @@ _cache_registry: "SecurityPolicyRegistry | None" = None
 
 
 class SecurityPolicyUnavailable(RuntimeError):
-    """Raised when the configured unified security policy cannot be used safely."""
+    """
+    Raised when the configured unified security policy cannot be used safely.
+    """
 
     def __init__(self, reason: str) -> None:
         self.reason = reason
@@ -84,18 +86,22 @@ class SecurityPolicyRegistry:
             - Nothing.
 
         Effects:
-            - Resolves a client assignment to its named reusable security profile.
+            - Resolves a client assignment to its named reusable security
+            - profile.
             - Fails closed when the client has no assignment.
 
         Inputs:
             - client_id: Authenticated gateway client identity.
 
         Outputs:
-            - ResolvedSecurityPolicy containing the assigned profile and its name.
+            - ResolvedSecurityPolicy containing the assigned profile and its
+            - name.
         """
         profile_name = self.clients.get(client_id)
         if profile_name is None:
-            raise SecurityPolicyUnavailable("client_security_policy_not_configured")
+            raise SecurityPolicyUnavailable(
+                "client_security_policy_not_configured"
+            )
         return ResolvedSecurityPolicy(
             client_id=client_id,
             profile_name=profile_name,
@@ -103,7 +109,9 @@ class SecurityPolicyRegistry:
         )
 
 
-def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+def _object_without_duplicate_keys(
+    pairs: list[tuple[str, Any]],
+) -> dict[str, Any]:
     parsed: dict[str, Any] = {}
     for key, value in pairs:
         if key in parsed:
@@ -128,6 +136,28 @@ def _parse_string_list(
     allow_empty: bool,
     invalid_reason: str,
 ) -> frozenset[str]:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse string list operation.
+
+    Inputs:
+        - value: Function input.
+        - pattern: Function input.
+        - allow_empty: Function input.
+        - invalid_reason: Function input.
+
+    Outputs:
+        - A value matching the declared frozenset[str] return contract.
+    """
     if not isinstance(value, list):
         raise ValueError(invalid_reason)
     if not value and not allow_empty:
@@ -144,6 +174,25 @@ def _parse_string_list(
 
 
 def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse daily budget operation.
+
+    Inputs:
+        - value: Function input.
+
+    Outputs:
+        - A value matching the declared DailyBudgetPolicy return contract.
+    """
     if not isinstance(value, dict):
         raise ValueError("invalid_daily_budget")
     _require_exact_keys(value, _daily_budget_keys, "invalid_daily_budget")
@@ -189,6 +238,25 @@ def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
 
 
 def _parse_profile(value: Any) -> SecurityPolicyProfile:
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Performs the parse profile operation.
+
+    Inputs:
+        - value: Function input.
+
+    Outputs:
+        - A value matching the declared SecurityPolicyProfile return contract.
+    """
     if not isinstance(value, dict):
         raise ValueError("invalid_security_profile")
     _require_exact_keys(value, _profile_keys, "invalid_security_profile")
@@ -209,7 +277,10 @@ def _parse_profile(value: Any) -> SecurityPolicyProfile:
         raise ValueError("invalid_profile_rate_limit")
 
     pii_action = value["pii_action"]
-    if not isinstance(pii_action, str) or pii_action not in _supported_pii_actions:
+    if (
+        not isinstance(pii_action, str)
+        or pii_action not in _supported_pii_actions
+    ):
         raise ValueError("invalid_profile_pii_action")
 
     prompt_injection_action = value["prompt_injection_action"]
@@ -241,13 +312,15 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
     RME
 
     Requires:
-        - document is intended to be a version-1 Secure AI Gateway policy registry.
+        - document is intended to be a version-1 Secure AI Gateway policy
+        - registry.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Strictly validates JSON structure, duplicate keys, profile fields, and assignments.
+        - Strictly validates JSON structure, duplicate keys, profile fields, and
+        - assignments.
         - Rejects unknown fields rather than silently ignoring policy mistakes.
 
     Inputs:
@@ -260,7 +333,9 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
         - ValueError: The policy document is malformed or violates the schema.
     """
     try:
-        root = json.loads(document, object_pairs_hook=_object_without_duplicate_keys)
+        root = json.loads(
+            document, object_pairs_hook=_object_without_duplicate_keys
+        )
     except json.JSONDecodeError as exc:
         raise ValueError("invalid_security_policy_json") from exc
 
@@ -269,7 +344,11 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
     _require_exact_keys(root, _root_keys, "invalid_security_policy_root")
 
     version = root["version"]
-    if not isinstance(version, int) or isinstance(version, bool) or version != 1:
+    if (
+        not isinstance(version, int)
+        or isinstance(version, bool)
+        or version != 1
+    ):
         raise ValueError("unsupported_security_policy_version")
 
     raw_profiles = root["profiles"]
@@ -278,10 +357,9 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
     profiles: dict[str, SecurityPolicyProfile] = {}
     for profile_name, raw_profile in raw_profiles.items():
-        if (
-            not isinstance(profile_name, str)
-            or not _profile_name_pattern.fullmatch(profile_name)
-        ):
+        if not isinstance(
+            profile_name, str
+        ) or not _profile_name_pattern.fullmatch(profile_name):
             raise ValueError("invalid_profile_name")
         profiles[profile_name] = _parse_profile(raw_profile)
 
@@ -291,7 +369,9 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
     clients: dict[str, str] = {}
     for client_id, profile_name in raw_clients.items():
-        if not isinstance(client_id, str) or not _client_id_pattern.fullmatch(client_id):
+        if not isinstance(client_id, str) or not _client_id_pattern.fullmatch(
+            client_id
+        ):
             raise ValueError("invalid_client_id")
         if not isinstance(profile_name, str) or profile_name not in profiles:
             raise ValueError("unknown_security_profile")
@@ -305,7 +385,26 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
 
 def clear_security_policy_cache() -> None:
-    """Clear the process-local parsed policy cache used by tests and file reloads."""
+    """
+    RME
+
+    Requires:
+        - Arguments satisfy their declared contracts and required configured
+          dependencies are available.
+
+    Modifies:
+        - No state beyond delegated dependency behavior.
+
+    Effects:
+        - Clear the process-local parsed policy cache used by tests and file
+          reloads.
+
+    Inputs:
+        - None.
+
+    Outputs:
+        - None.
+    """
     global _cache_signature, _cache_registry
     with _cache_lock:
         _cache_signature = None
@@ -319,18 +418,22 @@ def load_security_policy_registry(
     RME
 
     Requires:
-        - configured_path or SAG_SECURITY_POLICY_FILE identifies a local JSON policy file.
+        - configured_path or SAG_SECURITY_POLICY_FILE identifies a local JSON
+        - policy file.
 
     Modifies:
         - Process-local validated-policy cache.
 
     Effects:
         - Reads and validates the configured non-secret policy registry.
-        - Reloads automatically when file path, size, or nanosecond mtime changes.
-        - Fails closed for absent, unreadable, oversized, or invalid policy files.
+        - Reloads automatically when file path, size, or nanosecond mtime
+        - changes.
+        - Fails closed for absent, unreadable, oversized, or invalid policy
+        - files.
 
     Inputs:
-        - configured_path: Optional explicit file path, primarily for validation/tests.
+        - configured_path: Optional explicit file path, primarily for
+        - validation/tests.
 
     Outputs:
         - Validated SecurityPolicyRegistry.
@@ -346,7 +449,9 @@ def load_security_policy_registry(
         stat = path.stat()
         resolved_path = str(path.resolve())
     except OSError as exc:
-        raise SecurityPolicyUnavailable("security_policy_file_unavailable") from exc
+        raise SecurityPolicyUnavailable(
+            "security_policy_file_unavailable"
+        ) from exc
 
     if not path.is_file() or stat.st_size > _max_policy_file_bytes:
         raise SecurityPolicyUnavailable("security_policy_file_unavailable")
@@ -368,7 +473,9 @@ def load_security_policy_registry(
     return registry
 
 
-def resolve_client_security_policy(client_id: str) -> ResolvedSecurityPolicy | None:
+def resolve_client_security_policy(
+    client_id: str,
+) -> ResolvedSecurityPolicy | None:
     """
     RME
 
@@ -380,16 +487,20 @@ def resolve_client_security_policy(client_id: str) -> ResolvedSecurityPolicy | N
         - Validated-policy cache when the configured file changes.
 
     Effects:
-        - Returns None only when unified policy configuration is not enabled, allowing
-          temporary migration compatibility with legacy per-control environment variables.
-        - Once SAG_SECURITY_POLICY_FILE is set, any file/client error fails closed and
+        - Returns None only when unified policy configuration is not enabled,
+        - allowing
+          temporary migration compatibility with legacy per-control environment
+          variables.
+        - Once SAG_SECURITY_POLICY_FILE is set, any file/client error fails
+        - closed and
           never falls back to legacy environment policy.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
 
     Outputs:
-        - Resolved unified policy, or None when unified policy is not configured.
+        - Resolved unified policy, or None when unified policy is not
+        - configured.
     """
     configured_path = os.getenv("SAG_SECURITY_POLICY_FILE")
     if not configured_path or not configured_path.strip():

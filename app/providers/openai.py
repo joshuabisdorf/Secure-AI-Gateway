@@ -3,8 +3,16 @@ import os
 import httpx
 from pydantic import ValidationError
 
-from app.models import ChatCompletionRequest, ChatCompletionResponse, ChatMessage
-from app.providers.base import Provider, ProviderConfigurationError, ProviderError
+from app.models import (
+    ChatCompletionRequest,
+    ChatCompletionResponse,
+    ChatMessage,
+)
+from app.providers.base import (
+    Provider,
+    ProviderConfigurationError,
+    ProviderError,
+)
 from app.providers.observed import observe_provider_chat
 
 
@@ -20,7 +28,8 @@ def _serialize_message(message: ChatMessage) -> dict[str, object]:
 
     Effects:
         - Serializes OpenAI-compatible message fields for upstream transport.
-        - Removes gateway-only execution authorization tickets/risk labels from tool-call history.
+        - Removes gateway-only execution authorization tickets/risk labels from
+        - tool-call history.
 
     Inputs:
         - message: Gateway chat message.
@@ -62,14 +71,17 @@ class OpenAIProvider(Provider):
 
         Effects:
             - Fails closed when no upstream API key is configured.
-            - Optionally requests extended usage accounting from compatible providers.
+            - Optionally requests extended usage accounting from compatible
+            - providers.
 
         Inputs:
             - api_key: Optional explicit upstream OpenAI API key.
             - base_url: Optional upstream API root.
             - timeout_seconds: Maximum duration of an upstream request.
-            - transport: Optional httpx transport used for deterministic testing.
-            - include_usage: Whether to request provider-specific extended usage data.
+            - transport: Optional httpx transport used for deterministic
+            - testing.
+            - include_usage: Whether to request provider-specific extended usage
+            - data.
 
         Outputs:
             - A configured OpenAI provider instance.
@@ -98,29 +110,38 @@ class OpenAIProvider(Provider):
 
         Requires:
             - request is a validated gateway chat-completion request.
-            - Any function tools in request were authorized by the gateway before this call.
+            - Any function tools in request were authorized by the gateway
+            - before this call.
             - The provider has a configured OpenAI API key.
 
         Modifies:
             - Upstream OpenAI-compatible API usage and billing.
-            - Process-local provider metrics and trace state through instrumentation.
+            - Process-local provider metrics and trace state through
+            - instrumentation.
 
         Effects:
-            - Sends messages and optional authorized function tools/tool choice upstream.
-            - Strips gateway-only execution authorization metadata before transport.
-            - Converts the upstream response, including function tool calls, into gateway models.
+            - Sends messages and optional authorized function tools/tool choice
+            - upstream.
+            - Strips gateway-only execution authorization metadata before
+            - transport.
+            - Converts the upstream response, including function tool calls,
+            - into gateway models.
             - Converts upstream failures into non-secret ProviderError reasons.
-            - Records provider latency/success/error metadata without prompt or response content.
+            - Records provider latency/success/error metadata without prompt or
+            - response content.
 
         Inputs:
-            - request: Requested upstream model, messages, and optional authorized tools.
+            - request: Requested upstream model, messages, and optional
+            - authorized tools.
 
         Outputs:
             - A normalized chat-completion response.
         """
         payload: dict[str, object] = {
             "model": request.model,
-            "messages": [_serialize_message(message) for message in request.messages],
+            "messages": [
+                _serialize_message(message) for message in request.messages
+            ],
             "stream": False,
         }
         if request.tools is not None:

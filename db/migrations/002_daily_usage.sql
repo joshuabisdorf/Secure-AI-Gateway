@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS gateway_daily_usage (
-    client_id VARCHAR(64) NOT NULL REFERENCES gateway_clients(client_id) ON DELETE CASCADE,
+    client_id VARCHAR(64) NOT NULL REFERENCES gateway_clients(client_id) ON
+    DELETE CASCADE,
     usage_date DATE NOT NULL,
     tokens_used BIGINT NOT NULL DEFAULT 0,
     cost_used_usd NUMERIC(30, 15) NOT NULL DEFAULT 0,

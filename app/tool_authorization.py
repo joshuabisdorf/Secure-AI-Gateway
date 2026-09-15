@@ -18,7 +18,9 @@ class ToolAuthorizationDecision:
     reason: str | None = None
 
 
-def parse_client_allowed_tools(configured_tools: str) -> dict[str, frozenset[str]]:
+def parse_client_allowed_tools(
+    configured_tools: str,
+) -> dict[str, frozenset[str]]:
     """
     RME
 
@@ -31,7 +33,8 @@ def parse_client_allowed_tools(configured_tools: str) -> dict[str, frozenset[str
 
     Effects:
         - Validates per-client function-tool allowlists.
-        - Rejects malformed records, duplicate grants, and mixed no-tool/tool grants.
+        - Rejects malformed records, duplicate grants, and mixed no-tool/tool
+        - grants.
 
     Inputs:
         - configured_tools: Serialized per-client tool authorization records.
@@ -40,7 +43,8 @@ def parse_client_allowed_tools(configured_tools: str) -> dict[str, frozenset[str
         - Mapping from client ID to an immutable set of allowed function names.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or contradictory.
+        - ValueError: Configuration is empty, malformed, duplicated, or
+        - contradictory.
     """
     mutable: dict[str, set[str]] = {}
     explicitly_none: set[str] = set()
@@ -95,13 +99,15 @@ def get_client_allowed_tools(client_id: str) -> frozenset[str]:
         - Nothing.
 
     Effects:
-        - Fails closed when tool authorization is absent, malformed, or missing the client.
+        - Fails closed when tool authorization is absent, malformed, or missing
+        - the client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
 
     Outputs:
-        - Immutable set of function-tool names the client may expose to the model.
+        - Immutable set of function-tool names the client may expose to the
+        - model.
     """
     configured_tools = os.getenv("SAG_CLIENT_ALLOWED_TOOLS")
     if not configured_tools:
@@ -122,7 +128,9 @@ def get_client_allowed_tools(client_id: str) -> frozenset[str]:
     if client_tools is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Tool authorization policy is not configured for this client.",
+            detail=(
+                "Tool authorization policy is not configured for this client."
+            ),
         )
 
     return client_tools
@@ -144,15 +152,18 @@ def authorize_request_tools(
 
     Effects:
         - Verifies every tool exposed to the model is explicitly allowed.
-        - Verifies a named tool_choice refers to a declared and allowed function.
+        - Verifies a named tool_choice refers to a declared and allowed
+        - function.
         - Applies least privilege without executing any tool.
 
     Inputs:
-        - request: Validated request containing optional function tools/tool choice.
+        - request: Validated request containing optional function tools/tool
+        - choice.
         - allowed_tools: Function names authorized for the authenticated client.
 
     Outputs:
-        - ToolAuthorizationDecision with safe requested/denied tool names and reason.
+        - ToolAuthorizationDecision with safe requested/denied tool names and
+        - reason.
     """
     requested = tuple(
         dict.fromkeys(tool.function.name for tool in (request.tools or []))

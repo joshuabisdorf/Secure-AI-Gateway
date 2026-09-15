@@ -4,7 +4,10 @@ data "aws_availability_zones" "available" {
 
 locals {
   name = "${var.project_name}-${var.environment}"
-  azs  = slice(data.aws_availability_zones.available.names, 0, var.availability_zone_count)
+  azs = (
+    slice(data.aws_availability_zones.available.names, 0,
+    var.availability_zone_count)
+  )
 
   public_subnets = {
     for index, az in local.azs : az => cidrsubnet(var.vpc_cidr, 8, 240 + index)

@@ -57,7 +57,11 @@ resource "aws_eks_cluster" "gateway" {
     subnet_ids              = values(aws_subnet.private)[*].id
     endpoint_private_access = true
     endpoint_public_access  = length(var.eks_public_access_cidrs) > 0
-    public_access_cidrs     = length(var.eks_public_access_cidrs) > 0 ? var.eks_public_access_cidrs : null
+    public_access_cidrs = (
+      length(var.eks_public_access_cidrs) > 0 ?
+      var.eks_public_access_cidrs :
+      null
+    )
   }
 
   depends_on = [
@@ -144,7 +148,9 @@ resource "aws_eks_access_policy_association" "admin" {
 
   cluster_name  = aws_eks_cluster.gateway.name
   principal_arn = aws_eks_access_entry.admin[0].principal_arn
-  policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  policy_arn = (
+    "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+  )
 
   access_scope {
     type = "cluster"

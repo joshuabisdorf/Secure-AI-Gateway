@@ -15,7 +15,8 @@ for command in aws terraform docker kubectl jq curl; do
   require_command "$command"
 done
 
-if [ "$(terraform version -json | jq -r '.terraform_version')" != "1.16.2" ]; then
+if [ "$(terraform version -json | jq -r '.terraform_version')" != "1.16.2" \
+  ]; then
   echo "ERROR terraform_version_must_be=1.16.2" >&2
   exit 2
 fi
@@ -46,7 +47,10 @@ if [ ! -f config/security-policies.json ]; then
   exit 2
 fi
 
-PUBLIC_IP="$(curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d '[:space:]' || true)"
+PUBLIC_IP="$(
+  curl -fsS --max-time 5 https://checkip.amazonaws.com 2>/dev/null | tr -d \
+    '[:space:]' || true
+)"
 SUGGESTED_ADMIN_ARN=""
 case "$CALLER_ARN" in
   arn:aws:sts::*:assumed-role/*/*)
@@ -107,13 +111,16 @@ terraform -chdir=terraform/bootstrap plan \
 
 echo
 echo "=== DEPLOYMENT INPUT CHECK ==="
-if grep -Eq '^[[:space:]]*eks_admin_role_arn[[:space:]]*=' terraform/aws/dev.tfvars; then
+if grep -Eq '^[[:space:]]*eks_admin_role_arn[[:space:]]*=' \
+  terraform/aws/dev.tfvars; then
   echo "eks_admin_role_configured=yes"
 else
   echo "eks_admin_role_configured=no"
 fi
 
-if grep -Eq '^[[:space:]]*eks_public_access_cidrs[[:space:]]*=[[:space:]]*\[[^]]+\]' terraform/aws/dev.tfvars; then
+if grep -Eq \
+  '^[[:space:]]*eks_public_access_cidrs[[:space:]]*=[[:space:]]*\[[^]]+\]' \
+    terraform/aws/dev.tfvars; then
   echo "eks_api_workstation_access=public_cidr_configured"
 else
   echo "eks_api_workstation_access=private_only"
