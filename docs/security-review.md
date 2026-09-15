@@ -1,192 +1,293 @@
 # Final security review
 
-This document records the project's final portfolio security review. It
-describes implemented boundaries and known residual risk; it is not a claim of
-formal verification or production certification.
+This document records the final security review for the first stable release.
+It describes implemented controls and accepted residual risk. It is not a
+formal verification, penetration-test report, or production certification.
 
-## Trust boundaries
+## Review scope
+
+The review walks the trust boundaries in `docs/architecture.md` and re-checks
+authentication, authorization, secret handling, failure behavior, telemetry,
+replay protection, concurrency, and resource exhaustion. The reviewed release
+path is the zero-cost local/CI path. The AWS architecture remains reference-only
+unless an operator deliberately deploys and tests it.
+
+## Trust-boundary review
 
 ### Client to gateway
 
-Attacker-controlled input includes authorization headers, request IDs, model
-names, messages, tool declarations, tool-choice metadata, and JSON body shape.
-The gateway authenticates structured `sag_*` keys against stored SHA-256
-digests, uses constant-time digest comparison, bounds request bodies before
-application parsing, validates Pydantic schemas, and applies per-client policy
-after authentication.
+Attacker-controlled input includes the authorization header, request ID, HTTP
+body framing, JSON shape, model name, messages, tool declarations, tool-choice
+metadata, and execution-authorization requests.
+
+The boundary applies a body-size limit before application parsing. Protected
+endpoints authenticate structured gateway API keys against PostgreSQL-backed
+records. Only one-way key digests are stored. Digest comparison is
+constant-time after the public key ID selects the candidate record.
+
+Authentication establishes client and key identity. It does not by itself
+authorize models, tools, budgets, or executions. Those decisions are separate
+policy checks performed after authentication.
 
 ### Gateway to provider
 
-Provider credentials are gateway-side secrets and are never accepted from
-clients. Requests pass model authorization, PII handling, prompt-injection
-inspection, usage-budget checks, and tool-exposure authorization before provider
-forwarding. Provider errors are mapped to sanitized gateway responses.
+Provider credentials are gateway-side secrets and are never accepted from a
+client request. Before forwarding a chat request, the gateway applies the
+distributed rate limit, model authorization, PII policy, prompt-injection
+policy, persistent usage-budget check, and tool-exposure policy.
 
-### Provider output back to gateway
+PII redaction produces a copied provider request. The caller's request object is
+not treated as trusted mutable policy state.
 
-Provider/model output is untrusted. Tool calls are checked against the
-authenticated client's current allowlist and an authoritative execution
-registry. Argument JSON is parsed and schema-validated. The request-declared
-schema must fingerprint-match the authoritative schema.
+Provider transport and normalization failures are returned as sanitized gateway
+errors. A provider response is not fabricated when required usage data is
+missing.
+
+### Provider to gateway
+
+Provider output is untrusted data. The gateway does not treat generated text,
+tool names, tool arguments, usage values, or provider identifiers as authority.
+
+Returned tool calls must match current client authorization and the
+authoritative execution registry. Arguments are parsed as JSON and validated
+against the authoritative JSON Schema. The request-declared schema must match
+the authoritative schema fingerprint before a ticket is issued.
 
 ### Gateway to downstream executor
 
-A model tool call alone is not authority to execute. The gateway issues a
-short-lived HMAC-SHA256 ticket bound to client identity, key identity, source
-request, tool-call ID, tool name, exact argument bytes, authoritative schema
-fingerprint, risk class, and expiry. A downstream executor must call
-`/v1/tool-executions/authorize`; the gateway re-authenticates, re-checks current
-policy, verifies the ticket, and consumes its execution ID once through the
-replay store.
+A model tool proposal is not permission to perform a side effect. The gateway
+issues a short-lived HMAC-SHA256 execution ticket only after validating the
+proposal.
+
+The ticket binds the execution ID, client ID, key ID, source request ID,
+provider tool-call ID, tool name, exact argument hash, authoritative schema
+hash, risk class, and expiry.
+
+The executor must independently call
+`POST /v1/tool-executions/authorize`. The gateway re-authenticates the caller,
+verifies canonical ticket syntax, signature, expiry, identity, arguments,
+schema, and risk, re-checks current tool policy, then atomically consumes the
+execution ID. A stale or replayed ticket cannot become authority.
 
 ### Gateway to shared state
 
-PostgreSQL is authoritative for client/key identity and daily usage.
-Redis/Valkey is authoritative for distributed rate-limit and ticket-replay
-state. Required backend failure is handled fail-closed for the relevant security
-decision.
+PostgreSQL is authoritative for gateway client/key identity and daily usage
+accounting. Redis/Valkey is authoritative for distributed request-rate state and
+one-time execution claims.
 
-## Secret inventory
+Loss of either required backend fails closed for the decision that depends on
+it. PostgreSQL connection-pool waits are bounded. Redis replay claims and rate
+limits are atomic across replicas.
 
-Runtime secrets include:
+### Gateway to telemetry
 
-- raw gateway client API keys;
-- provider API keys;
-- tool-execution HMAC signing key;
-- PostgreSQL credentials;
-- optional cloud runtime credentials/tokens.
+Audit events, Prometheus metrics, and OpenTelemetry traces receive bounded
+metadata rather than request content. Prompts, raw PII, API keys, provider
+credentials, raw tool arguments/results, and execution-ticket contents are
+excluded.
 
-Tracked policy files, model allowlists, tool schemas, risk classes, Terraform,
-Kubernetes manifests, and the system prompt are not treated as secrets.
+Telemetry export is deliberately not an authorization dependency. A telemetry
+failure does not grant access or bypass policy.
 
-The project intentionally excludes raw API keys, provider credentials, prompts,
-raw PII, raw tool arguments, tool results, and execution tickets from structured
-audit events and bounded telemetry labels.
+### Deployment and supply chain
 
-## Attacker-controlled fields
+The local Kubernetes namespace enforces the `restricted` Pod Security profile.
+The local and cloud overlays start from ingress/egress default deny and add only
+required paths. The gateway runs non-root with a read-only root filesystem,
+dropped capabilities, `RuntimeDefault` seccomp, and explicit resource bounds.
 
-The security review treats at least the following as attacker-controlled or
-untrusted:
+The release build uses the exact runtime dependency lock. Direct downloaded
+artifacts keep SHA-256 pins. Third-party GitHub Actions use immutable commit
+SHAs. The public container workflow produces an immutable commit tag, resolves
+the OCI digest, generates an SPDX image SBOM, and creates build-provenance and
+SBOM attestations.
 
-- all HTTP request headers except infrastructure-generated transport metadata;
-- all request JSON fields;
-- request-provided tool schemas and tool choice;
+## Secret inventory and storage
+
+The stable release has the following secret classes.
+
+| Secret | Storage / handling |
+| --- | --- |
+| Raw gateway client API key | Returned only to an explicit exclusive `0600` secret file; PostgreSQL stores only its SHA-256 digest |
+| Provider API key | Local ignored environment; optional AWS Secrets Manager runtime secret |
+| Tool-execution HMAC key | Local ignored environment; optional AWS Secrets Manager runtime secret |
+| PostgreSQL credentials | Local ignored environment; optional AWS Secrets Manager / RDS-managed secret |
+| Redis password, when used | Local ignored environment or deployment secret source; not committed |
+| ElastiCache IAM token | Short-lived AWS SDK credential flow; generated at runtime, not committed |
+| EKS Pod Identity token | Short-lived runtime-mounted credential material managed by the platform |
+| GitHub release token | Ephemeral repository `GITHUB_TOKEN` provided by Actions |
+| Terraform state credentials | Operator/AWS credential chain; never committed to the repository |
+
+Local kind creates `sag-runtime-secrets` from ignored local environment
+configuration. That Kubernetes Secret is runtime-generated and is not committed.
+Kubernetes Secret storage is not application-level encryption and relies on the
+cluster's storage and access controls.
+
+The cloud overlay does not commit Kubernetes Secret objects for runtime
+credentials. Gateway and migration service accounts use separate EKS Pod
+Identity roles and fetch the specific Secrets Manager values they require.
+
+## Attacker-controlled and untrusted fields
+
+The review treats these as attacker-controlled or untrusted:
+
+- every client-supplied HTTP header and request JSON field;
 - caller-provided request IDs;
-- provider response bodies;
-- model-generated tool names, IDs, and arguments;
-- execution-authorization request bodies;
-- malformed/oversized ticket encodings;
-- dependency/backend availability and partial failure.
+- model names, messages, tool declarations, and tool choice;
+- request-provided tool schemas;
+- execution-authorization request bodies and ticket text;
+- provider response bodies, usage fields, model names, and tool proposals;
+- model-generated tool IDs, names, arguments, and text;
+- local policy/configuration files when an operator has modified them;
+- backend availability, timeout, connection exhaustion, and partial failure;
+- deployment traffic arriving at any network path exposed by the operator.
 
-No model-produced string is considered an authorization decision.
+Infrastructure-generated transport metadata is not automatically trusted for
+authorization unless a documented deployment control explicitly establishes
+that trust.
 
-## Fail-closed matrix
+## Authentication and authorization separation
 
-| Dependency / control | Failure behavior | | --- | --- | | API-key registry |
-Authentication unavailable/denied | | Client security policy | Request
-denied/unavailable | | Redis rate limiter | Chat request returns 503 | |
-PostgreSQL usage ledger | Chat request returns 503 | | Tool execution policy |
-Tool ticket issuance/authorization unavailable | | Tool replay store | Execution
-authorization returns 503 | | Missing/invalid signing key | Tool ticket
-issuance/authorization unavailable | | Provider request | Sanitized 502; no
-fabricated success | | Missing required usage data | 502 before success is
-returned | | Oversized HTTP body | 413 before FastAPI request parsing | |
-Malformed execution ticket | Generic authorization denial |
+Authentication resolves an active gateway key to `client_id` and `key_id`.
+Authorization remains independent:
 
-Observability export is intentionally not an authorization boundary. Telemetry
-failure must not grant additional access.
+1. model policy decides whether the authenticated client may request a model;
+2. tool-exposure policy decides which function tools may be shown to the model;
+3. the authoritative execution registry decides schema and risk metadata;
+4. execution authorization re-checks identity, current policy, ticket binding,
+   and replay state at the time of execution;
+5. usage and rate policy independently limit otherwise authenticated requests.
 
-The `Resilience smoke` CI gate verifies this boundary against the actual Compose
-services: Redis outage returns 503 and recovers, PostgreSQL outage returns 503
-and recovers, and OpenTelemetry Collector outage leaves authenticated
-mock-provider chat available. See [`reliability.md`](reliability.md).
+Revoking a key prevents future authentication. Removing a tool grant prevents a
+previously issued but not-yet-consumed ticket from being authorized.
 
-## Resource-exhaustion controls
+## Fail-open and fail-closed review
 
-Implemented controls include bounded request bodies, Uvicorn concurrency limits,
-short keep-alive timeouts, per-client fixed-window request limits, daily usage
-budgets, bounded execution-ticket lifetime, bounded policy file size, bounded
-metric labels, container memory/CPU resource declarations in Kubernetes, and
-non-root/read-only container execution.
+| Dependency or control | Failure behavior |
+| --- | --- |
+| Client/key registry | Authentication unavailable; protected request denied |
+| Security-policy load | Dependent policy decision unavailable; request denied |
+| Redis rate limiter | Chat request returns `503` |
+| PostgreSQL usage ledger | Chat request returns `503` |
+| Usage data required by budget | Provider success is not returned; gateway returns `502` |
+| Tool registry/signing key | Ticket issuance/authorization unavailable |
+| Tool replay store | Execution authorization returns `503` |
+| Malformed/expired/forged ticket | Generic execution denial |
+| Provider timeout/malformed response | Sanitized upstream failure |
+| Oversized request body | `413` before FastAPI body parsing |
+| Telemetry exporter | Request authorization remains independent |
+| Prometheus collection | No additional access is granted |
+| Optional AWS reference path | Not part of the required release gate |
 
-These controls reduce risk but do not constitute comprehensive denial-of-service
-protection for an Internet-facing service.
+The resilience CI path verifies Redis and PostgreSQL fail closed and verifies
+that an OpenTelemetry Collector outage does not become an authorization
+dependency.
 
-## Supply-chain controls
+## Audit, metric, and trace leakage review
 
-The repository uses:
+Audit emission uses an explicit metadata field list. There is no generic
+serialization of request or response objects into the audit stream.
 
-- immutable commit SHAs for third-party GitHub Actions;
-- Dependabot for Python, GitHub Actions, and Docker updates;
-- Bandit static analysis;
-- GitHub CodeQL Python analysis with the `security-extended` query suite;
-- `pip-audit` dependency vulnerability gating;
-- CycloneDX Python dependency SBOM generation in CI;
-- deterministic Docker builds from a tracked Dockerfile;
-- immutable `sha-*` GHCR release tags;
-- anonymous-pull verification for the public release image.
+Prometheus labels are bounded and avoid client IDs, key IDs, request IDs, model
+names, arbitrary tool names, prompts, and reasons. Known PII categories and
+known prompt-injection indicators are reduced to bounded enumerations.
 
-GitHub secret scanning is available automatically for public repositories;
-repository-admin settings such as push protection remain outside application
-code and should be reviewed separately.
+OpenTelemetry spans record route/method/status and bounded provider metadata.
+Trace context may be extracted from incoming standard headers, but arbitrary
+headers and request bodies are not recorded.
 
-A future production deployment should additionally sign/attest release artifacts
-and scan the final OS/container filesystem with a dedicated container scanner.
+M10 regression coverage includes sentinel values proving that raw API keys,
+execution tokens, and raw tool arguments do not appear in audit output.
 
-## Kubernetes boundary
+## Replay, concurrency, and resource-exhaustion review
 
-The gateway pod runs non-root with a read-only root filesystem, `RuntimeDefault`
-seccomp, no privilege escalation, dropped Linux capabilities, explicit resource
-requests/limits, disabled service-account-token automount in the local/base
-deployment, health/readiness probes, rolling updates, and a PodDisruptionBudget.
-The namespace emits restricted Pod Security Admission warnings/audit findings.
+Execution IDs are claimed atomically and once. Real Redis concurrency testing
+races independent replay-store instances against the same ID and requires
+exactly one winner.
 
-NetworkPolicy is not enforced in the shared base because local and optional
-cloud backends have different network identities. A production operator should
-add environment-specific ingress/egress NetworkPolicies once concrete
-DNS/CIDR/service identities are known.
+Distributed rate-limit contention is exercised against real Redis. Persistent
+usage updates are exercised concurrently against PostgreSQL. Key rotation and
+revocation races are checked for fail-closed active-key outcomes.
 
-## Residual risk accepted for this portfolio release
+Request bodies are bounded before parsing. Uvicorn has bounded concurrency and
+keep-alive configuration. Per-client rate limits and daily usage budgets bound
+application-level consumption. Ticket size and lifetime are bounded. Policy
+files and telemetry label surfaces are bounded. PostgreSQL pool acquisition is
+bounded.
 
-- Prompt-injection detection is heuristic and the curated benchmark has known
+Kubernetes workloads declare CPU/memory requests and limits. Live kind
+verification checks the configured limits, replica replacement, bounded
+concurrent load, restart state, and observed `OOMKilled` state.
+
+These controls reduce denial-of-service risk but do not provide complete
+Internet-scale DDoS protection.
+
+## Kubernetes and network review
+
+The namespace enforces `restricted` Pod Security rather than only warning.
+Gateway, migration, local PostgreSQL, and local Redis workloads use hardened
+security contexts appropriate to their images and storage needs.
+
+Both local and cloud overlays install namespace-wide default-deny
+NetworkPolicies. Local verification proves that an otherwise untrusted probe
+cannot connect directly to Redis while the gateway's allowed Redis path works.
+
+Cloud backend egress policy is rendered from Terraform private/data subnet
+CIDRs. Terraform also enables EKS VPC CNI NetworkPolicy support and creates a
+private Secrets Manager interface endpoint. Live provider egress is not opened
+by default; an operator must add a deployment-specific controlled path.
+
+Standard Kubernetes NetworkPolicy is IP/port policy, not application
+authentication or portable FQDN policy.
+
+## Supply-chain review
+
+Release dependencies are exact-pinned in `requirements/release.lock`. The
+direct spaCy model artifact is SHA-256 pinned. The build backend is
+exact-pinned. The Docker build consumes the release lock before installing the
+application without dependency resolution.
+
+CI includes the clean release installation, Bandit, `pip-audit`, CodeQL,
+CycloneDX dependency SBOM generation, Trivy image scanning, Kubernetes
+validation, Terraform validation, repository/history preflight, and the project
+style gate.
+
+The release workflow creates GitHub build-provenance and SPDX SBOM attestations
+for the immutable OCI digest. Attestations prove artifact/repository identity;
+they do not prove that the artifact is vulnerability-free.
+
+## Accepted residual risks for v1.0.0
+
+- Prompt-injection detection is heuristic and the curated benchmark has visible
   false positives and false negatives.
-- Semantic PII evaluation is a small curated regression corpus, not a population
-  estimate.
+- Semantic PII evaluation is a small curated regression corpus, not a
+  population-wide accuracy estimate.
 - Real LLM providers can change behavior independently of the gateway.
-- The optional AWS reference architecture is statically validated but
-  intentionally may remain unapplied to preserve the zero-cost constraint.
-- No external side-effecting tool executor is implemented; execution
-  authorization is the enforced boundary provided by this repository.
-- Internet-facing ingress, TLS termination, DDoS protection, WAF, DNS,
-  certificate rotation, and cloud-specific NetworkPolicy are deployment
-  responsibilities.
-- GitHub repository branch protection/rulesets and optional
-  secret-scanning/push-protection settings are account/repository administration
-  controls and are not enforced by application code.
-- Dependency audits and CodeQL identify known/pattern-detectable issues; they
-  cannot detect every unknown vulnerability or malicious-but-unflagged
-  dependency.
-- Failure injection covers the local Compose topology and does not simulate
-  every network partition, kernel failure, managed-service failover, or
-  Byzantine condition.
-
-## Architecture decisions
-
-Two security/delivery decisions are recorded explicitly:
-
-- [`adr/0001-execution-time-tool-authorization.md`](adr/0001-execution-time-tool-authorization.md)
-- [`adr/0002-zero-cost-required-path.md`](adr/0002-zero-cost-required-path.md)
+- The AWS architecture is statically validated and intentionally may remain
+  unapplied under the zero-cost policy.
+- No external side-effecting executor is implemented by this repository. The
+  provided boundary is authorization for a separate executor.
+- Public ingress, TLS termination, DDoS protection, WAF, DNS, and certificate
+  rotation remain deployment responsibilities.
+- Standard NetworkPolicy does not authenticate protocols or provide portable
+  DNS-name egress policy.
+- Local Kubernetes Secret confidentiality depends on cluster storage and RBAC.
+- Repository rulesets, branch protection, and optional GitHub account security
+  settings remain repository-administration controls.
+- Known-vulnerability scanners and static analysis cannot identify every
+  unknown vulnerability or malicious dependency.
+- Failure injection does not simulate every partition, kernel failure,
+  managed-service failover, or Byzantine condition.
+- The style baseline defers pre-standard formatting debt in untouched files.
+  New and modified files are held to the project-owned style standard.
 
 ## Release decision
 
-A `v1.0.0` tag should be created only after:
+The security review finds no known issue that requires intentionally
+fail-opening an authorization boundary for the first stable release.
 
-1. CI, CodeQL, and the public release workflow are green on the intended release
-   commit;
-1. the public GHCR SHA image is anonymously pullable;
-1. the clean-run CI demo and resilience smoke pass;
-1. `make check` passes locally or equivalently on the final intended release
-   state;
-1. known limitations above remain acceptable;
-1. the project owner deliberately selects a software license or explicitly
-   chooses to keep the repository without one.
+The `v1.0.0` tag should be created only after the intended release commit has
+green CI, CodeQL, container scanning, repository preflight, project style,
+kind/Terraform verification, and a successful immutable public GHCR release
+artifact with verifiable attestations. The tagged workflow must also prove that
+the version tag resolves to the reviewed immutable digest.

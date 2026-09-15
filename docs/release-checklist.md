@@ -2,32 +2,32 @@
 
 Use this checklist for the first stable `v1.0.0` release.
 
-## Repository
+## Repository and review
 
 - [ ] `main` is the intended release commit.
+- [ ] `pyproject.toml` reports version `1.0.0`.
 - [ ] README reflects current capabilities and limitations.
 - [ ] `SECURITY.md` and `docs/security-review.md` are current.
-- [ ] `CHANGELOG.md` contains the release summary.
-- [ ] `docs/architecture.md` and `docs/portfolio-evidence.md` reflect the final
-  design/evidence path.
-- [ ] `LICENSE` contains the Apache License 2.0 text and `NOTICE` contains the
-  current project attribution.
-- [ ] No secrets, local `.env` files, Terraform state, generated credentials, or
-  Python build/cache artifacts are tracked.
-- [ ] `make preflight` passes on the intended release state.
-- [ ] `python scripts/repo_preflight.py --history` passes from a full clone,
-  confirming no sensitive-looking filenames were committed historically.
+- [ ] `CHANGELOG.md` and `docs/release-notes-v1.0.0.md` are current.
+- [ ] `docs/architecture.md` reflects the final trust boundaries.
+- [ ] `docs/portfolio-evidence.md` reflects the final evidence path.
+- [ ] `LICENSE` contains Apache License 2.0 and `NOTICE` contains the current
+  project attribution.
+- [ ] `.gitignore` and `.dockerignore` exclude local secrets, state, and
+  generated artifacts.
+- [ ] `make style` passes.
+- [ ] `make preflight` passes.
+- [ ] `python scripts/repo_preflight.py --history` passes from a full clone.
+- [ ] No superseded roadmap issue remains open.
 
 ## Dependencies and build reproducibility
 
 - [ ] `make lock-verify` passes.
-- [ ] The `Reproducible release install` CI job is green from a clean
-  environment.
-- [ ] `requirements/release.lock` reflects the reviewed runtime dependency set
-  for the release.
-- [ ] Direct downloaded artifacts retain their SHA-256 pins.
-- [ ] Dependency and base-image update expectations in
-  `docs/dependency-policy.md` are current.
+- [ ] `Reproducible release install` is green from a clean environment.
+- [ ] `requirements/release.lock` contains the reviewed runtime dependency set.
+- [ ] Direct downloaded artifacts retain SHA-256 pins.
+- [ ] Dependency/base-image expectations in `docs/dependency-policy.md` are
+  current.
 
 ## Verification
 
@@ -36,31 +36,54 @@ Use this checklist for the first stable `v1.0.0` release.
 - [ ] `Resilience smoke` is green on the release commit.
 - [ ] CodeQL Python analysis is green on the release commit.
 - [ ] Container security / Trivy is green on the release commit.
-- [ ] `kind security and resilience` is green, including default-deny
-  enforcement, Pod Security, replica rescheduling, and bounded-load checks.
+- [ ] Project-owned style workflow is green on the release commit.
+- [ ] Repository/history preflight is green on the release commit.
+- [ ] `kind security and resilience` is green.
 - [ ] Terraform validation is green in CI.
+- [ ] M10 adversarial/reliability/performance verification is green.
 - [ ] All primary GitHub CI gates are green on the release commit.
-- [ ] Optionally repeat `make demo`, `make resilience`, and
-  `make kind-up && make kind-verify` locally as final workstation smoke tests.
 
-## Release artifact
+## Immutable release artifact
 
-- [ ] Release workflow is green on the release commit.
-- [ ] Immutable `sha-*` GHCR image exists and its OCI digest is recorded.
-- [ ] Anonymous pull verification is green.
-- [ ] Build-provenance attestation verifies with `gh attestation verify` for the
-  image digest.
-- [ ] SPDX SBOM attestation verifies with the SPDX predicate type documented in
+Before creating the stable tag:
+
+- [ ] Main-branch release workflow is green on the release commit.
+- [ ] Immutable `sha-*` GHCR image exists.
+- [ ] Its OCI digest is recorded.
+- [ ] Anonymous pull of the immutable SHA tag succeeds.
+- [ ] Build provenance verifies with `gh attestation verify`.
+- [ ] SPDX SBOM attestation verifies with the predicate documented in
   `docs/supply-chain.md`.
-- [ ] Only after the checks above, create annotated tag `v1.0.0`.
-- [ ] Confirm the workflow publishes
-  `ghcr.io/joshuabisdorf/secure-ai-gateway:v1.0.0` and that it resolves to the
-  reviewed digest.
+
+## Stable tag
+
+Only after the immutable artifact and release commit are verified:
+
+- [ ] Create annotated tag `v1.0.0` at the reviewed release commit.
+- [ ] Confirm the tagged release workflow is green.
+- [ ] Confirm `ghcr.io/joshuabisdorf/secure-ai-gateway:v1.0.0` exists.
+- [ ] Confirm `:v1.0.0` resolves to the same OCI digest as the immutable
+  SHA tag.
+- [ ] Confirm an unauthenticated pull of `:v1.0.0` succeeds.
+- [ ] Confirm an unauthenticated pull of the immutable SHA tag still succeeds.
+- [ ] Record final release identities in `docs/portfolio-evidence.md` or the
+  GitHub release page.
+- [ ] Close M12 only after the stable release evidence is complete.
+
+## Optional workstation smoke tests
+
+These may be repeated locally after CI passes:
+
+```bash
+make demo
+make resilience
+make kind-up
+make kind-verify
+```
 
 ## Explicit non-requirements
 
-The following are not required for `v1.0.0` under the project's zero-cost
-constraint:
+The following are not required for `v1.0.0` under the zero-cost constraint:
 
 - AWS account creation;
 - Terraform apply;

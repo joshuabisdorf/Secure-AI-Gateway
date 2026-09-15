@@ -49,26 +49,18 @@ _request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    """
-    RME
+    """Manage application resource shutdown.
 
     Requires:
-        - Configured persistent resources may own async connection pools.
-
+        Configured persistent resources may own async connection pools.
     Modifies:
-        - Client-registry, rate-limiter, usage-ledger, and tool-replay
-        - connection-pool state during shutdown.
-
+        Client registry, rate limiter, usage ledger, and replay-store pools.
     Effects:
-        - Leaves backend connections lazy during startup.
-        - Closes opened PostgreSQL and Redis pools cleanly on application
-        - shutdown.
-
+        Leaves connections lazy at startup and closes opened pools at shutdown.
     Inputs:
-        - _: FastAPI application instance.
-
+        _: FastAPI application instance.
     Outputs:
-        - Async lifespan context for FastAPI.
+        Async lifespan context for FastAPI.
     """
     yield
 
@@ -85,31 +77,25 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Secure AI Gateway",
-    version="0.1.0",
+    version="1.0.0",
     lifespan=lifespan,
 )
 app.include_router(tool_execution_router)
 
 
 def resolve_request_id(candidate: str | None) -> str:
-    """
-    RME
+    """Return a safe request correlation identifier.
 
     Requires:
-        - candidate may contain a caller-supplied request identifier.
-
+        candidate may contain a caller-supplied request identifier.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Generates a new request identifier when the supplied value is absent
-        - or unsafe.
-
+        Generates a new ID when the supplied value is absent or unsafe.
     Inputs:
-        - candidate: Optional X-Request-ID header value.
-
+        candidate: Optional X-Request-ID header value.
     Outputs:
-        - A validated caller request ID or a newly generated gateway request ID.
+        A validated caller ID or a newly generated gateway request ID.
     """
     if candidate is not None and _request_id_pattern.fullmatch(candidate):
         return candidate
@@ -121,26 +107,20 @@ def _budget_audit_fields(
     *,
     include_cost: bool,
 ) -> dict[str, int | float | str | None]:
-    """
-    RME
+    """Convert usage state into safe audit fields.
 
     Requires:
-        - decision contains current daily usage state.
-        - include_cost is true only when cost accounting is known or enforced.
-
+        decision contains current daily usage state.
+        include_cost is true only when cost accounting is known or enforced.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Converts internal budget state into safe audit fields.
-        - Omits cumulative cost fields when provider cost is not known.
-
+        Omits cumulative cost fields when provider cost is not known.
     Inputs:
-        - decision: Current daily usage-budget decision.
-        - include_cost: Whether cost accounting should be exposed.
-
+        decision: Current daily usage-budget decision.
+        include_cost: Whether cost accounting should be exposed.
     Outputs:
-        - Keyword arguments suitable for emit_audit_event.
+        Keyword arguments suitable for emit_audit_event.
     """
     fields: dict[str, int | float | str | None] = {
         "token_limit_daily": decision.token_limit_daily,
@@ -173,27 +153,20 @@ async def add_request_context(
     request: Request,
     call_next: Callable[[Request], Awaitable[Response]],
 ) -> Response:
-    """
-    RME
+    """Attach request correlation context.
 
     Requires:
-        - request is an incoming HTTP request.
-        - call_next invokes the remaining FastAPI request pipeline.
-
+        request is an incoming HTTP request.
+        call_next invokes the remaining FastAPI request pipeline.
     Modifies:
-        - request.state with request_id and started_at values.
-        - The outgoing response headers.
-
+        request.state and outgoing response headers.
     Effects:
-        - Assigns a request correlation ID and starts latency measurement.
-        - Adds X-Request-ID to the response.
-
+        Assigns a request ID, starts latency timing, and returns the ID header.
     Inputs:
-        - request: Incoming HTTP request.
-        - call_next: Callable for the remaining request pipeline.
-
+        request: Incoming HTTP request.
+        call_next: Callable for the remaining request pipeline.
     Outputs:
-        - The HTTP response with an X-Request-ID header.
+        HTTP response containing X-Request-ID.
     """
     request_id = resolve_request_id(request.headers.get("X-Request-ID"))
     request.state.request_id = request_id
@@ -206,24 +179,18 @@ async def add_request_context(
 
 @app.get("/health")
 def health() -> dict[str, str]:
-    """
-    RME
+    """Return process health without consulting security-state backends.
 
     Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
-
+        The process can execute the endpoint.
     Modifies:
-        - No state beyond delegated dependency behavior.
-
+        Nothing.
     Effects:
-        - Return the gateway process health status.
-
+        Reports process liveness only; it does not claim dependency readiness.
     Inputs:
-        - None.
-
+        None.
     Outputs:
-        - A value matching the declared dict[str, str] return contract.
+        Static health status mapping.
     """
     return {"status": "ok"}
 
@@ -235,52 +202,33 @@ async def chat_completion(
     outgoing_response: Response,
     principal: Principal = Depends(authenticate_api_key),
 ) -> ChatCompletionResponse:
-    """
-    RME
+    """Apply gateway policy and return a chat-completion response.
 
     Requires:
-        - request satisfies the gateway chat-completion schema.
-        - The caller provides a valid database-backed gateway API key.
-        - Rate-limit, model, PII, prompt-injection, tool, and daily usage-budget
-        - policies are configured.
-        - Redis rate-limit state and PostgreSQL usage accounting are available.
-        - Tool execution registry/signing state is required only when a provider
-        - returns tool calls.
-
+        request satisfies the gateway chat-completion schema.
+        The caller has a valid database-backed gateway API key.
+        Rate, model, PII, injection, tool, and usage policy are configured.
+        Redis rate state and PostgreSQL usage accounting are available.
+        Tool execution state is required only for returned tool calls.
     Modifies:
-        - Shared per-client rate-limit state in Redis.
-        - A copied provider request when PII is redacted; the caller request is
-        - unchanged.
-        - Persistent per-client daily usage totals in PostgreSQL.
-        - Provider-specific state, if any.
-        - The audit logging stream and response policy headers.
-
+        Shared per-client rate-limit state in Redis.
+        A copied provider request when PII is redacted.
+        Persistent per-client daily usage totals in PostgreSQL.
+        Provider-specific state, audit output, and response policy headers.
     Effects:
-        - Applies authentication and distributed per-client request throttling.
-        - Enforces model authorization and per-client PII policy.
-        - Redacts detected structured/semantic PII before later
-        - inspection/provider forwarding.
-        - Audits or denies explicit prompt-injection indicators according to
-        - client policy.
-        - Reads durable accumulated usage before provider forwarding.
-        - Records provider-reported usage atomically after successful
-        - completion.
-        - Treats model-generated tool calls as untrusted output and validates
-        - them against current
-          client authorization plus the authoritative execution schema before
-          issuing short-lived tickets.
-        - Fails closed when required policy or shared state is unavailable.
-
+        Applies authentication and distributed request throttling.
+        Enforces model, PII, prompt-injection, and usage policy.
+        Forwards only the policy-processed request to the provider.
+        Records provider-reported usage after successful completion.
+        Validates untrusted tool calls before issuing short-lived tickets.
+        Fails closed when required policy or shared state is unavailable.
     Inputs:
-        - request: Requested model and chat messages.
-        - http_request: HTTP request containing request ID and timing context.
-        - outgoing_response: FastAPI response used to expose policy headers.
-        - principal: Authenticated client identity supplied by dependency
-        - injection.
-
+        request: Requested model and chat messages.
+        http_request: HTTP request with request ID and timing context.
+        outgoing_response: Response used to expose safe policy headers.
+        principal: Authenticated client identity from dependency injection.
     Outputs:
-        - An OpenAI-style chat-completion response with optional usage/tool
-        - execution metadata.
+        OpenAI-style response with optional tool-execution metadata.
     """
     request_id = http_request.state.request_id
 
@@ -298,7 +246,10 @@ async def chat_completion(
         raise
 
     try:
-        rate_decision = await rate_limiter.check(principal.client_id, limit_rpm)
+        rate_decision = await rate_limiter.check(
+            principal.client_id,
+            limit_rpm,
+        )
     except RateLimiterUnavailable as exc:
         emit_audit_event(
             request_id=request_id,
@@ -493,7 +444,9 @@ async def chat_completion(
                 },
             )
 
-        injection_outcome = "audit" if injection_detected_count > 0 else "allow"
+        injection_outcome = (
+            "audit" if injection_detected_count > 0 else "allow"
+        )
         injection_action_header = (
             "audited" if injection_detected_count > 0 else "none"
         )
@@ -505,7 +458,9 @@ async def chat_completion(
     outgoing_response.headers["X-Prompt-Injection-Detected-Count"] = str(
         injection_detected_count
     )
-    outgoing_response.headers["X-Prompt-Injection-Score"] = str(injection_score)
+    outgoing_response.headers["X-Prompt-Injection-Score"] = str(
+        injection_score
+    )
     emit_audit_event(
         request_id=request_id,
         event="prompt_injection",
@@ -538,7 +493,8 @@ async def chat_completion(
 
     try:
         budget_decision = await usage_ledger.check(
-            principal.client_id, usage_budget
+            principal.client_id,
+            usage_budget,
         )
     except UsageLedgerUnavailable as exc:
         emit_audit_event(
@@ -564,21 +520,27 @@ async def chat_completion(
             reason=budget_decision.reason,
             **_budget_audit_fields(
                 budget_decision,
-                include_cost=usage_budget.cost_limit_daily_usd is not None,
+                include_cost=(
+                    usage_budget.cost_limit_daily_usd is not None
+                ),
             ),
         )
         raise HTTPException(
             status_code=403,
             detail="Usage budget exceeded.",
             headers={
-                "X-Usage-Budget-Reset": budget_decision.reset_at.isoformat()
+                "X-Usage-Budget-Reset": (
+                    budget_decision.reset_at.isoformat()
+                )
             },
         )
 
     try:
         provider_response = await provider.chat_completion(provider_request)
     except ProviderError as exc:
-        latency_ms = (perf_counter() - http_request.state.started_at) * 1000
+        latency_ms = (
+            perf_counter() - http_request.state.started_at
+        ) * 1000
         emit_audit_event(
             request_id=request_id,
             event="chat_completion",
@@ -595,7 +557,9 @@ async def chat_completion(
             detail="Upstream provider request failed.",
         ) from exc
     except Exception as exc:
-        latency_ms = (perf_counter() - http_request.state.started_at) * 1000
+        latency_ms = (
+            perf_counter() - http_request.state.started_at
+        ) * 1000
         emit_audit_event(
             request_id=request_id,
             event="chat_completion",
@@ -610,8 +574,9 @@ async def chat_completion(
         raise
 
     usage = provider_response.usage
-    missing_required_cost = usage_budget.cost_limit_daily_usd is not None and (
-        usage is None or usage.cost is None
+    missing_required_cost = (
+        usage_budget.cost_limit_daily_usd is not None
+        and (usage is None or usage.cost is None)
     )
     if usage is None or missing_required_cost:
         emit_audit_event(
@@ -629,7 +594,9 @@ async def chat_completion(
         )
 
     request_cost = (
-        Decimal(str(usage.cost)) if usage.cost is not None else Decimal("0")
+        Decimal(str(usage.cost))
+        if usage.cost is not None
+        else Decimal("0")
     )
     try:
         updated_budget = await usage_ledger.record(
@@ -670,9 +637,9 @@ async def chat_completion(
             updated_budget.cost_used_daily_usd
         )
         if updated_budget.cost_remaining_daily_usd is not None:
-            outgoing_response.headers["X-Usage-Cost-Remaining-USD"] = str(
-                updated_budget.cost_remaining_daily_usd
-            )
+            outgoing_response.headers[
+                "X-Usage-Cost-Remaining-USD"
+            ] = str(updated_budget.cost_remaining_daily_usd)
 
     emit_audit_event(
         request_id=request_id,
@@ -736,7 +703,9 @@ async def chat_completion(
         )
         raise HTTPException(
             status_code=502,
-            detail="Upstream provider returned an unauthorized tool call.",
+            detail=(
+                "Upstream provider returned an unauthorized tool call."
+            ),
         ) from exc
 
     provider_response = prepared_tool_response.response
@@ -757,7 +726,9 @@ async def chat_completion(
             source_request_id=request_id,
         )
 
-    latency_ms = (perf_counter() - http_request.state.started_at) * 1000
+    latency_ms = (
+        perf_counter() - http_request.state.started_at
+    ) * 1000
     emit_audit_event(
         request_id=request_id,
         event="chat_completion",
