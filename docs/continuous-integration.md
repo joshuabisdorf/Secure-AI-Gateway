@@ -101,7 +101,8 @@ billable-AWS opt-in guards, and builds the production Dockerfile.
 docker compose config --quiet
 bash -n scripts/demo.sh scripts/resilience-smoke.sh \
   scripts/k8s-local-up.sh scripts/k8s-verify.sh \
-  scripts/aws-cloud-preflight.sh scripts/aws-cloud-deploy.sh scripts/aws-cloud-verify.sh
+  scripts/aws-cloud-preflight.sh scripts/aws-cloud-deploy.sh \
+  scripts/aws-cloud-verify.sh
 make help
 docker build --tag secure-ai-gateway:ci .
 ```

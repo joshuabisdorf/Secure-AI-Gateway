@@ -150,7 +150,7 @@ sequenceDiagram
     G-->>C: tool_call + short-lived signed ticket
     C->>E: proposed tool call
     E->>G: POST /v1/tool-executions/authorize
-    G->>G: re-authenticate + verify ticket + re-check policy + one-time replay claim
+    G->>G: re-auth + verify + policy recheck + one-time replay claim
     G-->>E: allow once / deny
 ```
 
@@ -305,7 +305,7 @@ make benchmark           local M10 reliability/performance baseline
 make preflight           repository/release hygiene checks
 make up / make down      Docker Compose lifecycle, preserving volumes
 make kind-up             build/start local kind environment
-make kind-verify         verify policy, rescheduling, shared state, and bounded load
+make kind-verify         verify policy, rescheduling, state, and load
 make terraform-validate  side-effect-free Terraform validation
 ```
 
@@ -349,7 +349,8 @@ provider keys, or Terraform apply.
 
 ## Optional AWS reference architecture
 
-Terraform defines protected S3/KMS remote state plus an application architecture
+Terraform defines protected S3/KMS remote state plus an application
+architecture
 with VPC networking, private EKS, ECR, encrypted RDS PostgreSQL,
 TLS/IAM-authenticated ElastiCache Valkey, KMS, Secrets Manager, a private
 Secrets Manager endpoint, EKS NetworkPolicy support, and separate Pod Identity
@@ -370,15 +371,15 @@ See [`docs/cost-policy.md`](docs/cost-policy.md),
 ├── app/                         gateway/security implementation
 ├── config/                      tracked policy examples and demo policy
 ├── db/migrations/               PostgreSQL migrations
-├── docs/                        architecture, security, operations, release evidence
+├── docs/                        security, operations, release evidence
 ├── evals/datasets/              versioned security regression corpora
 ├── k8s/                         base/local/CI/cloud/migration Kustomize targets
 ├── observability/               Prometheus and OTel configuration
 ├── requirements/                exact release-runtime dependency lock
-├── scripts/                     verification, kind, release, and optional AWS helpers
+├── scripts/                     verification and deployment helpers
 ├── terraform/                   bootstrap + AWS reference roots
 ├── tests/                       unit/integration/adversarial tests
-├── .github/workflows/           CI, CodeQL, preflight, security, release workflows
+├── .github/workflows/           CI and release workflows
 ├── CHANGELOG.md
 ├── CONTRIBUTING.md
 ├── LICENSE

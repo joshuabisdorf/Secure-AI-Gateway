@@ -274,7 +274,24 @@ class InMemoryRateLimiter:
             )
 
     def reset(self) -> None:
-        """Clear all process-local test rate-limit state."""
+        """
+        RME
+
+        Requires:
+            - The in-memory limiter may contain process-local test state.
+
+        Modifies:
+            - All process-local rate-limit buckets owned by this limiter.
+
+        Effects:
+            - Clears rate-limit state under the limiter lock.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         with self._lock:
             self._buckets.clear()
 
@@ -393,13 +410,52 @@ class RedisRateLimiter:
         )
 
     async def close(self) -> None:
-        """Close the shared-backend client's connection pool."""
+        """
+        RME
+
+        Requires:
+            - The Redis-compatible client may own open connections.
+
+        Modifies:
+            - Shared-backend client connection-pool state.
+
+        Effects:
+            - Closes the Redis-compatible client cleanly.
+
+        Inputs:
+            - None.
+
+        Outputs:
+            - None.
+        """
         await self._client.aclose()
 
 
 class UnavailableRateLimiter:
-    async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
-        """Fail closed when no usable rate-limit backend is configured."""
+    async def check(
+        self,
+        client_id: str,
+        limit_rpm: int,
+    ) -> RateLimitDecision:
+        """
+        RME
+
+        Requires:
+            - No usable rate-limit backend is configured.
+
+        Modifies:
+            - Nothing.
+
+        Effects:
+            - Fails closed instead of allowing an unthrottled request.
+
+        Inputs:
+            - client_id: Authenticated client identity.
+            - limit_rpm: Requested rate-limit ceiling.
+
+        Outputs:
+            - No decision; always raises RateLimiterUnavailable.
+        """
         raise RateLimiterUnavailable("rate_limiter_not_configured")
 
 

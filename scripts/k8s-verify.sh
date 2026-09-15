@@ -400,7 +400,8 @@ fi
 RESTART_COUNTS="$(
   kubectl -n "$NAMESPACE" get pods \
     -l app.kubernetes.io/component=gateway \
-    -o jsonpath='{range .items[*].status.containerStatuses[*]}{.restartCount}{"\n"}{end}'
+    -o jsonpath='{range .items[*].status.containerStatuses[*]}'\
+'{.restartCount}{"\n"}{end}'
 )"
 RESTART_TOTAL="$(
   printf '%s\n' "$RESTART_COUNTS" | awk '{sum += $1} END {print sum + 0}'

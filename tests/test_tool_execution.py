@@ -345,7 +345,7 @@ def test_execution_rechecks_current_client_tool_policy(
     assert response.status_code == 403
 
 
-def test_gateway_rejects_request_schema_that_differs_from_authoritative_registry(
+def test_gateway_rejects_schema_different_from_registry(
     tmp_path,
     monkeypatch,
     gateway_api_key,

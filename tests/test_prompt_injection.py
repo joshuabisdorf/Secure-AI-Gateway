@@ -135,7 +135,7 @@ def test_direct_prompt_injection_indicators_are_detected() -> None:
     )
 
 
-def test_encoded_prompt_injection_is_only_flagged_after_decoding_attack_text() -> (
+def test_encoded_attack_is_flagged_only_after_decoding() -> (
     None
 ):
     """

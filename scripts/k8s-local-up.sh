@@ -99,7 +99,11 @@ if [ -z "$GATEWAY_POD" ]; then
 fi
 
 CLIENT_SECRET_FILE="/tmp/sag-client-key-$$"
-trap 'kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true' EXIT
+cleanup_client_secret() {
+  kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+    rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true
+}
+trap cleanup_client_secret EXIT
 
 CLIENT_METADATA="$(
   kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \

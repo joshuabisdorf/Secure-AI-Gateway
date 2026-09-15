@@ -62,17 +62,17 @@ _indicators = (
         weight=4,
         patterns=(
             re.compile(
-                r"\b(?:reveal|show|print|display|repeat|output|provide)\b.{0,48}"
+                r"\b(?:reveal|show|print|display|repeat|"
+                r"output|provide)\b.{0,48}"
                 r"\b(?:system|developer|hidden|initial)\s+"
                 r"(?:prompt|message|instructions?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
             re.compile(
-                r"\bwhat\s+(?:were|are)\s+(?:your\s+)?(?:exact\s+)?"
-                (
-                    '(?:system\\s+|developer\\s+|hidden\\s+|'
-                    'initial\\s+)?instructions\\b'
-                ),
+                r"\bwhat\s+(?:were|are)\s+(?:your\s+)?"
+                r"(?:exact\s+)?"
+                r"(?:system\s+|developer\s+|hidden\s+|initial\s+)?"
+                r"instructions\b",
                 re.IGNORECASE,
             ),
         ),
@@ -83,18 +83,14 @@ _indicators = (
         patterns=(
             re.compile(
                 r"\byou\s+are\s+now\s+(?:in\s+)?"
-                (
-                    '(?:developer|admin|administrator|roo'
-                    't|debug|unrestricted)\\s+mode\\b'
-                ),
+                r"(?:developer|admin|administrator|root|debug|"
+                r"unrestricted)\s+mode\b",
                 re.IGNORECASE,
             ),
             re.compile(
                 r"\bact\s+as\s+(?:an?\s+)?"
-                (
-                    '(?:unrestricted|uncensored|developer'
-                    '|system|administrator|root)\\b'
-                ),
+                r"(?:unrestricted|uncensored|developer|system|"
+                r"administrator|root)\b",
                 re.IGNORECASE,
             ),
         ),
@@ -104,12 +100,10 @@ _indicators = (
         weight=3,
         patterns=(
             re.compile(
-                r"\b(?:bypass|disable|circumvent|override|ignore)\b.{0,48}"
-                (
-                    '\\b(?:safety|security|policy|policies'
-                    '|guardrails?|restrictions?|filters?)'
-                    '\\b'
-                ),
+                r"\b(?:bypass|disable|circumvent|override|"
+                r"ignore)\b.{0,48}"
+                r"\b(?:safety|security|policy|policies|guardrails?|"
+                r"restrictions?|filters?)\b",
                 re.IGNORECASE | re.DOTALL,
             ),
         ),
@@ -119,7 +113,8 @@ _indicators = (
         weight=4,
         patterns=(
             re.compile(
-                r"\b(?:reveal|show|print|display|output|provide|give\s+me)\b.{0,64}"
+                r"\b(?:reveal|show|print|display|output|provide|"
+                r"give\s+me)\b.{0,64}"
                 r"\b(?:api["
                 r" _-]?keys?|passwords?|secrets?|credentials?|tokens?)\b",
                 re.IGNORECASE | re.DOTALL,

@@ -91,7 +91,8 @@ The registry is non-secret policy. For a real deployment, copy it to the ignored
 local path if customization is needed:
 
 ```bash
-cp config/tool-execution-policies.example.json config/tool-execution-policies.json
+cp config/tool-execution-policies.example.json \
+  config/tool-execution-policies.json
 ```
 
 `config/tool-execution-policies.json` is ignored by Git and excluded from the

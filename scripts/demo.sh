@@ -19,11 +19,15 @@ fi
 export SAG_PROVIDER=mock
 export SAG_ALLOWED_MODELS=mock-model
 export SAG_SECURITY_POLICY_HOST_FILE=./config/demo-security-policies.json
-export SAG_TOOL_EXECUTION_SIGNING_KEY="${SAG_TOOL_EXECUTION_SIGNING_KEY:-$(python - <<'PY'
+if [ -z "${SAG_TOOL_EXECUTION_SIGNING_KEY:-}" ]; then
+  SAG_TOOL_EXECUTION_SIGNING_KEY="$(
+    python - <<'PY'
 import secrets
 print(secrets.token_urlsafe(48))
 PY
-)}"
+  )"
+  export SAG_TOOL_EXECUTION_SIGNING_KEY
+fi
 
 TMP_DIR="$(mktemp -d)"
 API_KEY=""

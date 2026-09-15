@@ -91,6 +91,25 @@ def load_json_secret(
 
 
 def _database_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
+    """
+    RME
+
+    Requires:
+        - value is the parsed runtime database secret object.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Validates the exact credential schema, username, and password length.
+        - Rejects malformed credentials without exposing their values.
+
+    Inputs:
+        - value: Candidate runtime database credentials.
+
+    Outputs:
+        - Validated username and password.
+    """
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
     username = value.get("username")
@@ -158,6 +177,25 @@ def build_database_conninfo(
 
 
 def _tool_signing_key(value: Mapping[str, Any]) -> str:
+    """
+    RME
+
+    Requires:
+        - value is the parsed execution-ticket signing secret object.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Validates exact schema and safe signing-key byte-length bounds.
+        - Fails closed without logging or returning malformed secret material.
+
+    Inputs:
+        - value: Candidate signing-key secret object.
+
+    Outputs:
+        - Validated execution-ticket signing key.
+    """
     if frozenset(value) != {"signing_key"}:
         raise RuntimeSecretError("tool_signing_secret_schema_invalid")
     signing_key = value.get("signing_key")
@@ -170,6 +208,25 @@ def _tool_signing_key(value: Mapping[str, Any]) -> str:
 
 
 def _provider_environment(value: Mapping[str, Any]) -> dict[str, str]:
+    """
+    RME
+
+    Requires:
+        - value is the parsed optional provider secret object.
+
+    Modifies:
+        - Nothing.
+
+    Effects:
+        - Allows only the explicitly supported provider environment fields.
+        - Rejects non-string or unexpected fields without exposing values.
+
+    Inputs:
+        - value: Candidate provider-secret mapping.
+
+    Outputs:
+        - Validated provider environment additions.
+    """
     if not frozenset(value).issubset(_provider_secret_fields):
         raise RuntimeSecretError("provider_secret_schema_invalid")
     environment: dict[str, str] = {}
@@ -263,8 +320,25 @@ def exec_with_runtime_environment(command: Sequence[str]) -> None:
 
 def main() -> None:
     """
-    Load cloud runtime secrets and exec the gateway command without printing
-    them.
+    RME
+
+    Requires:
+        - CLI arguments contain the gateway command after optional `--`.
+        - Required AWS runtime secret configuration is available.
+
+    Modifies:
+        - Process state when the runtime command is executed.
+
+    Effects:
+        - Loads cloud runtime secrets and execs the gateway command.
+        - Converts safe RuntimeSecretError reasons into CLI parser errors.
+        - Does not print secret values.
+
+    Inputs:
+        - Command-line arguments and AWS runtime environment configuration.
+
+    Outputs:
+        - None; successful execution replaces the current process.
     """
     parser = argparse.ArgumentParser(
         description=(

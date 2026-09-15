@@ -80,7 +80,8 @@ send_request() {
     -X POST "http://127.0.0.1:${port}/v1/chat/completions" \
     -H "Authorization: Bearer $SAG_CLIENT_API_KEY" \
     -H "Content-Type: application/json" \
-    -d '{"model":"openrouter/free","messages":[{"role":"user","content":"Cloud verification"}]}'
+    -d '{"model":"openrouter/free","messages":['\
+'{"role":"user","content":"Cloud verification"}]}'
 }
 
 header_value() {

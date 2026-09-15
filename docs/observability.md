@@ -121,7 +121,11 @@ sum(rate(sag_pii_findings_total[5m])) by (pii_type)
 Execution-time tool authorization decisions:
 
 ```promql
-sum(rate(sag_tool_authorization_decisions_total{stage="execution"}[5m])) by (outcome, risk)
+sum(
+  rate(
+    sag_tool_authorization_decisions_total{stage="execution"}[5m]
+  )
+) by (outcome, risk)
 ```
 
 Persisted token usage:

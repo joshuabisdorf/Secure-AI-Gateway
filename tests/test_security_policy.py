@@ -102,7 +102,7 @@ def test_parse_security_policy_registry_resolves_reusable_profiles() -> None:
     assert resolved.profile.allowed_tools == frozenset({"calculator", "lookup"})
 
 
-def test_security_policy_registry_rejects_unknown_fields_and_non_integer_version() -> (
+def test_registry_rejects_unknown_fields_and_non_integer_version() -> (
     None
 ):
     """

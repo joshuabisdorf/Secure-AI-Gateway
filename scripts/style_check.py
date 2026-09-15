@@ -384,6 +384,13 @@ def _requires_rmeio(
     """
     if _is_dunder(node.name):
         return False
+    if (
+        len(node.body) == 1
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and node.body[0].value.value is Ellipsis
+    ):
+        return False
     if node.name.startswith("_") and len(node.body) <= 3:
         return False
     return True

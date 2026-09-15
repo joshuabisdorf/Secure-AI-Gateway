@@ -146,7 +146,7 @@ def test_request_body_limit_rejects_streamed_oversize() -> None:
     assert b"Request body too large" in sent[1]["body"]
 
 
-def test_request_body_limit_allows_bounded_stream_and_adds_security_headers() -> (
+def test_bounded_stream_gets_security_headers() -> (
     None
 ):
     sent: list[dict[str, object]] = []

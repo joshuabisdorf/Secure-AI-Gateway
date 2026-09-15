@@ -184,7 +184,14 @@ case "$MODE" in
     TMP_DIR="$(mktemp -d)"
     CLIENT_SECRET_FILE=""
     GATEWAY_POD=""
-    trap 'if [ -n "${CLIENT_SECRET_FILE:-}" ] && [ -n "${GATEWAY_POD:-}" ]; then kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true; fi; rm -rf "$TMP_DIR"' EXIT
+    cleanup_deploy() {
+      if [ -n "${CLIENT_SECRET_FILE:-}" ] && [ -n "${GATEWAY_POD:-}" ]; then
+        kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
+          rm -f "$CLIENT_SECRET_FILE" >/dev/null 2>&1 || true
+      fi
+      rm -rf "$TMP_DIR"
+    }
+    trap cleanup_deploy EXIT
     chmod 700 "$TMP_DIR"
 
     RUNTIME_DB_PASSWORD="$(openssl rand -base64 48 | tr -d '\n')"

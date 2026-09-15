@@ -76,7 +76,7 @@ def _configure_chat_policy(monkeypatch) -> None:
     )
 
 
-def test_parse_client_allowed_tools_supports_explicit_none_and_multiple_grants() -> (
+def test_allowed_tools_support_none_and_multiple_grants() -> (
     None
 ):
     """

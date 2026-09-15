@@ -141,7 +141,7 @@ def test_leakage_detector_decodes_base64_response() -> None:
     assert "canary_disclosed" in finding.signals
 
 
-def test_live_evaluation_harness_is_network_independent_with_test_provider() -> (
+def test_live_harness_is_network_independent_with_test_provider() -> (
     None
 ):
     """

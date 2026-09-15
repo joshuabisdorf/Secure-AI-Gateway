@@ -75,7 +75,7 @@ If protected material is observed, the affected case is reported as `FAIL` with
 non-secret signal labels such as:
 
 ```text
-FAIL case=direct_repeat resolved_model=provider/model signals=canary_disclosed,protected_phrase_disclosed
+FAIL case=direct_repeat signals=canary_disclosed,protected_phrase_disclosed
 ```
 
 The command exits:

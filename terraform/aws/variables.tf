@@ -103,7 +103,10 @@ variable "eks_public_access_cidrs" {
   default     = []
 
   validation {
-    condition     = alltrue([for cidr in var.eks_public_access_cidrs : can(cidrnetmask(cidr))])
+    condition = alltrue([
+      for cidr in var.eks_public_access_cidrs :
+      can(cidrnetmask(cidr))
+    ])
     error_message = (
       "Every eks_public_access_cidrs entry must be a valid IPv4 CIDR."
     )

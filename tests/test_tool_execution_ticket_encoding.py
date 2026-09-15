@@ -131,7 +131,7 @@ def test_oversized_execution_ticket_is_rejected_by_request_schema(
     assert response.status_code == 422
 
 
-def test_execution_ticket_shape_accepts_only_unpadded_urlsafe_two_segments() -> (
+def test_ticket_shape_accepts_only_unpadded_urlsafe_segments() -> (
     None
 ):
     """
