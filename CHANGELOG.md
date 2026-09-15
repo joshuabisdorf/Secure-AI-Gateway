@@ -69,7 +69,7 @@ First stable portfolio release.
   zero-cost required path.
 - Project-owned source/documentation style standard with an 80-character line
   limit, RMEIO contracts, and standard-library-only enforcement.
-- Incremental style enforcement for every new/modified file plus
-  `make style-strict` for whole-repository conformance.
+- Whole-repository style enforcement on every CI run with no legacy baseline or
+  grandfathered file set.
 - `CONTRIBUTING.md`, `.editorconfig`, release checklist, and Make targets.
 - Apache License 2.0 with `NOTICE` preserving Joshua Bisdorf attribution.
