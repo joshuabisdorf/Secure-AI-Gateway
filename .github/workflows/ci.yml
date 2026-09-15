@@ -65,7 +65,7 @@ jobs:
             --no-deps --no-build-isolation -e .
           /tmp/sag-release-venv/bin/python -m pip check
           /tmp/sag-release-venv/bin/python -c \
-            'import app.server, en_core_web_sm; print("release_lock_install=OK")'
+            'import app.server,en_core_web_sm;print("release_lock_install=OK")'
 
   m10-verification:
     name: M10 adversarial/reliability/performance
