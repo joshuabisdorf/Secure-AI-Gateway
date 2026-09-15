@@ -121,34 +121,27 @@ reference-only, or optional behavior.
 `scripts/style_check.py` is the repository-owned checker for rules that can be
 validated safely without importing a third-party formatting or linting policy.
 
-The repository had substantial style debt before this standard was introduced.
-`.style-baseline` anchors that debt to the exact pre-standard commit. Normal CI
-checks every new or modified file in full. An unchanged pre-standard file is
-not a policy exception; it is deferred migration work. As soon as such a file
-is modified, the entire file must comply with the current standard.
+The entire maintained repository is subject to the style gate. There is no
+legacy-file exemption or moving style baseline. A style violation in any
+tracked maintained file fails the gate regardless of when that file was added.
 
-Run the normal incremental gate with:
+Run the repository gate with:
 
 ```bash
 make style
 ```
 
-Run the entire repository with no baseline deferral using:
+`make style-strict` is retained as an explicit whole-tree audit command and must
+produce the same clean result.
 
-```bash
-make style-strict
-```
+CI checks the complete maintained tree. Machine-enforced checks include text
+hygiene, the 80-character limit, Python syntax and structural hazards, Python
+naming, RMEIO presence and order, and Bash shebang and strict-mode
+requirements.
 
-The strict command is the end-state conformance check. The baseline is fixed;
-it must never be moved forward to absorb new violations. It may be removed
-once the whole repository passes strict mode.
-
-CI runs the incremental command. Machine-enforced checks include text hygiene,
-the 80-character limit, Python syntax and structural hazards, Python naming,
-RMEIO presence and order, and Bash shebang and strict-mode requirements.
 The checker is intentionally conservative: it rejects clear violations and
-leaves subjective review decisions to code review rather than rewriting source
-automatically.
+leaves subjective review decisions to code review rather than automatically
+rewriting maintained source.
 
 A change that requires a line-length exception should normally make the reason
 obvious from the line itself. The checker recognizes a narrow set of atomic
