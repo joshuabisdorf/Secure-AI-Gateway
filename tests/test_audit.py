@@ -42,7 +42,8 @@ def test_audit_log_attributes_client_without_secrets(
     RME
 
     Requires:
-        - Gateway authentication, rate, model, and usage-budget policy are configured.
+        - Gateway authentication, rate, model, and usage-budget policy are
+        - configured.
 
     Modifies:
         - Temporarily configures gateway environment variables and log capture.
@@ -50,7 +51,8 @@ def test_audit_log_attributes_client_without_secrets(
 
     Effects:
         - Sends a valid request and verifies structured security audit events.
-        - Verifies client identity, rate state, usage accounting, and models are recorded.
+        - Verifies client identity, rate state, usage accounting, and models are
+        - recorded.
         - Verifies prompt content and bearer credentials are not logged.
 
     Inputs:

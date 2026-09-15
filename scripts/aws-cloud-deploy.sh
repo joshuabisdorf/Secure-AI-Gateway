@@ -53,7 +53,8 @@ bootstrap_outputs() {
     echo "ERROR terraform_bootstrap_not_applied=true" >&2
     exit 2
   fi
-  REGION="$(awk -F'"' '/^[[:space:]]*aws_region[[:space:]]*=/{print $2; exit}' "$BOOTSTRAP_VARS")"
+  REGION="$(awk -F'"' '/^[[:space:]]*aws_region[[:space:]]*=/{print $2; \
+    exit}' "$BOOTSTRAP_VARS")"
   if [ -z "$REGION" ]; then
     echo "ERROR bootstrap_region_unavailable=true" >&2
     exit 2
@@ -89,7 +90,8 @@ put_json_secret_if_empty() {
 
 case "$MODE" in
   bootstrap-plan)
-    terraform -chdir=terraform/bootstrap init -backend=false -input=false >/dev/null
+    terraform -chdir=terraform/bootstrap init -backend=false -input=false \
+      >/dev/null
     terraform -chdir=terraform/bootstrap plan \
       -input=false \
       -var-file=terraform.tfvars
@@ -97,7 +99,8 @@ case "$MODE" in
 
   bootstrap-apply)
     require_apply_confirmation
-    terraform -chdir=terraform/bootstrap init -backend=false -input=false >/dev/null
+    terraform -chdir=terraform/bootstrap init -backend=false -input=false \
+      >/dev/null
     terraform -chdir=terraform/bootstrap apply \
       -input=false \
       -var-file=terraform.tfvars
@@ -138,7 +141,8 @@ case "$MODE" in
     DATABASE_SECRET="$(terraform -chdir=terraform/aws output -json runtime_secret_arns | jq -r '.database_credentials')"
     SIGNING_SECRET="$(terraform -chdir=terraform/aws output -json runtime_secret_arns | jq -r '.tool_signing_key')"
 
-    aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER_NAME" >/dev/null
+    aws eks update-kubeconfig --region "$REGION" --name "$CLUSTER_NAME" \
+      >/dev/null
     kubectl version --request-timeout=10s >/dev/null
 
     TMP_DIR="$(mktemp -d)"
@@ -239,8 +243,10 @@ case "$MODE" in
     kubectl -n "$NAMESPACE" wait \
       --for=condition=complete job/sag-migrate --timeout=600s
     kubectl -n "$NAMESPACE" rollout status deployment/sag-gateway --timeout=600s
-    kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector --timeout=300s
-    kubectl -n "$NAMESPACE" rollout status deployment/sag-prometheus --timeout=300s
+    kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector \
+      --timeout=300s
+    kubectl -n "$NAMESPACE" rollout status deployment/sag-prometheus \
+      --timeout=300s
 
     GATEWAY_POD="$(
       kubectl -n "$NAMESPACE" get pods \
@@ -256,7 +262,8 @@ case "$MODE" in
     CLIENT_SECRET_FILE="/tmp/sag-cloud-client-key-$$"
     CLIENT_METADATA="$(kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- python -m app.clients list)"
     if printf '%s\n' "$CLIENT_METADATA" \
-        | grep -q 'client_id=local-dev .*client_active=true .*key_active=true'; then
+        | grep -q \
+          'client_id=local-dev .*client_active=true .*key_active=true'; then
       CLIENT_OUTPUT="$(
         kubectl -n "$NAMESPACE" exec "$GATEWAY_POD" -- \
           python -m app.clients rotate local-dev \

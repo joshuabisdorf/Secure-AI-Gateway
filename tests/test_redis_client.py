@@ -28,7 +28,8 @@ def test_elasticache_iam_credentials_are_short_lived_and_cached() -> None:
     Effects:
         - Verifies generated credentials use user ID plus a SigV4 connect token.
         - Verifies repeated requests before refresh reuse the token.
-        - Verifies the async credentials interface returns the same credential shape.
+        - Verifies the async credentials interface returns the same credential
+        - shape.
 
     Inputs:
         - None.

@@ -62,7 +62,8 @@ def parse_client_pii_policies(configured_policies: str) -> dict[str, PIIPolicy]:
         - Mapping from client ID to PIIPolicy.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or unsupported.
+        - ValueError: Configuration is empty, malformed, duplicated, or
+        - unsupported.
     """
     policies: dict[str, PIIPolicy] = {}
 
@@ -103,7 +104,8 @@ def get_client_pii_policy(client_id: str) -> PIIPolicy:
         - Nothing.
 
     Effects:
-        - Fails closed when PII policy is absent, malformed, or missing the client.
+        - Fails closed when PII policy is absent, malformed, or missing the
+        - client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -141,7 +143,8 @@ def _luhn_valid(candidate: str) -> bool:
     RME
 
     Requires:
-        - candidate may contain a payment-card-like digit sequence with separators.
+        - candidate may contain a payment-card-like digit sequence with
+        - separators.
 
     Modifies:
         - Nothing.
@@ -183,7 +186,8 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
         - Nothing.
 
     Effects:
-        - Detects and redacts deterministic email, SSN, phone, and payment-card values.
+        - Detects and redacts deterministic email, SSN, phone, and payment-card
+        - values.
         - Does not retain raw detected values separately.
 
     Inputs:
@@ -240,17 +244,20 @@ def inspect_and_redact_request(
 
     Effects:
         - Detects deterministic structured PII first.
-        - Runs local semantic/contextual PII detection on the structured-redacted text.
+        - Runs local semantic/contextual PII detection on the
+        - structured-redacted text.
         - Redacts all selected values in a copied provider request.
         - Leaves non-text/tool-call message fields unchanged.
         - Does not retain or return raw detected values separately.
 
     Inputs:
         - request: Validated gateway chat-completion request.
-        - semantic_analyzer: Semantic analyzer implementation, injectable for tests.
+        - semantic_analyzer: Semantic analyzer implementation, injectable for
+        - tests.
 
     Outputs:
-        - PIIInspectionResult with a redacted request, total finding count, and safe type names.
+        - PIIInspectionResult with a redacted request, total finding count, and
+        - safe type names.
     """
     detected_types: list[str] = []
     redacted_messages: list[ChatMessage] = []

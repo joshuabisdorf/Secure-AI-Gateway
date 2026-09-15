@@ -138,7 +138,8 @@ def check_action_pins(files: list[str]) -> None:
     Modifies:
         Nothing.
     Effects:
-        Reads tracked workflow files and raises PreflightFailure for mutable refs.
+        Reads tracked workflow files and raises PreflightFailure for mutable
+        refs.
     Inputs:
         files: Current tracked file paths.
     Outputs:
@@ -176,7 +177,8 @@ def check_current_tree_secret_markers(files: list[str]) -> None:
     Modifies:
         Nothing.
     Effects:
-        Reads small tracked text files and raises PreflightFailure on marker matches.
+        Reads small tracked text files and raises PreflightFailure on marker
+        matches.
     Inputs:
         files: Current tracked file paths.
     Outputs:
@@ -210,7 +212,8 @@ def check_history_sensitive_filenames() -> None:
     Modifies:
         Nothing.
     Effects:
-        Reads commit history and raises PreflightFailure on suspicious historical paths.
+        Reads commit history and raises PreflightFailure on suspicious
+        historical paths.
     Inputs:
         None.
     Outputs:
@@ -250,7 +253,8 @@ def check_clean_tree(allow_dirty: bool) -> None:
     Modifies:
         Nothing.
     Effects:
-        Reads working-tree status and raises PreflightFailure when dirty unless allowed.
+        Reads working-tree status and raises PreflightFailure when dirty unless
+        allowed.
     Inputs:
         allow_dirty: Whether uncommitted changes are permitted.
     Outputs:

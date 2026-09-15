@@ -151,7 +151,8 @@ def test_chat_fails_closed_without_client_model_policy(
         - Removes SAG_CLIENT_ALLOWED_MODELS for the current test.
 
     Effects:
-        - Verifies requests are not forwarded without per-client authorization policy.
+        - Verifies requests are not forwarded without per-client authorization
+        - policy.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.
@@ -191,7 +192,8 @@ def test_client_policy_parser_supports_multiple_clients_and_colons() -> None:
 
     Effects:
         - Verifies repeated client IDs create multi-model grants.
-        - Verifies model slugs may contain colons, such as OpenRouter :free names.
+        - Verifies model slugs may contain colons, such as OpenRouter :free
+        - names.
 
     Inputs:
         - None.

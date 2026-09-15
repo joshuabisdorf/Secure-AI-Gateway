@@ -137,7 +137,8 @@ def _env_enabled(name: str, default: bool = False) -> bool:
         - Nothing.
 
     Effects:
-        - Interprets common true values without accepting arbitrary configuration.
+        - Interprets common true values without accepting arbitrary
+        - configuration.
 
     Inputs:
         - name: Environment variable name.
@@ -157,14 +158,16 @@ def configure_tracing() -> None:
     RME
 
     Requires:
-        - OTLP environment variables may identify a trace collector when tracing is enabled.
+        - OTLP environment variables may identify a trace collector when tracing
+        - is enabled.
 
     Modifies:
         - Global OpenTelemetry tracer provider once per process when enabled.
 
     Effects:
         - Leaves tracing as the OpenTelemetry no-op provider by default.
-        - Configures batched OTLP/HTTP trace export when SAG_OTEL_ENABLED is true.
+        - Configures batched OTLP/HTTP trace export when SAG_OTEL_ENABLED is
+        - true.
 
     Inputs:
         - None.
@@ -229,7 +232,8 @@ def bounded_route(path: str) -> str:
         - Nothing.
 
     Effects:
-        - Prevents arbitrary paths from creating unbounded Prometheus label cardinality.
+        - Prevents arbitrary paths from creating unbounded Prometheus label
+        - cardinality.
 
     Inputs:
         - path: Incoming request path.
@@ -328,7 +332,8 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
 
     Effects:
         - Derives bounded counters from existing audit decisions.
-        - Never uses request IDs, client IDs, key IDs, model names, tool names, or reasons as labels.
+        - Never uses request IDs, client IDs, key IDs, model names, tool names,
+        - or reasons as labels.
 
     Inputs:
         - payload: Sanitized audit event mapping.
@@ -449,7 +454,8 @@ def request_trace(
         - method: HTTP method.
         - route: Bounded route label.
         - request_id: Gateway request correlation ID.
-        - headers: Incoming request headers used only for standard trace-context extraction.
+        - headers: Incoming request headers used only for standard trace-context
+        - extraction.
 
     Outputs:
         - Active request span context manager value.
@@ -479,7 +485,8 @@ def finish_request_span(span: Span, status_code: int) -> str | None:
         - Span status and response-status attributes.
 
     Effects:
-        - Marks 5xx responses as errors and returns a printable trace ID when sampled/valid.
+        - Marks 5xx responses as errors and returns a printable trace ID when
+        - sampled/valid.
 
     Inputs:
         - span: Active OpenTelemetry span.
@@ -509,7 +516,8 @@ def provider_trace(provider: str) -> Iterator[Span]:
         - Current OpenTelemetry span context during the upstream request.
 
     Effects:
-        - Starts a child span that records provider identity but no prompts, responses, or credentials.
+        - Starts a child span that records provider identity but no prompts,
+        - responses, or credentials.
 
     Inputs:
         - provider: Provider identifier.

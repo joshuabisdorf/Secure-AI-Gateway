@@ -33,7 +33,8 @@ def test_load_gateway_runtime_environment(monkeypatch) -> None:
         - Test-only environment variables and fake secret-request history.
 
     Effects:
-        - Verifies database/signing/provider secrets are mapped to child environment values.
+        - Verifies database/signing/provider secrets are mapped to child
+        - environment values.
         - Verifies generated database connection configuration requires TLS.
 
     Inputs:

@@ -18,7 +18,8 @@ def get_allowed_models() -> frozenset[str]:
         - Nothing.
 
     Effects:
-        - Rejects policy evaluation when no usable global model allowlist is configured.
+        - Rejects policy evaluation when no usable global model allowlist is
+        - configured.
 
     Inputs:
         - None.
@@ -160,7 +161,8 @@ def enforce_model_allowed(model: str, client_id: str) -> None:
 
     Effects:
         - Enforces the global model allowlist as a deployment-wide ceiling.
-        - Enforces the authenticated client's model grants as a second restriction.
+        - Enforces the authenticated client's model grants as a second
+        - restriction.
         - Rejects requests unless both policy layers allow the requested model.
 
     Inputs:

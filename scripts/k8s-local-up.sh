@@ -74,7 +74,8 @@ kubectl apply -k k8s/local >/dev/null
 
 kubectl -n "$NAMESPACE" rollout status statefulset/sag-postgres --timeout=180s
 kubectl -n "$NAMESPACE" rollout status statefulset/sag-redis --timeout=180s
-kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector --timeout=180s
+kubectl -n "$NAMESPACE" rollout status deployment/sag-otel-collector \
+  --timeout=180s
 
 kubectl -n "$NAMESPACE" delete job sag-migrate --ignore-not-found >/dev/null
 kubectl apply -k k8s/migration >/dev/null

@@ -193,14 +193,17 @@ def parse_benchmark_dataset(
     RME
 
     Requires:
-        - document is intended to be a version-1 prompt-injection benchmark dataset.
+        - document is intended to be a version-1 prompt-injection benchmark
+        - dataset.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Strictly validates dataset structure, thresholds, unique IDs, labels, and messages.
-        - Rejects categories that mix attack and benign labels so per-category rates remain clear.
+        - Strictly validates dataset structure, thresholds, unique IDs, labels,
+        - and messages.
+        - Rejects categories that mix attack and benign labels so per-category
+        - rates remain clear.
 
     Inputs:
         - document: UTF-8 JSON benchmark document.
@@ -210,7 +213,8 @@ def parse_benchmark_dataset(
         - Validated PromptInjectionDataset.
 
     Raises:
-        - ValueError: Dataset content is malformed or violates the benchmark schema.
+        - ValueError: Dataset content is malformed or violates the benchmark
+        - schema.
     """
     try:
         root = json.loads(
@@ -272,7 +276,8 @@ def load_benchmark_dataset(
         - Nothing.
 
     Effects:
-        - Reads the dataset, computes its SHA-256 digest, and validates its complete schema.
+        - Reads the dataset, computes its SHA-256 digest, and validates its
+        - complete schema.
 
     Inputs:
         - path: Dataset path; defaults to the committed version-1 benchmark.
@@ -281,7 +286,8 @@ def load_benchmark_dataset(
         - Validated PromptInjectionDataset with reproducibility digest.
 
     Raises:
-        - BenchmarkDatasetError: File is unavailable, oversized, undecodable, or invalid.
+        - BenchmarkDatasetError: File is unavailable, oversized, undecodable, or
+        - invalid.
     """
     try:
         raw = path.read_bytes()
@@ -314,9 +320,11 @@ def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
         - Nothing.
 
     Effects:
-        - Runs the deterministic prompt-injection detector against every benchmark case.
+        - Runs the deterministic prompt-injection detector against every
+        - benchmark case.
         - Computes confusion-matrix metrics and per-category detection rates.
-        - Retains only case IDs for errors; prompt bodies are not copied into the report.
+        - Retains only case IDs for errors; prompt bodies are not copied into
+        - the report.
 
     Inputs:
         - dataset: Validated benchmark dataset.
@@ -517,8 +525,10 @@ def main() -> None:
         - Terminal output only.
 
     Effects:
-        - Runs an offline reproducible detector evaluation with no provider/network calls.
-        - Exits 2 for dataset errors and, when --enforce-baseline is set, 1 for regression.
+        - Runs an offline reproducible detector evaluation with no
+        - provider/network calls.
+        - Exits 2 for dataset errors and, when --enforce-baseline is set, 1 for
+        - regression.
 
     Inputs:
         - Command-line arguments.

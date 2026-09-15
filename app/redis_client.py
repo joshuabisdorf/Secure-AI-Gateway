@@ -34,7 +34,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         RME
 
         Requires:
-            - user_id identifies an IAM-authenticated ElastiCache user whose name equals its ID.
+            - user_id identifies an IAM-authenticated ElastiCache user whose
+            - name equals its ID.
             - cache_name identifies a node-based ElastiCache replication group.
             - region identifies the AWS region containing the cache.
 
@@ -42,7 +43,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             - Process-local short-lived IAM token cache.
 
         Effects:
-            - Uses the AWS default credential chain to create SigV4 ElastiCache connect tokens.
+            - Uses the AWS default credential chain to create SigV4 ElastiCache
+            - connect tokens.
             - Caches each token for less than its 15-minute maximum lifetime.
             - Never persists or logs AWS credentials or generated cache tokens.
 
@@ -50,7 +52,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             - user_id: ElastiCache IAM user ID/name.
             - cache_name: ElastiCache replication-group name.
             - region: AWS region.
-            - session: Optional injectable boto3 session for deterministic tests.
+            - session: Optional injectable boto3 session for deterministic
+            - tests.
             - clock: Monotonic time source used for token-cache expiry.
 
         Outputs:
@@ -136,13 +139,15 @@ def build_redis_client(redis_url: str, **kwargs: Any) -> Redis:
     Requires:
         - redis_url identifies the configured shared Redis/Valkey endpoint.
         - SAG_REDIS_AUTH_MODE is either none or elasticache_iam.
-        - elasticache_iam mode uses rediss:// and complete AWS/cache identity configuration.
+        - elasticache_iam mode uses rediss:// and complete AWS/cache identity
+        - configuration.
 
     Modifies:
         - Initializes process-local Redis connection-pool state.
 
     Effects:
-        - Centralizes local Redis and AWS ElastiCache IAM/TLS client construction.
+        - Centralizes local Redis and AWS ElastiCache IAM/TLS client
+        - construction.
         - Rejects password/username URLs when IAM authentication is selected.
 
     Inputs:

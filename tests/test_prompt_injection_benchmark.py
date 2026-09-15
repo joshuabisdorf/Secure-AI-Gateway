@@ -19,20 +19,23 @@ def test_committed_prompt_injection_benchmark_meets_baseline() -> None:
     RME
 
     Requires:
-        - The version-1 benchmark dataset is committed at its default repository path.
+        - The version-1 benchmark dataset is committed at its default repository
+        - path.
 
     Modifies:
         - Nothing.
 
     Effects:
         - Runs the complete deterministic detector benchmark offline.
-        - Verifies the current detector does not regress below the committed baseline.
+        - Verifies the current detector does not regress below the committed
+        - baseline.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether benchmark coverage and thresholds hold.
+        - None. Assertions determine whether benchmark coverage and thresholds
+        - hold.
     """
     dataset = load_benchmark_dataset()
     report = evaluate_benchmark(dataset)
@@ -71,16 +74,19 @@ def test_evaluate_benchmark_computes_confusion_metrics(monkeypatch) -> None:
     RME
 
     Requires:
-        - A synthetic dataset encodes expected detector decisions in message content.
+        - A synthetic dataset encodes expected detector decisions in message
+        - content.
 
     Modifies:
         - Temporarily replaces the detector function used by the evaluator.
 
     Effects:
-        - Verifies TP/FP/TN/FN and derived metric calculations independently of detector rules.
+        - Verifies TP/FP/TN/FN and derived metric calculations independently of
+        - detector rules.
 
     Inputs:
-        - monkeypatch: Pytest fixture used to replace the detector deterministically.
+        - monkeypatch: Pytest fixture used to replace the detector
+        - deterministically.
 
     Outputs:
         - None. Assertions determine whether metric calculations are correct.

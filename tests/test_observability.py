@@ -43,11 +43,13 @@ def test_metrics_expose_bounded_gateway_and_provider_series(
         - Deterministic mock provider and in-memory policy backends are active.
 
     Modifies:
-        - Process-local Prometheus counters/histograms and normal test request state.
+        - Process-local Prometheus counters/histograms and normal test request
+        - state.
 
     Effects:
         - Exercises one protected chat request and scrapes /metrics.
-        - Verifies request/provider/security metrics are exposed without client/key/prompt values.
+        - Verifies request/provider/security metrics are exposed without
+        - client/key/prompt values.
 
     Inputs:
         - monkeypatch: Pytest environment patch helper.
@@ -98,13 +100,15 @@ def test_audit_metrics_use_bounded_pii_injection_and_tool_labels() -> None:
 
     Effects:
         - Emits representative safe audit events.
-        - Verifies raw-looking tool/client/request values do not become metric labels.
+        - Verifies raw-looking tool/client/request values do not become metric
+        - labels.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether security metric labels stay bounded.
+        - None. Assertions determine whether security metric labels stay
+        - bounded.
     """
     emit_audit_event(
         request_id="req_metrics_test",

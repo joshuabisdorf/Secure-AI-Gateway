@@ -33,14 +33,16 @@ def prometheus_metrics() -> Response:
     RME
 
     Requires:
-        - The endpoint is exposed only on a trusted/internal network boundary in production.
+        - The endpoint is exposed only on a trusted/internal network boundary in
+        - production.
 
     Modifies:
         - Nothing.
 
     Effects:
         - Serializes the dedicated Secure AI Gateway Prometheus registry.
-        - Does not expose prompts, credentials, client IDs, request IDs, model names, tool names,
+        - Does not expose prompts, credentials, client IDs, request IDs, model
+        - names, tool names,
           tool arguments, or tool results as metric labels.
 
     Inputs:
@@ -70,13 +72,15 @@ def _deny_execution(
     RME
 
     Requires:
-        - principal is authenticated and reason contains no tool arguments/tickets.
+        - principal is authenticated and reason contains no tool
+        - arguments/tickets.
 
     Modifies:
         - Audit logging stream.
 
     Effects:
-        - Emits a metadata-only execution denial and raises a generic HTTP error.
+        - Emits a metadata-only execution denial and raises a generic HTTP
+        - error.
 
     Inputs:
         - request_id: Authorization request correlation ID.
@@ -126,14 +130,16 @@ def _is_canonical_execution_token(token: str) -> bool:
         - Nothing.
 
     Effects:
-        - Rejects padding, whitespace, punctuation, extra segments, and oversized ticket text
+        - Rejects padding, whitespace, punctuation, extra segments, and
+        - oversized ticket text
           before the Base64 decoder is reached.
 
     Inputs:
         - token: Candidate gateway execution ticket.
 
     Outputs:
-        - True only for the gateway's unpadded URL-safe Base64 two-segment encoding.
+        - True only for the gateway's unpadded URL-safe Base64 two-segment
+        - encoding.
     """
     return (
         len(token) <= _max_execution_token_chars
@@ -155,25 +161,33 @@ async def authorize_tool_execution(
     RME
 
     Requires:
-        - Caller authenticates with the same gateway client/key that received the ticket.
+        - Caller authenticates with the same gateway client/key that received
+        - the ticket.
         - tool_call is the exact model-generated call returned by the gateway.
-        - Current client tool policy, execution registry, signing key, and replay store are available.
+        - Current client tool policy, execution registry, signing key, and
+        - replay store are available.
 
     Modifies:
-        - Distributed/process-local replay state by atomically consuming one execution ID.
+        - Distributed/process-local replay state by atomically consuming one
+        - execution ID.
         - Audit logging stream and response authorization header.
 
     Effects:
         - Re-authenticates execution context independently of model output.
-        - Verifies canonical ticket encoding, HMAC integrity, expiry, identity, exact arguments,
+        - Verifies canonical ticket encoding, HMAC integrity, expiry, identity,
+        - exact arguments,
           schema, and risk class.
-        - Rejects malformed ticket encoding as a controlled authorization denial.
-        - Re-checks current per-client tool authorization so revoked tools cannot execute on stale tickets.
-        - Consumes each execution authorization exactly once before returning allow.
+        - Rejects malformed ticket encoding as a controlled authorization
+        - denial.
+        - Re-checks current per-client tool authorization so revoked tools
+        - cannot execute on stale tickets.
+        - Consumes each execution authorization exactly once before returning
+        - allow.
         - Never logs or returns raw tool arguments or execution-ticket contents.
 
     Inputs:
-        - authorization_request: Exact gateway-returned tool call including execution token/risk.
+        - authorization_request: Exact gateway-returned tool call including
+        - execution token/risk.
         - http_request: HTTP request with correlation context.
         - outgoing_response: Response used for safe authorization headers.
         - principal: Current independently authenticated client identity.

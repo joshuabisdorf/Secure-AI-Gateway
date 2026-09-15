@@ -106,7 +106,8 @@ def test_chat_blocks_request_after_daily_token_budget_is_consumed(
 
     Requires:
         - The mock provider reports deterministic usage of five total tokens.
-        - Gateway authentication, rate limiting, and model policy are configured.
+        - Gateway authentication, rate limiting, and model policy are
+        - configured.
 
     Modifies:
         - Temporarily sets a five-token daily budget for the test client.
@@ -154,13 +155,15 @@ def test_chat_fails_closed_without_usage_budget_policy(
     RME
 
     Requires:
-        - Gateway authentication, rate limiting, and model policy are configured.
+        - Gateway authentication, rate limiting, and model policy are
+        - configured.
 
     Modifies:
         - Temporarily removes SAG_CLIENT_DAILY_BUDGETS.
 
     Effects:
-        - Verifies a protected request is not forwarded without usage-budget policy.
+        - Verifies a protected request is not forwarded without usage-budget
+        - policy.
 
     Inputs:
         - monkeypatch: pytest fixture used to modify the environment.

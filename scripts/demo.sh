@@ -32,9 +32,11 @@ CONTAINER_API_KEY_FILE="/tmp/sag-demo-client-key-$$"
 
 cleanup() {
   if [[ -n "$KEY_ID" ]]; then
-    docker compose exec -T gateway python -m app.clients revoke "$KEY_ID" >/dev/null 2>&1 || true
+    docker compose exec -T gateway python -m app.clients revoke "$KEY_ID" \
+      >/dev/null 2>&1 || true
   fi
-  docker compose exec -T gateway rm -f "$CONTAINER_API_KEY_FILE" >/dev/null 2>&1 || true
+  docker compose exec -T gateway rm -f "$CONTAINER_API_KEY_FILE" >/dev/null \
+    2>&1 || true
   rm -rf "$TMP_DIR"
 }
 trap cleanup EXIT
@@ -101,7 +103,8 @@ echo "paid_services=none"
 
 echo
 echo "=== START STACK ==="
-docker compose up -d --build postgres redis otel-collector prometheus gateway >/dev/null
+docker compose up -d --build postgres redis otel-collector prometheus \
+  gateway >/dev/null
 
 for _ in $(seq 1 60); do
   if curl -fsS http://127.0.0.1:8000/health >/dev/null 2>&1; then
@@ -131,7 +134,8 @@ if [[ -z "$API_KEY" || -z "$KEY_ID" ]]; then
 fi
 echo "PASS step=create_demo_client key_id=$KEY_ID raw_key_logged=false"
 
-docker compose exec -T redis redis-cli DEL 'sag:rate_limit:portfolio-demo' >/dev/null
+docker compose exec -T redis redis-cli DEL 'sag:rate_limit:portfolio-demo' \
+  >/dev/null
 
 BASIC_PAYLOAD='{"model":"mock-model","messages":[{"role":"user","content":"Return a deterministic demo response."}]}'
 STATUS="$(request_json "$BASIC_PAYLOAD")"
@@ -148,7 +152,8 @@ STATUS="$(request_json "$PII_PAYLOAD")"
 assert_status "$STATUS" "200" "pii_request"
 PII_ACTION="$(header_value "$TMP_DIR/headers" "X-PII-Action")"
 PII_COUNT="$(header_value "$TMP_DIR/headers" "X-PII-Detected-Count")"
-if [[ "$PII_ACTION" != "redacted" ]] || [[ ! "$PII_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+if [[ "$PII_ACTION" != "redacted" ]] || [[ ! "$PII_COUNT" =~ ^[1-9][0-9]*$ \
+  ]]; then
   echo "FAIL step=pii_redaction action=${PII_ACTION:-missing} count=${PII_COUNT:-missing}" >&2
   exit 1
 fi
@@ -159,7 +164,8 @@ STATUS="$(request_json "$INJECTION_PAYLOAD")"
 assert_status "$STATUS" "200" "prompt_injection_request"
 INJECTION_ACTION="$(header_value "$TMP_DIR/headers" "X-Prompt-Injection-Action")"
 INJECTION_COUNT="$(header_value "$TMP_DIR/headers" "X-Prompt-Injection-Detected-Count")"
-if [[ "$INJECTION_ACTION" != "audited" ]] || [[ ! "$INJECTION_COUNT" =~ ^[1-9][0-9]*$ ]]; then
+if [[ "$INJECTION_ACTION" != "audited" ]] || [[ ! "$INJECTION_COUNT" =~ \
+  ^[1-9][0-9]*$ ]]; then
   echo "FAIL step=prompt_injection_detection action=${INJECTION_ACTION:-missing} count=${INJECTION_COUNT:-missing}" >&2
   exit 1
 fi
@@ -188,14 +194,16 @@ PY
 echo "PASS step=tool_ticket_issue ticket_count=1 raw_ticket_logged=false"
 STATUS="$(authorize_json_file "$TMP_DIR/authorize.json")"
 assert_status "$STATUS" "200" "execution_authorization"
-if [[ "$(header_value "$TMP_DIR/headers" "X-Tool-Execution-Authorization")" != "allowed" ]]; then
+if [[ "$(header_value "$TMP_DIR/headers" "X-Tool-Execution-Authorization")" \
+  != "allowed" ]]; then
   echo "FAIL step=execution_authorization header=missing" >&2
   exit 1
 fi
 
 STATUS="$(authorize_json_file "$TMP_DIR/authorize.json")"
 assert_status "$STATUS" "409" "execution_replay_denied"
-if [[ "$(header_value "$TMP_DIR/headers" "X-Tool-Execution-Authorization")" != "denied" ]]; then
+if [[ "$(header_value "$TMP_DIR/headers" "X-Tool-Execution-Authorization")" \
+  != "denied" ]]; then
   echo "FAIL step=execution_replay_denied header=missing" >&2
   exit 1
 fi
@@ -218,7 +226,8 @@ if [[ "$RATE_LIMIT_OBSERVED" != "true" ]]; then
 fi
 echo "PASS step=rate_limit_enforcement status=429"
 
-if ! curl -fsS http://127.0.0.1:8000/metrics | grep -Fq 'sag_http_requests_total'; then
+if ! curl -fsS http://127.0.0.1:8000/metrics | grep -Fq \
+  'sag_http_requests_total'; then
   echo "FAIL step=prometheus_metrics" >&2
   exit 1
 fi

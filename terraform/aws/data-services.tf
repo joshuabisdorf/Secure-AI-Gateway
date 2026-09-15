@@ -17,7 +17,9 @@ resource "aws_security_group" "postgres" {
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
-    security_groups = [aws_eks_cluster.gateway.vpc_config[0].cluster_security_group_id]
+    security_groups = (
+      [aws_eks_cluster.gateway.vpc_config[0].cluster_security_group_id]
+    )
   }
 
   egress {
@@ -77,7 +79,9 @@ resource "aws_db_instance" "gateway" {
   deletion_protection       = var.protect_data
   delete_automated_backups  = !var.protect_data
   skip_final_snapshot       = !var.protect_data
-  final_snapshot_identifier = var.protect_data ? "${local.name}-postgres-final" : null
+  final_snapshot_identifier = (
+    var.protect_data ? "${local.name}-postgres-final" : null
+  )
 
   apply_immediately = false
 }
@@ -97,7 +101,9 @@ resource "aws_security_group" "valkey" {
     from_port       = 6379
     to_port         = 6379
     protocol        = "tcp"
-    security_groups = [aws_eks_cluster.gateway.vpc_config[0].cluster_security_group_id]
+    security_groups = (
+      [aws_eks_cluster.gateway.vpc_config[0].cluster_security_group_id]
+    )
   }
 
   egress {
@@ -131,7 +137,9 @@ resource "aws_elasticache_user_group" "gateway" {
 
 resource "aws_elasticache_replication_group" "gateway" {
   replication_group_id = "${local.name}-cache"
-  description          = "Secure AI Gateway distributed rate-limit and replay state"
+  description = (
+    "Secure AI Gateway distributed rate-limit and replay state"
+  )
 
   engine         = "valkey"
   engine_version = var.valkey_engine_version

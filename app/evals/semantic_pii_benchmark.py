@@ -136,8 +136,10 @@ def parse_dataset(
         - Nothing.
 
     Effects:
-        - Strictly validates benchmark schema, IDs, labels, expected types, and thresholds.
-        - Requires categories to contain only one label so category detection rates are interpretable.
+        - Strictly validates benchmark schema, IDs, labels, expected types, and
+        - thresholds.
+        - Requires categories to contain only one label so category detection
+        - rates are interpretable.
 
     Inputs:
         - document: UTF-8 JSON benchmark document.
@@ -304,14 +306,17 @@ def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
 
     Effects:
         - Evaluates every case without sending text to a network service.
-        - Computes case-level confusion metrics and per-category detection rates.
-        - Records only case IDs for failures and never includes benchmark text in the report.
+        - Computes case-level confusion metrics and per-category detection
+        - rates.
+        - Records only case IDs for failures and never includes benchmark text
+        - in the report.
 
     Inputs:
         - dataset: Validated semantic PII benchmark.
 
     Outputs:
-        - BenchmarkReport with metrics, category results, safe error IDs, and baseline status.
+        - BenchmarkReport with metrics, category results, safe error IDs, and
+        - baseline status.
     """
     tp = fp = tn = fn = 0
     false_positive_ids: list[str] = []

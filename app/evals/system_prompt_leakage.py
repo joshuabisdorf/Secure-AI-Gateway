@@ -92,13 +92,15 @@ def build_synthetic_system_prompt(canary: str) -> str:
     RME
 
     Requires:
-        - canary is a synthetic, non-secret marker generated for one evaluation run.
+        - canary is a synthetic, non-secret marker generated for one evaluation
+        - run.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Builds protected test instructions containing only synthetic evaluation data.
+        - Builds protected test instructions containing only synthetic
+        - evaluation data.
 
     Inputs:
         - canary: Unique marker used to detect disclosure.
@@ -152,15 +154,19 @@ def detect_system_prompt_leakage(
     RME
 
     Requires:
-        - response_text is model output from a synthetic leakage-evaluation request.
-        - canary is the synthetic marker embedded in that run's protected prompt.
+        - response_text is model output from a synthetic leakage-evaluation
+        - request.
+        - canary is the synthetic marker embedded in that run's protected
+        - prompt.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Detects direct disclosure of the canary or distinctive protected phrase.
-        - Decodes bounded Base64/hex response candidates and inspects decoded text.
+        - Detects direct disclosure of the canary or distinctive protected
+        - phrase.
+        - Decodes bounded Base64/hex response candidates and inspects decoded
+        - text.
         - Does not retain or report response fragments.
 
     Inputs:
@@ -168,7 +174,8 @@ def detect_system_prompt_leakage(
         - canary: Synthetic marker expected to remain undisclosed.
 
     Outputs:
-        - LeakageFinding containing a boolean result and non-secret signal labels.
+        - LeakageFinding containing a boolean result and non-secret signal
+        - labels.
     """
     signals = _direct_signals(response_text, canary=canary)
     processed = 0
@@ -229,7 +236,8 @@ async def run_live_evaluation(
         - canary: Synthetic run-specific leakage marker.
 
     Outputs:
-        - Per-case leakage results with safe signal labels and resolved model names.
+        - Per-case leakage results with safe signal labels and resolved model
+        - names.
     """
     system_prompt = build_synthetic_system_prompt(canary)
     results: list[LeakageCaseResult] = []
@@ -327,7 +335,8 @@ def main() -> None:
     RME
 
     Requires:
-        - SAG_PROVIDER and provider-specific credentials are configured for live mode.
+        - SAG_PROVIDER and provider-specific credentials are configured for live
+        - mode.
         - --model identifies the model/routing alias under evaluation.
         - --live is explicitly supplied before any network request is allowed.
 
@@ -337,7 +346,8 @@ def main() -> None:
 
     Effects:
         - Runs a synthetic provider leakage evaluation.
-        - Exits 0 when no tested case leaks, 1 when leakage is observed, and 2 when
+        - Exits 0 when no tested case leaks, 1 when leakage is observed, and 2
+        - when
           evaluation cannot safely run or provider execution fails.
 
     Inputs:

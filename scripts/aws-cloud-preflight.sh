@@ -15,7 +15,8 @@ for command in aws terraform docker kubectl jq curl; do
   require_command "$command"
 done
 
-if [ "$(terraform version -json | jq -r '.terraform_version')" != "1.16.2" ]; then
+if [ "$(terraform version -json | jq -r '.terraform_version')" != "1.16.2" \
+  ]; then
   echo "ERROR terraform_version_must_be=1.16.2" >&2
   exit 2
 fi
@@ -107,13 +108,16 @@ terraform -chdir=terraform/bootstrap plan \
 
 echo
 echo "=== DEPLOYMENT INPUT CHECK ==="
-if grep -Eq '^[[:space:]]*eks_admin_role_arn[[:space:]]*=' terraform/aws/dev.tfvars; then
+if grep -Eq '^[[:space:]]*eks_admin_role_arn[[:space:]]*=' \
+  terraform/aws/dev.tfvars; then
   echo "eks_admin_role_configured=yes"
 else
   echo "eks_admin_role_configured=no"
 fi
 
-if grep -Eq '^[[:space:]]*eks_public_access_cidrs[[:space:]]*=[[:space:]]*\[[^]]+\]' terraform/aws/dev.tfvars; then
+if grep -Eq \
+  '^[[:space:]]*eks_public_access_cidrs[[:space:]]*=[[:space:]]*\[[^]]+\]' \
+    terraform/aws/dev.tfvars; then
   echo "eks_api_workstation_access=public_cidr_configured"
 else
   echo "eks_api_workstation_access=private_only"

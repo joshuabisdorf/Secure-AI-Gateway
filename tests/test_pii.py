@@ -129,7 +129,8 @@ def test_redact_policy_forwards_only_sanitized_prompt_and_safe_audit(
     RME
 
     Requires:
-        - Gateway authentication, model, rate, usage, and PII policy are configured.
+        - Gateway authentication, model, rate, usage, and PII policy are
+        - configured.
 
     Modifies:
         - Temporarily replaces the provider with a capturing test provider.
@@ -138,11 +139,14 @@ def test_redact_policy_forwards_only_sanitized_prompt_and_safe_audit(
 
     Effects:
         - Verifies detected PII is replaced before provider forwarding.
-        - Verifies safe PII response headers describe the action without raw values.
-        - Verifies audit output contains only PII count/type metadata, never the value.
+        - Verifies safe PII response headers describe the action without raw
+        - values.
+        - Verifies audit output contains only PII count/type metadata, never the
+        - value.
 
     Inputs:
-        - monkeypatch: pytest fixture used to configure policy and provider state.
+        - monkeypatch: pytest fixture used to configure policy and provider
+        - state.
         - caplog: pytest log-capture fixture.
         - gateway_api_key: Raw test gateway key for the configured client.
 
@@ -215,7 +219,8 @@ def test_deny_policy_blocks_pii_before_provider(
         - Verifies PII causes a generic 403 without provider forwarding.
 
     Inputs:
-        - monkeypatch: pytest fixture used to configure policy and provider state.
+        - monkeypatch: pytest fixture used to configure policy and provider
+        - state.
         - gateway_api_key: Raw test gateway key for the configured client.
 
     Outputs:
@@ -264,7 +269,8 @@ def test_chat_fails_closed_without_pii_policy(
         - Temporarily removes SAG_CLIENT_PII_POLICIES.
 
     Effects:
-        - Verifies protected requests do not reach a provider without PII policy.
+        - Verifies protected requests do not reach a provider without PII
+        - policy.
 
     Inputs:
         - monkeypatch: pytest fixture used to remove policy configuration.

@@ -9,7 +9,8 @@ data:
   SAG_USAGE_LEDGER_BACKEND: postgres
   SAG_RATE_LIMIT_BACKEND: redis
   SAG_SEMANTIC_PII_BACKEND: spacy
-  SAG_TOOL_EXECUTION_POLICY_FILE: /app/runtime-config/tools/tool-execution-policies.json
+  SAG_TOOL_EXECUTION_POLICY_FILE: >-
+    /app/runtime-config/tools/tool-execution-policies.json
   SAG_TOOL_EXECUTION_TTL_SECONDS: "120"
   SAG_TOOL_EXECUTION_REPLAY_BACKEND: redis
   SAG_ALLOWED_MODELS: openrouter/free

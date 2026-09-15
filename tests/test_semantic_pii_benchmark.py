@@ -24,7 +24,8 @@ class KeywordAnalyzer:
             - text: Synthetic benchmark text.
 
         Outputs:
-            - One person-name finding when PRIVATE appears, otherwise no findings.
+            - One person-name finding when PRIVATE appears, otherwise no
+            - findings.
         """
         start = text.find("PRIVATE")
         if start < 0:
@@ -43,7 +44,8 @@ def _minimal_document() -> dict[str, object]:
         - Nothing.
 
     Effects:
-        - Builds a minimal valid semantic PII benchmark for parser/evaluator tests.
+        - Builds a minimal valid semantic PII benchmark for parser/evaluator
+        - tests.
 
     Inputs:
         - None.
@@ -85,13 +87,15 @@ def test_semantic_pii_benchmark_framework_computes_perfect_metrics(
     RME
 
     Requires:
-        - The minimal benchmark is valid and the deterministic analyzer is injected.
+        - The minimal benchmark is valid and the deterministic analyzer is
+        - injected.
 
     Modifies:
         - Temporarily replaces the evaluator's semantic analyzer.
 
     Effects:
-        - Verifies confusion metrics, type matching, and regression-gate behavior.
+        - Verifies confusion metrics, type matching, and regression-gate
+        - behavior.
 
     Inputs:
         - monkeypatch: Pytest monkeypatch fixture.
@@ -133,7 +137,8 @@ def test_semantic_pii_benchmark_rejects_unknown_case_fields() -> None:
         - None.
 
     Outputs:
-        - None. Assertions determine whether strict parsing rejects the document.
+        - None. Assertions determine whether strict parsing rejects the
+        - document.
     """
     document = _minimal_document()
     cases = document["cases"]
@@ -157,13 +162,15 @@ def test_committed_semantic_pii_dataset_is_versioned_and_balanced() -> None:
         - Nothing.
 
     Effects:
-        - Verifies dataset size, version, labels, and reproducibility digest metadata.
+        - Verifies dataset size, version, labels, and reproducibility digest
+        - metadata.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether the committed benchmark contract is intact.
+        - None. Assertions determine whether the committed benchmark contract is
+        - intact.
     """
     dataset = benchmark.load_dataset()
 

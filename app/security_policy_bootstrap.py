@@ -29,8 +29,10 @@ def _compile_policy_environment(
         - Nothing.
 
     Effects:
-        - Converts named profiles/client assignments into the existing internal policy formats.
-        - Preserves an empty tool allowlist as the explicit client:- no-tool record.
+        - Converts named profiles/client assignments into the existing internal
+        - policy formats.
+        - Preserves an empty tool allowlist as the explicit client:- no-tool
+        - record.
 
     Inputs:
         - registry: Validated unified policy registry.
@@ -92,16 +94,21 @@ def apply_unified_security_policy_environment() -> None:
     RME
 
     Requires:
-        - SAG_SECURITY_POLICY_FILE may identify a unified JSON security-policy registry.
+        - SAG_SECURITY_POLICY_FILE may identify a unified JSON security-policy
+        - registry.
 
     Modifies:
         - Process environment values used by per-client enforcement modules.
 
     Effects:
-        - Does nothing when the unified registry is not enabled, preserving temporary legacy compatibility.
-        - Once enabled, clears legacy per-control inputs before validating the unified registry.
-        - Compiles a valid registry into internal policy inputs exactly once at process startup.
-        - Leaves controls unconfigured and records a safe reason when unified policy loading fails.
+        - Does nothing when the unified registry is not enabled, preserving
+        - temporary legacy compatibility.
+        - Once enabled, clears legacy per-control inputs before validating the
+        - unified registry.
+        - Compiles a valid registry into internal policy inputs exactly once at
+        - process startup.
+        - Leaves controls unconfigured and records a safe reason when unified
+        - policy loading fails.
 
     Inputs:
         - None.

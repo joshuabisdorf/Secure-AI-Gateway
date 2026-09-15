@@ -9,7 +9,9 @@ output "state_kms_key_arn" {
 }
 
 output "backend_init_example" {
-  description = "Example partial-backend initialization command for terraform/aws."
+  description = (
+    "Example partial-backend initialization command for terraform/aws."
+  )
   value = join(" ", [
     "terraform init -reconfigure",
     "-backend-config=\"bucket=${aws_s3_bucket.terraform_state.bucket}\"",

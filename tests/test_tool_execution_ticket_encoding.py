@@ -36,7 +36,8 @@ def test_noncanonical_execution_ticket_is_rejected_before_decode(
         - Replaces the verifier with a sentinel that must never be called.
 
     Effects:
-        - Verifies punctuation, padding, whitespace, extra segments, and empty segments
+        - Verifies punctuation, padding, whitespace, extra segments, and empty
+        - segments
           fail at the HTTP execution-authorization boundary before decoding.
 
     Inputs:
@@ -45,7 +46,8 @@ def test_noncanonical_execution_ticket_is_rejected_before_decode(
         - token: Mutated execution-ticket text.
 
     Outputs:
-        - None. Assertions determine whether canonical encoding is enforced early.
+        - None. Assertions determine whether canonical encoding is enforced
+        - early.
     """
 
     def verifier_must_not_run(*args, **kwargs):
@@ -90,7 +92,8 @@ def test_oversized_execution_ticket_is_rejected_by_request_schema(
         - Replaces the verifier with a sentinel that must never be called.
 
     Effects:
-        - Verifies the Pydantic request boundary rejects an oversized ticket before
+        - Verifies the Pydantic request boundary rejects an oversized ticket
+        - before
           execution-ticket verification is reached.
 
     Inputs:
@@ -98,7 +101,8 @@ def test_oversized_execution_ticket_is_rejected_by_request_schema(
         - gateway_api_key: Deterministic test client credential.
 
     Outputs:
-        - None. Assertions determine whether the outer request schema fails closed.
+        - None. Assertions determine whether the outer request schema fails
+        - closed.
     """
 
     def verifier_must_not_run(*args, **kwargs):
@@ -134,13 +138,15 @@ def test_execution_ticket_shape_accepts_only_unpadded_urlsafe_two_segments() -> 
     RME
 
     Requires:
-        - Candidate text represents only ticket encoding shape, not ticket authenticity.
+        - Candidate text represents only ticket encoding shape, not ticket
+        - authenticity.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Locks the canonical lexical ticket format independently of HMAC verification.
+        - Locks the canonical lexical ticket format independently of HMAC
+        - verification.
 
     Inputs:
         - None.

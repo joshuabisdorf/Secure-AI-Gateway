@@ -50,7 +50,8 @@ trap cleanup EXIT
 wait_health() {
   local port="$1"
   for _ in $(seq 1 30); do
-    if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
+    if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null \
+      2>&1; then
       return 0
     fi
     sleep 1
@@ -113,11 +114,13 @@ if [ "$STATUS_ONE" != "200" ] || [ "$STATUS_TWO" != "200" ]; then
   echo "ERROR gateway_request_failed" >&2
   exit 1
 fi
-if [ -z "$RATE_ONE" ] || [ -z "$RATE_TWO" ] || [ "$RATE_TWO" -ge "$RATE_ONE" ]; then
+if [ -z "$RATE_ONE" ] || [ -z "$RATE_TWO" ] || [ "$RATE_TWO" -ge \
+  "$RATE_ONE" ]; then
   echo "ERROR shared_valkey_rate_limit_not_observed" >&2
   exit 1
 fi
-if [ -z "$USAGE_ONE" ] || [ -z "$USAGE_TWO" ] || [ "$USAGE_TWO" -le "$USAGE_ONE" ]; then
+if [ -z "$USAGE_ONE" ] || [ -z "$USAGE_TWO" ] || [ "$USAGE_TWO" -le \
+  "$USAGE_ONE" ]; then
   echo "ERROR shared_rds_usage_not_observed" >&2
   exit 1
 fi

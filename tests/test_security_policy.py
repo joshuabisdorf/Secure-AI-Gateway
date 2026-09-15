@@ -73,7 +73,8 @@ def test_parse_security_policy_registry_resolves_reusable_profiles() -> None:
     RME
 
     Requires:
-        - A version-1 policy document contains valid reusable profiles and assignments.
+        - A version-1 policy document contains valid reusable profiles and
+        - assignments.
 
     Modifies:
         - Nothing.
@@ -114,14 +115,16 @@ def test_security_policy_registry_rejects_unknown_fields_and_non_integer_version
         - Nothing.
 
     Effects:
-        - Verifies schema mistakes fail closed instead of being silently ignored.
+        - Verifies schema mistakes fail closed instead of being silently
+        - ignored.
         - Verifies JSON 1.0 is not accepted as integer schema version 1.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether strict validation rejects the documents.
+        - None. Assertions determine whether strict validation rejects the
+        - documents.
     """
     document = _policy_document()
     profiles = document["profiles"]
@@ -150,11 +153,13 @@ def test_startup_compiles_unified_profile_into_existing_enforcement_inputs(
         - A valid unified policy file is enabled before gateway startup.
 
     Modifies:
-        - Temporary environment policy values and the process-local policy cache.
+        - Temporary environment policy values and the process-local policy
+        - cache.
 
     Effects:
         - Verifies the unified registry replaces legacy per-control values.
-        - Verifies all existing enforcement getters observe one coherent profile.
+        - Verifies all existing enforcement getters observe one coherent
+        - profile.
 
     Inputs:
         - tmp_path: Pytest temporary-directory fixture.
@@ -199,11 +204,14 @@ def test_enabled_invalid_unified_policy_clears_legacy_fallback(
         - Legacy per-control values may still exist during migration.
 
     Modifies:
-        - Temporary environment policy values and the process-local policy cache.
+        - Temporary environment policy values and the process-local policy
+        - cache.
 
     Effects:
-        - Verifies invalid unified policy cannot fall back to stale legacy grants.
-        - Leaves individual controls unconfigured so protected requests fail closed.
+        - Verifies invalid unified policy cannot fall back to stale legacy
+        - grants.
+        - Leaves individual controls unconfigured so protected requests fail
+        - closed.
 
     Inputs:
         - tmp_path: Pytest temporary-directory fixture.

@@ -1,6 +1,9 @@
 resource "aws_security_group" "secretsmanager_endpoint" {
   name_prefix = "${local.name}-secretsmanager-vpce-"
-  description = "Allow Secure AI Gateway private subnets to reach Secrets Manager privately."
+  description = join(" ", [
+    "Allow Secure AI Gateway private subnets to reach Secrets Manager",
+    "privately.",
+  ])
   vpc_id      = aws_vpc.gateway.id
 
   ingress {

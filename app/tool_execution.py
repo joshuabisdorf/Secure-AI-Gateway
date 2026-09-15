@@ -221,7 +221,8 @@ def parse_tool_execution_registry(document: str) -> ToolExecutionRegistry:
         - Nothing.
 
     Effects:
-        - Strictly validates tool names, risk classes, and authoritative JSON Schemas.
+        - Strictly validates tool names, risk classes, and authoritative JSON
+        - Schemas.
         - Rejects unknown fields and malformed schemas.
 
     Inputs:
@@ -282,14 +283,16 @@ def load_tool_execution_registry(
     RME
 
     Requires:
-        - configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may identify a local JSON registry.
+        - configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may identify a local
+        - JSON registry.
 
     Modifies:
         - Process-local registry cache when the file changes.
 
     Effects:
         - Loads and validates the authoritative tool execution registry.
-        - Fails closed when the registry is absent, unreadable, oversized, or invalid.
+        - Fails closed when the registry is absent, unreadable, oversized, or
+        - invalid.
 
     Inputs:
         - configured_path: Optional explicit registry path.
@@ -338,7 +341,8 @@ def _get_ticket_ttl_seconds() -> int:
     RME
 
     Requires:
-        - SAG_TOOL_EXECUTION_TTL_SECONDS may contain an integer from 1 through 900.
+        - SAG_TOOL_EXECUTION_TTL_SECONDS may contain an integer from 1 through
+        - 900.
 
     Modifies:
         - Nothing.
@@ -369,7 +373,8 @@ def _get_signing_key() -> bytes:
     RME
 
     Requires:
-        - SAG_TOOL_EXECUTION_SIGNING_KEY contains at least 32 bytes of secret material.
+        - SAG_TOOL_EXECUTION_SIGNING_KEY contains at least 32 bytes of secret
+        - material.
 
     Modifies:
         - Nothing.
@@ -427,7 +432,8 @@ def _issue_execution_ticket(
         - Nothing.
 
     Effects:
-        - Issues a short-lived HMAC-SHA256 ticket without embedding raw tool arguments.
+        - Issues a short-lived HMAC-SHA256 ticket without embedding raw tool
+        - arguments.
 
     Inputs:
         - client_id: Authenticated client identity.
@@ -488,7 +494,8 @@ def _validate_tool_arguments(
         - Nothing.
 
     Effects:
-        - Parses untrusted model arguments as JSON and validates them against the authoritative schema.
+        - Parses untrusted model arguments as JSON and validates them against
+        - the authoritative schema.
 
     Inputs:
         - tool_call: Model-generated function call.
@@ -529,17 +536,21 @@ def prepare_tool_execution_response(
 
     Requires:
         - response is a validated provider response for request.
-        - allowed_tools is the authenticated client's current function allowlist.
+        - allowed_tools is the authenticated client's current function
+        - allowlist.
 
     Modifies:
         - Nothing in the provider response or request.
 
     Effects:
         - Treats every model-generated tool call as untrusted output.
-        - Requires each call to be declared in the source request and still allowed by policy.
-        - Requires the request-declared parameter schema to match the authoritative execution registry.
+        - Requires each call to be declared in the source request and still
+        - allowed by policy.
+        - Requires the request-declared parameter schema to match the
+        - authoritative execution registry.
         - Validates exact model arguments against the authoritative schema.
-        - Attaches short-lived execution tickets and risk labels to safe copied tool calls.
+        - Attaches short-lived execution tickets and risk labels to safe copied
+        - tool calls.
 
     Inputs:
         - response: Upstream chat completion.
@@ -650,8 +661,10 @@ def verify_execution_ticket(
         - Nothing.
 
     Effects:
-        - Verifies ticket signature, expiry, identity, call ID/name, argument digest, schema fingerprint, and risk.
-        - Re-resolves the current authoritative tool registry so stale policies fail closed.
+        - Verifies ticket signature, expiry, identity, call ID/name, argument
+        - digest, schema fingerprint, and risk.
+        - Re-resolves the current authoritative tool registry so stale policies
+        - fail closed.
 
     Inputs:
         - token: Gateway-issued execution authorization ticket.
@@ -842,7 +855,8 @@ class RedisToolExecutionReplayStore:
             - Shared Redis replay state under sag:tool_execution:*.
 
         Effects:
-            - Uses SET NX with expiry so only one gateway replica can authorize the ticket.
+            - Uses SET NX with expiry so only one gateway replica can authorize
+            - the ticket.
             - Fails closed when Redis is unavailable.
 
         Inputs:
@@ -882,7 +896,8 @@ def build_tool_execution_replay_store() -> ToolExecutionReplayStore:
         - Nothing outside the returned backend object.
 
     Effects:
-        - Selects distributed replay protection for runtime and memory for deterministic tests.
+        - Selects distributed replay protection for runtime and memory for
+        - deterministic tests.
 
     Inputs:
         - None.

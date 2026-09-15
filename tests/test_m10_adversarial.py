@@ -57,7 +57,8 @@ def _write_tool_registry(
         - Temporarily points the process at that file and grants the test tool.
 
     Effects:
-        - Installs one deterministic status_check tool for adversarial ticket tests.
+        - Installs one deterministic status_check tool for adversarial ticket
+        - tests.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -111,7 +112,8 @@ def _issue_tool_call(
         - Temporary execution-policy configuration.
 
     Effects:
-        - Produces a real gateway-signed execution ticket without invoking an external provider.
+        - Produces a real gateway-signed execution ticket without invoking an
+        - external provider.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -192,7 +194,8 @@ def _mutate_and_resign_ticket(token: str, mutation) -> str:
         - Nothing outside local test data.
 
     Effects:
-        - Re-signs a deliberately malformed semantic payload so verifier structure checks are exercised after HMAC verification.
+        - Re-signs a deliberately malformed semantic payload so verifier
+        - structure checks are exercised after HMAC verification.
 
     Inputs:
         - token: Original signed execution ticket.
@@ -235,7 +238,8 @@ def test_malformed_http_json_corpus_fails_closed(gateway_api_key) -> None:
         - Process-local request/audit state only.
 
     Effects:
-        - Verifies malformed JSON and non-object bodies are controlled validation failures.
+        - Verifies malformed JSON and non-object bodies are controlled
+        - validation failures.
 
     Inputs:
         - gateway_api_key: Deterministic test gateway credential.
@@ -285,7 +289,8 @@ def test_request_body_framing_corpus_is_rejected(content_lengths) -> None:
         - Captured ASGI response messages only.
 
     Effects:
-        - Verifies ambiguous, non-numeric, and negative framing is rejected before application parsing.
+        - Verifies ambiguous, non-numeric, and negative framing is rejected
+        - before application parsing.
 
     Inputs:
         - content_lengths: Candidate Content-Length header values.
@@ -329,7 +334,8 @@ def test_api_key_parser_negative_and_deterministic_fuzz_corpus() -> None:
         - Deterministic local pseudo-random generator state only.
 
     Effects:
-        - Exercises fixed boundary cases and 256 deterministic invalid fuzz strings.
+        - Exercises fixed boundary cases and 256 deterministic invalid fuzz
+        - strings.
 
     Inputs:
         - None.
@@ -420,13 +426,15 @@ def test_execution_ticket_semantic_mutation_corpus_is_rejected(
     RME
 
     Requires:
-        - The deterministic test signing key may be used to exercise post-HMAC validation paths.
+        - The deterministic test signing key may be used to exercise post-HMAC
+        - validation paths.
 
     Modifies:
         - Temporary execution-policy configuration.
 
     Effects:
-        - Verifies structurally invalid but correctly signed ticket payloads are rejected.
+        - Verifies structurally invalid but correctly signed ticket payloads are
+        - rejected.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -477,13 +485,15 @@ def test_tool_argument_json_schema_edge_corpus_is_rejected(
     RME
 
     Requires:
-        - The authoritative schema contains numeric, enum, array, type, and property constraints.
+        - The authoritative schema contains numeric, enum, array, type, and
+        - property constraints.
 
     Modifies:
         - Temporary execution-policy configuration.
 
     Effects:
-        - Verifies edge-case model arguments cannot bypass execution-time JSON Schema enforcement.
+        - Verifies edge-case model arguments cannot bypass execution-time JSON
+        - Schema enforcement.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -521,13 +531,15 @@ def test_provider_malformed_response_corpus_fails_closed() -> None:
     RME
 
     Requires:
-        - OpenAI-compatible transport accepts an injected deterministic MockTransport.
+        - OpenAI-compatible transport accepts an injected deterministic
+        - MockTransport.
 
     Modifies:
         - In-memory HTTP transport state only.
 
     Effects:
-        - Verifies malformed successful upstream responses become non-secret ProviderError failures.
+        - Verifies malformed successful upstream responses become non-secret
+        - ProviderError failures.
 
     Inputs:
         - None.
@@ -595,7 +607,8 @@ def test_provider_timeout_is_bounded_provider_failure() -> None:
         - In-memory HTTP transport state only.
 
     Effects:
-        - Verifies upstream timeout is normalized to the controlled upstream_timeout reason.
+        - Verifies upstream timeout is normalized to the controlled
+        - upstream_timeout reason.
 
     Inputs:
         - None.
@@ -631,13 +644,15 @@ def test_tool_execution_audit_never_logs_ticket_or_arguments(
     RME
 
     Requires:
-        - A valid execution ticket is issued for an argument containing a sentinel secret.
+        - A valid execution ticket is issued for an argument containing a
+        - sentinel secret.
 
     Modifies:
         - Temporary execution policy, replay state, and captured audit logging.
 
     Effects:
-        - Verifies execution authorization logs safe metadata but never raw arguments or ticket text.
+        - Verifies execution authorization logs safe metadata but never raw
+        - arguments or ticket text.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -696,7 +711,8 @@ def test_security_policy_cache_reloads_and_invalid_update_fails_closed(
         - Process-local policy cache and the temporary policy file.
 
     Effects:
-        - Verifies changed policy is reloaded and an invalid replacement never falls back to stale grants.
+        - Verifies changed policy is reloaded and an invalid replacement never
+        - falls back to stale grants.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -758,7 +774,8 @@ def test_execution_ticket_is_invalidated_by_policy_change(
         - Temporary execution-policy file and execution registry cache.
 
     Effects:
-        - Verifies a stale ticket is rejected after authoritative execution policy changes.
+        - Verifies a stale ticket is rejected after authoritative execution
+        - policy changes.
 
     Inputs:
         - tmp_path: Pytest temporary directory.

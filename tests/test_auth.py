@@ -93,13 +93,15 @@ def test_chat_fails_closed_without_client_registry(monkeypatch) -> None:
         - Temporarily removes SAG_CLIENTS.
 
     Effects:
-        - Verifies protected endpoints fail closed when client identity data is absent.
+        - Verifies protected endpoints fail closed when client identity data is
+        - absent.
 
     Inputs:
         - monkeypatch: pytest fixture used to configure the test environment.
 
     Outputs:
-        - None. Assertions determine whether missing authentication config returns 503.
+        - None. Assertions determine whether missing authentication config
+        - returns 503.
     """
     monkeypatch.delenv("SAG_CLIENTS", raising=False)
     client = TestClient(app)

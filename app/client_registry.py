@@ -27,7 +27,8 @@ class ClientRegistry(Protocol):
             - Looks up an active gateway key and its active client identity.
 
         Inputs:
-            - key_id: Public identifier embedded in a structured gateway API key.
+            - key_id: Public identifier embedded in a structured gateway API
+            - key.
 
         Outputs:
             - Matching ClientKeyRecord, or None when no active key exists.
@@ -132,7 +133,8 @@ class PostgresClientRegistry:
 
         Requires:
             - key_id is a validated public gateway key identifier.
-            - Database schema for gateway_clients and gateway_api_keys has been initialized.
+            - Database schema for gateway_clients and gateway_api_keys has been
+            - initialized.
 
         Modifies:
             - PostgreSQL connection-pool state.
@@ -225,7 +227,8 @@ def build_client_registry() -> ClientRegistry:
     Effects:
         - Selects persistent PostgreSQL storage by default.
         - Retains an explicit environment backend for deterministic tests only.
-        - Fails closed through UnavailableClientRegistry for unusable configuration.
+        - Fails closed through UnavailableClientRegistry for unusable
+        - configuration.
 
     Inputs:
         - None.

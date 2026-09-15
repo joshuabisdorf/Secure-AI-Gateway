@@ -93,7 +93,8 @@ def parse_client_usage_budgets(
         - Mapping from client ID to validated ClientUsageBudget.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or out of range.
+        - ValueError: Configuration is empty, malformed, duplicated, or out of
+        - range.
     """
     budgets: dict[str, ClientUsageBudget] = {}
 
@@ -164,7 +165,8 @@ def get_client_usage_budget(client_id: str) -> ClientUsageBudget:
         - Nothing.
 
     Effects:
-        - Fails closed when budget policy is absent, malformed, or missing the client.
+        - Fails closed when budget policy is absent, malformed, or missing the
+        - client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -249,7 +251,8 @@ def _build_decision(
         - now: Current UTC time.
 
     Outputs:
-        - UsageBudgetDecision describing current allowance and remaining capacity.
+        - UsageBudgetDecision describing current allowance and remaining
+        - capacity.
     """
     token_remaining = (
         None
@@ -411,7 +414,8 @@ class InMemoryUsageLedger:
             - now is UTC-aware.
 
         Modifies:
-            - Process-local bucket mapping when the client/day has no current bucket.
+            - Process-local bucket mapping when the client/day has no current
+            - bucket.
 
         Effects:
             - Resets usage automatically at a UTC day boundary.
@@ -458,8 +462,10 @@ class PostgresUsageLedger:
             - Initializes process-local PostgreSQL pool state.
 
         Effects:
-            - Creates a closed async pool and defers connections until first use.
-            - Bounds pool acquisition waits so exhaustion fails closed instead of stalling indefinitely.
+            - Creates a closed async pool and defers connections until first
+            - use.
+            - Bounds pool acquisition waits so exhaustion fails closed instead
+            - of stalling indefinitely.
 
         Inputs:
             - database_url: PostgreSQL connection string.
@@ -540,7 +546,8 @@ class PostgresUsageLedger:
         Effects:
             - Reads persisted usage for the current UTC day.
             - Treats a missing daily row as zero accumulated usage.
-            - Fails closed when PostgreSQL cannot be queried or a connection cannot be acquired within the configured timeout.
+            - Fails closed when PostgreSQL cannot be queried or a connection
+            - cannot be acquired within the configured timeout.
 
         Inputs:
             - client_id: Authenticated client identity.
@@ -593,7 +600,8 @@ class PostgresUsageLedger:
         Requires:
             - gateway_daily_usage schema has been initialized.
             - client_id identifies a stored gateway client.
-            - total_tokens and cost_usd are non-negative provider-reported usage.
+            - total_tokens and cost_usd are non-negative provider-reported
+            - usage.
 
         Modifies:
             - gateway_daily_usage for the client and current UTC day.
@@ -601,13 +609,15 @@ class PostgresUsageLedger:
         Effects:
             - Atomically inserts or increments durable token/cost totals.
             - Prevents concurrent successful requests from losing increments.
-            - Fails closed when usage cannot be persisted or a connection cannot be acquired within the configured timeout.
+            - Fails closed when usage cannot be persisted or a connection cannot
+            - be acquired within the configured timeout.
 
         Inputs:
             - client_id: Authenticated client identity.
             - budget: Configured daily token/cost limits.
             - total_tokens: Provider-reported tokens for the completed request.
-            - cost_usd: Provider-reported cost, or zero when cost is unavailable and not required.
+            - cost_usd: Provider-reported cost, or zero when cost is unavailable
+            - and not required.
 
         Outputs:
             - Updated daily UsageBudgetDecision.
@@ -696,7 +706,8 @@ def build_usage_ledger() -> UsageLedger:
         - Selects durable PostgreSQL usage accounting by default.
         - Retains the in-memory backend for deterministic tests.
         - Applies a bounded default PostgreSQL pool wait.
-        - Fails closed through UnavailableUsageLedger for unusable configuration.
+        - Fails closed through UnavailableUsageLedger for unusable
+        - configuration.
 
     Inputs:
         - None.
@@ -720,7 +731,8 @@ def _validate_usage(*, total_tokens: int, cost_usd: Decimal) -> None:
     RME
 
     Requires:
-        - total_tokens and cost_usd are candidate provider-reported usage values.
+        - total_tokens and cost_usd are candidate provider-reported usage
+        - values.
 
     Modifies:
         - Nothing.

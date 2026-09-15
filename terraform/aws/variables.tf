@@ -4,7 +4,9 @@ variable "aws_region" {
   default     = "us-east-1"
 
   validation {
-    condition     = can(regex("^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", var.aws_region))
+    condition = (
+      can(regex("^[a-z]{2}(-gov)?-[a-z]+-[0-9]+$", var.aws_region))
+    )
     error_message = "aws_region must look like a valid AWS Region name."
   }
 }
@@ -15,8 +17,13 @@ variable "project_name" {
   default     = "secure-ai-gateway"
 
   validation {
-    condition     = length(var.project_name) >= 3 && length(var.project_name) <= 24 && can(regex("^[a-z0-9-]+$", var.project_name))
-    error_message = "project_name must be 3-24 lowercase alphanumeric/hyphen characters."
+    condition = (
+      length(var.project_name) >= 3 && length(var.project_name) <= 24 &&
+      can(regex("^[a-z0-9-]+$", var.project_name))
+    )
+    error_message = (
+      "project_name must be 3-24 lowercase alphanumeric/hyphen characters."
+    )
   }
 }
 
@@ -26,8 +33,13 @@ variable "environment" {
   default     = "dev"
 
   validation {
-    condition     = length(var.environment) >= 2 && length(var.environment) <= 8 && can(regex("^[a-z0-9-]+$", var.environment))
-    error_message = "environment must be 2-8 lowercase alphanumeric/hyphen characters."
+    condition = (
+      length(var.environment) >= 2 && length(var.environment) <= 8 &&
+      can(regex("^[a-z0-9-]+$", var.environment))
+    )
+    error_message = (
+      "environment must be 2-8 lowercase alphanumeric/hyphen characters."
+    )
   }
 }
 
@@ -48,13 +60,18 @@ variable "availability_zone_count" {
   default     = 3
 
   validation {
-    condition     = var.availability_zone_count >= 2 && var.availability_zone_count <= 3
+    condition = (
+      var.availability_zone_count >= 2 && var.availability_zone_count <= 3
+    )
     error_message = "availability_zone_count must be 2 or 3."
   }
 }
 
 variable "nat_gateway_mode" {
-  description = "NAT topology: single is cost-oriented; per_az provides zonal egress redundancy."
+  description = join(" ", [
+    "NAT topology: single is cost-oriented; per_az provides zonal egress",
+    "redundancy.",
+  ])
   type        = string
   default     = "single"
 
@@ -71,23 +88,33 @@ variable "eks_version" {
 
   validation {
     condition     = can(regex("^1\\.[0-9]+$", var.eks_version))
-    error_message = "eks_version must be a Kubernetes minor version such as 1.36."
+    error_message = (
+      "eks_version must be a Kubernetes minor version such as 1.36."
+    )
   }
 }
 
 variable "eks_public_access_cidrs" {
-  description = "CIDRs allowed to reach the public EKS API endpoint. Empty keeps the API private-only."
+  description = join(" ", [
+    "CIDRs allowed to reach the public EKS API endpoint. Empty keeps the API",
+    "private-only.",
+  ])
   type        = list(string)
   default     = []
 
   validation {
     condition     = alltrue([for cidr in var.eks_public_access_cidrs : can(cidrnetmask(cidr))])
-    error_message = "Every eks_public_access_cidrs entry must be a valid IPv4 CIDR."
+    error_message = (
+      "Every eks_public_access_cidrs entry must be a valid IPv4 CIDR."
+    )
   }
 }
 
 variable "eks_admin_role_arn" {
-  description = "Optional IAM role ARN granted EKS cluster-admin access through an EKS access entry."
+  description = join(" ", [
+    "Optional IAM role ARN granted EKS cluster-admin access through an EKS",
+    "access entry.",
+  ])
   type        = string
   default     = null
   nullable    = true
@@ -160,13 +187,19 @@ variable "valkey_node_type" {
 }
 
 variable "protect_data" {
-  description = "Enable deletion protection/final snapshots for persistent data services. Recommended outside disposable development environments."
+  description = join(" ", [
+    "Enable deletion protection/final snapshots for persistent data services.",
+    "Recommended outside disposable development environments.",
+  ])
   type        = bool
   default     = false
 }
 
 variable "ecr_force_delete" {
-  description = "Allow Terraform to delete a non-empty ECR repository. Keep false outside disposable development environments."
+  description = join(" ", [
+    "Allow Terraform to delete a non-empty ECR repository. Keep false outside",
+    "disposable development environments.",
+  ])
   type        = bool
   default     = false
 }

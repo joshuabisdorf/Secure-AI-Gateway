@@ -84,14 +84,16 @@ class SecurityPolicyRegistry:
             - Nothing.
 
         Effects:
-            - Resolves a client assignment to its named reusable security profile.
+            - Resolves a client assignment to its named reusable security
+            - profile.
             - Fails closed when the client has no assignment.
 
         Inputs:
             - client_id: Authenticated gateway client identity.
 
         Outputs:
-            - ResolvedSecurityPolicy containing the assigned profile and its name.
+            - ResolvedSecurityPolicy containing the assigned profile and its
+            - name.
         """
         profile_name = self.clients.get(client_id)
         if profile_name is None:
@@ -248,13 +250,15 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
     RME
 
     Requires:
-        - document is intended to be a version-1 Secure AI Gateway policy registry.
+        - document is intended to be a version-1 Secure AI Gateway policy
+        - registry.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Strictly validates JSON structure, duplicate keys, profile fields, and assignments.
+        - Strictly validates JSON structure, duplicate keys, profile fields, and
+        - assignments.
         - Rejects unknown fields rather than silently ignoring policy mistakes.
 
     Inputs:
@@ -333,18 +337,22 @@ def load_security_policy_registry(
     RME
 
     Requires:
-        - configured_path or SAG_SECURITY_POLICY_FILE identifies a local JSON policy file.
+        - configured_path or SAG_SECURITY_POLICY_FILE identifies a local JSON
+        - policy file.
 
     Modifies:
         - Process-local validated-policy cache.
 
     Effects:
         - Reads and validates the configured non-secret policy registry.
-        - Reloads automatically when file path, size, or nanosecond mtime changes.
-        - Fails closed for absent, unreadable, oversized, or invalid policy files.
+        - Reloads automatically when file path, size, or nanosecond mtime
+        - changes.
+        - Fails closed for absent, unreadable, oversized, or invalid policy
+        - files.
 
     Inputs:
-        - configured_path: Optional explicit file path, primarily for validation/tests.
+        - configured_path: Optional explicit file path, primarily for
+        - validation/tests.
 
     Outputs:
         - Validated SecurityPolicyRegistry.
@@ -398,16 +406,20 @@ def resolve_client_security_policy(
         - Validated-policy cache when the configured file changes.
 
     Effects:
-        - Returns None only when unified policy configuration is not enabled, allowing
-          temporary migration compatibility with legacy per-control environment variables.
-        - Once SAG_SECURITY_POLICY_FILE is set, any file/client error fails closed and
+        - Returns None only when unified policy configuration is not enabled,
+        - allowing
+          temporary migration compatibility with legacy per-control environment
+          variables.
+        - Once SAG_SECURITY_POLICY_FILE is set, any file/client error fails
+        - closed and
           never falls back to legacy environment policy.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
 
     Outputs:
-        - Resolved unified policy, or None when unified policy is not configured.
+        - Resolved unified policy, or None when unified policy is not
+        - configured.
     """
     configured_path = os.getenv("SAG_SECURITY_POLICY_FILE")
     if not configured_path or not configured_path.strip():

@@ -19,7 +19,9 @@ output "private_subnet_ids" {
 }
 
 output "private_subnet_cidrs" {
-  description = "Private EKS worker subnet CIDRs used to render cloud NetworkPolicies."
+  description = (
+    "Private EKS worker subnet CIDRs used to render cloud NetworkPolicies."
+  )
   value       = values(aws_subnet.private)[*].cidr_block
 }
 
@@ -29,12 +31,16 @@ output "data_subnet_ids" {
 }
 
 output "data_subnet_cidrs" {
-  description = "Isolated data subnet CIDRs used to render cloud NetworkPolicies."
+  description = (
+    "Isolated data subnet CIDRs used to render cloud NetworkPolicies."
+  )
   value       = values(aws_subnet.data)[*].cidr_block
 }
 
 output "secretsmanager_vpc_endpoint_id" {
-  description = "Private Secrets Manager interface endpoint used by gateway workloads."
+  description = (
+    "Private Secrets Manager interface endpoint used by gateway workloads."
+  )
   value       = aws_vpc_endpoint.secretsmanager.id
 }
 
@@ -69,13 +75,20 @@ output "postgres_database_name" {
 }
 
 output "postgres_master_secret_arn" {
-  description = "RDS-managed administrative secret ARN. This is not intended for gateway runtime use."
-  value       = try(aws_db_instance.gateway.master_user_secret[0].secret_arn, null)
+  description = join(" ", [
+    "RDS-managed administrative secret ARN. This is not intended for gateway",
+    "runtime use.",
+  ])
+  value = (
+    try(aws_db_instance.gateway.master_user_secret[0].secret_arn, null)
+  )
 }
 
 output "valkey_primary_endpoint" {
   description = "Private TLS-enabled Valkey primary endpoint."
-  value       = aws_elasticache_replication_group.gateway.primary_endpoint_address
+  value = (
+    aws_elasticache_replication_group.gateway.primary_endpoint_address
+  )
 }
 
 output "valkey_port" {
@@ -84,22 +97,34 @@ output "valkey_port" {
 }
 
 output "valkey_replication_group_id" {
-  description = "ElastiCache replication-group name used when signing IAM authentication tokens."
+  description = join(" ", [
+    "ElastiCache replication-group name used when signing IAM authentication",
+    "tokens.",
+  ])
   value       = aws_elasticache_replication_group.gateway.replication_group_id
 }
 
 output "valkey_iam_user_id" {
-  description = "ElastiCache IAM-authenticated user ID expected by the gateway cloud runtime."
+  description = join(" ", [
+    "ElastiCache IAM-authenticated user ID expected by the gateway cloud",
+    "runtime.",
+  ])
   value       = aws_elasticache_user.gateway.user_id
 }
 
 output "gateway_workload_role_arn" {
-  description = "IAM role associated with the sag-gateway Kubernetes service account through EKS Pod Identity."
+  description = join(" ", [
+    "IAM role associated with the sag-gateway Kubernetes service account",
+    "through EKS Pod Identity.",
+  ])
   value       = aws_iam_role.gateway_workload.arn
 }
 
 output "migration_workload_role_arn" {
-  description = "IAM role associated with the sag-migration Kubernetes service account through EKS Pod Identity."
+  description = join(" ", [
+    "IAM role associated with the sag-migration Kubernetes service account",
+    "through EKS Pod Identity.",
+  ])
   value       = aws_iam_role.migration_workload.arn
 }
 

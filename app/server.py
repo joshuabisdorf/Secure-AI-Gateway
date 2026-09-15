@@ -30,7 +30,8 @@ def get_max_request_body_bytes() -> int:
         - Nothing.
 
     Effects:
-        - Fails application startup when the configured limit is invalid or outside the safe range.
+        - Fails application startup when the configured limit is invalid or
+        - outside the safe range.
 
     Inputs:
         - None.
@@ -69,7 +70,8 @@ def get_api_docs_enabled() -> bool:
         - None.
 
     Outputs:
-        - Whether production HTTP routing should expose interactive/OpenAPI docs.
+        - Whether production HTTP routing should expose interactive/OpenAPI
+        - docs.
     """
     value = os.getenv("SAG_ENABLE_API_DOCS", "false").strip().lower()
     if value in {"true", "1", "yes", "on"}:
@@ -106,7 +108,8 @@ class RequestBodyLimitMiddleware:
         Inputs:
             - app: Wrapped ASGI application.
             - max_body_bytes: Maximum accepted body size in bytes.
-            - block_api_docs: Whether production documentation routes are hidden.
+            - block_api_docs: Whether production documentation routes are
+            - hidden.
 
         Outputs:
             - Configured middleware instance.
@@ -175,10 +178,14 @@ class RequestBodyLimitMiddleware:
             - HTTP request receive stream and response headers.
 
         Effects:
-            - Rejects declared or streamed request bodies above max_body_bytes with HTTP 413.
-            - Buffers only a bounded request body before entering FastAPI, preventing parser amplification.
-            - Optionally hides interactive/OpenAPI documentation routes with HTTP 404.
-            - Adds cache, framing, MIME-sniffing, referrer, and CSP response protections.
+            - Rejects declared or streamed request bodies above max_body_bytes
+            - with HTTP 413.
+            - Buffers only a bounded request body before entering FastAPI,
+            - preventing parser amplification.
+            - Optionally hides interactive/OpenAPI documentation routes with
+            - HTTP 404.
+            - Adds cache, framing, MIME-sniffing, referrer, and CSP response
+            - protections.
             - Passes non-HTTP traffic through unchanged.
 
         Inputs:

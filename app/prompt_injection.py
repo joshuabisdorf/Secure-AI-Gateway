@@ -144,7 +144,8 @@ def parse_client_prompt_injection_policies(
         - Mapping from client ID to validated PromptInjectionPolicy.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or unsupported.
+        - ValueError: Configuration is empty, malformed, duplicated, or
+        - unsupported.
     """
     policies: dict[str, PromptInjectionPolicy] = {}
 
@@ -186,7 +187,8 @@ def get_client_prompt_injection_policy(client_id: str) -> PromptInjectionPolicy:
         - Nothing.
 
     Effects:
-        - Fails closed when prompt-injection policy is absent, malformed, or missing the client.
+        - Fails closed when prompt-injection policy is absent, malformed, or
+        - missing the client.
 
     Inputs:
         - client_id: Authenticated gateway client identity.
@@ -287,16 +289,21 @@ def inspect_prompt_injection(
         - Nothing.
 
     Effects:
-        - Inspects textual client-supplied message content for explicit prompt-injection indicators.
-        - Decodes bounded Base64/hex candidates only to inspect them for the same indicators.
+        - Inspects textual client-supplied message content for explicit
+        - prompt-injection indicators.
+        - Decodes bounded Base64/hex candidates only to inspect them for the
+        - same indicators.
         - Ignores non-text assistant/tool-call fields.
-        - Returns only indicator labels and scores; raw prompt fragments are never retained.
+        - Returns only indicator labels and scores; raw prompt fragments are
+        - never retained.
 
     Inputs:
-        - request: Chat-completion request to inspect before provider forwarding.
+        - request: Chat-completion request to inspect before provider
+        - forwarding.
 
     Outputs:
-        - PromptInjectionResult with unique indicator count, aggregate score, and labels.
+        - PromptInjectionResult with unique indicator count, aggregate score,
+        - and labels.
     """
     matched: set[str] = set()
 

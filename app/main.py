@@ -56,11 +56,13 @@ async def lifespan(_: FastAPI):
         - Configured persistent resources may own async connection pools.
 
     Modifies:
-        - Client-registry, rate-limiter, usage-ledger, and tool-replay connection-pool state during shutdown.
+        - Client-registry, rate-limiter, usage-ledger, and tool-replay
+        - connection-pool state during shutdown.
 
     Effects:
         - Leaves backend connections lazy during startup.
-        - Closes opened PostgreSQL and Redis pools cleanly on application shutdown.
+        - Closes opened PostgreSQL and Redis pools cleanly on application
+        - shutdown.
 
     Inputs:
         - _: FastAPI application instance.
@@ -100,7 +102,8 @@ def resolve_request_id(candidate: str | None) -> str:
         - Nothing.
 
     Effects:
-        - Generates a new request identifier when the supplied value is absent or unsafe.
+        - Generates a new request identifier when the supplied value is absent
+        - or unsafe.
 
     Inputs:
         - candidate: Optional X-Request-ID header value.
@@ -220,13 +223,16 @@ async def chat_completion(
     Requires:
         - request satisfies the gateway chat-completion schema.
         - The caller provides a valid database-backed gateway API key.
-        - Rate-limit, model, PII, prompt-injection, tool, and daily usage-budget policies are configured.
+        - Rate-limit, model, PII, prompt-injection, tool, and daily usage-budget
+        - policies are configured.
         - Redis rate-limit state and PostgreSQL usage accounting are available.
-        - Tool execution registry/signing state is required only when a provider returns tool calls.
+        - Tool execution registry/signing state is required only when a provider
+        - returns tool calls.
 
     Modifies:
         - Shared per-client rate-limit state in Redis.
-        - A copied provider request when PII is redacted; the caller request is unchanged.
+        - A copied provider request when PII is redacted; the caller request is
+        - unchanged.
         - Persistent per-client daily usage totals in PostgreSQL.
         - Provider-specific state, if any.
         - The audit logging stream and response policy headers.
@@ -234,22 +240,29 @@ async def chat_completion(
     Effects:
         - Applies authentication and distributed per-client request throttling.
         - Enforces model authorization and per-client PII policy.
-        - Redacts detected structured/semantic PII before later inspection/provider forwarding.
-        - Audits or denies explicit prompt-injection indicators according to client policy.
+        - Redacts detected structured/semantic PII before later
+        - inspection/provider forwarding.
+        - Audits or denies explicit prompt-injection indicators according to
+        - client policy.
         - Reads durable accumulated usage before provider forwarding.
-        - Records provider-reported usage atomically after successful completion.
-        - Treats model-generated tool calls as untrusted output and validates them against current
-          client authorization plus the authoritative execution schema before issuing short-lived tickets.
+        - Records provider-reported usage atomically after successful
+        - completion.
+        - Treats model-generated tool calls as untrusted output and validates
+        - them against current
+          client authorization plus the authoritative execution schema before
+          issuing short-lived tickets.
         - Fails closed when required policy or shared state is unavailable.
 
     Inputs:
         - request: Requested model and chat messages.
         - http_request: HTTP request containing request ID and timing context.
         - outgoing_response: FastAPI response used to expose policy headers.
-        - principal: Authenticated client identity supplied by dependency injection.
+        - principal: Authenticated client identity supplied by dependency
+        - injection.
 
     Outputs:
-        - An OpenAI-style chat-completion response with optional usage/tool execution metadata.
+        - An OpenAI-style chat-completion response with optional usage/tool
+        - execution metadata.
     """
     request_id = http_request.state.request_id
 

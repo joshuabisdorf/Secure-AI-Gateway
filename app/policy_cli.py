@@ -26,20 +26,23 @@ def main() -> None:
     RME
 
     Requires:
-        - SAG_SECURITY_POLICY_FILE identifies the unified JSON security-policy registry.
+        - SAG_SECURITY_POLICY_FILE identifies the unified JSON security-policy
+        - registry.
 
     Modifies:
         - Terminal output.
 
     Effects:
-        - Validates the complete policy registry without printing policy contents.
+        - Validates the complete policy registry without printing policy
+        - contents.
         - Exits nonzero when configuration cannot be used safely.
 
     Inputs:
         - Command-line arguments and SAG_SECURITY_POLICY_FILE.
 
     Outputs:
-        - Concise validation metadata containing only version/profile/client counts.
+        - Concise validation metadata containing only version/profile/client
+        - counts.
     """
     args = _build_parser().parse_args()
     if args.command != "validate":

@@ -69,7 +69,8 @@ def _latency_summary(
         - Nothing.
 
     Effects:
-        - Summarizes local request throughput and latency without applying a pass/fail capacity threshold.
+        - Summarizes local request throughput and latency without applying a
+        - pass/fail capacity threshold.
 
     Inputs:
         - latencies_ms: End-to-end request latency samples in milliseconds.
@@ -138,8 +139,10 @@ def _gateway_environment(
         - Nothing in the parent process environment.
 
     Effects:
-        - Builds an isolated zero-cost runtime environment using the mock provider and real shared state.
-        - Removes unified-policy configuration so explicit benchmark legacy policy values are authoritative.
+        - Builds an isolated zero-cost runtime environment using the mock
+        - provider and real shared state.
+        - Removes unified-policy configuration so explicit benchmark legacy
+        - policy values are authoritative.
 
     Inputs:
         - client_id: Temporary benchmark client identity.
@@ -191,7 +194,8 @@ def _spawn_gateway(port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
         - Creates one local Uvicorn subprocess.
 
     Effects:
-        - Starts a single-worker gateway replica with logs suppressed from benchmark output.
+        - Starts a single-worker gateway replica with logs suppressed from
+        - benchmark output.
 
     Inputs:
         - port: Loopback TCP port for the replica.
@@ -233,7 +237,8 @@ def _stop_process(process: subprocess.Popen[bytes]) -> None:
         - Child process lifecycle.
 
     Effects:
-        - Terminates the process gracefully when possible and kills it after a bounded wait.
+        - Terminates the process gracefully when possible and kills it after a
+        - bounded wait.
 
     Inputs:
         - process: Gateway subprocess handle.
@@ -267,7 +272,8 @@ def _wait_for_health(
         - Performs local HTTP health requests.
 
     Effects:
-        - Waits for bounded startup and fails if the replica exits or never becomes healthy.
+        - Waits for bounded startup and fails if the replica exits or never
+        - becomes healthy.
 
     Inputs:
         - base_url: Replica HTTP base URL.
@@ -313,7 +319,8 @@ def _post_with_failover(
         - Gateway rate-limit and usage state through local HTTP requests.
 
     Effects:
-        - Sends one request to the preferred replica and retries once on another replica after transport/5xx failure.
+        - Sends one request to the preferred replica and retries once on another
+        - replica after transport/5xx failure.
         - Raises when no replica returns a successful completion.
 
     Inputs:
@@ -324,7 +331,8 @@ def _post_with_failover(
         - payload: Chat request body.
 
     Outputs:
-        - Tuple of elapsed milliseconds, successful replica URL, and whether failover was required.
+        - Tuple of elapsed milliseconds, successful replica URL, and whether
+        - failover was required.
     """
     if not urls:
         raise ValueError("no_gateway_urls")
@@ -374,7 +382,8 @@ def _benchmark_requests(
         - Local gateway shared rate-limit/usage state.
 
     Effects:
-        - Issues a bounded concurrent request batch and records successful end-to-end latency.
+        - Issues a bounded concurrent request batch and records successful
+        - end-to-end latency.
         - Does not enforce a throughput target; results are descriptive only.
 
     Inputs:
@@ -385,7 +394,8 @@ def _benchmark_requests(
         - concurrency: Maximum worker threads.
 
     Outputs:
-        - Throughput/latency summary plus per-replica success counts and failover count.
+        - Throughput/latency summary plus per-replica success counts and
+        - failover count.
     """
     if request_count < 1 or concurrency < 1:
         raise ValueError("invalid_benchmark_dimensions")
@@ -436,8 +446,10 @@ async def _rate_limiter_contention_benchmark(
         - One temporary shared Redis rate-limit bucket.
 
     Effects:
-        - Measures direct distributed limiter contention across four independent clients.
-        - Verifies all operations remain allowed under the deliberately high benchmark limit.
+        - Measures direct distributed limiter contention across four independent
+        - clients.
+        - Verifies all operations remain allowed under the deliberately high
+        - benchmark limit.
 
     Inputs:
         - redis_url: Redis-compatible connection URL.
@@ -532,24 +544,31 @@ def main() -> int:
 
     Requires:
         - Local PostgreSQL and Redis/Valkey services are reachable.
-        - The repository's Python environment contains runtime dependencies and Uvicorn.
+        - The repository's Python environment contains runtime dependencies and
+        - Uvicorn.
         - Ports 18101 and 18102 are available on loopback.
 
     Modifies:
         - Applies idempotent database migrations.
-        - Creates and later revokes one temporary PostgreSQL-backed client credential.
-        - Creates temporary Redis rate/usage/replay state through two local gateway replicas.
+        - Creates and later revokes one temporary PostgreSQL-backed client
+        - credential.
+        - Creates temporary Redis rate/usage/replay state through two local
+        - gateway replicas.
         - Starts and terminates two local Uvicorn subprocesses.
         - Writes an output JSON file when --output is supplied.
 
     Effects:
         - Benchmarks one and two mock-provider replicas.
-        - Reports p50/p95/p99 latency, requests/sec, RSS memory, inspection-path delta, and Redis limiter contention.
-        - Terminates one replica during a concurrent load batch and verifies client-side failover to the surviving replica.
-        - Makes no paid provider or cloud calls and applies no production capacity threshold.
+        - Reports p50/p95/p99 latency, requests/sec, RSS memory, inspection-path
+        - delta, and Redis limiter contention.
+        - Terminates one replica during a concurrent load batch and verifies
+        - client-side failover to the surviving replica.
+        - Makes no paid provider or cloud calls and applies no production
+        - capacity threshold.
 
     Inputs:
-        - Command-line service URLs, request/concurrency counts, and optional output path.
+        - Command-line service URLs, request/concurrency counts, and optional
+        - output path.
 
     Outputs:
         - JSON benchmark/report on stdout and optionally at --output.
@@ -600,7 +619,8 @@ def main() -> int:
             ],
         }
 
-        # Warm both replicas so model/import startup work does not dominate measurements.
+        # Warm both replicas so model/import startup work does not dominate
+        # measurements.
         for index in range(6):
             with httpx.Client(timeout=15.0) as client:
                 _post_with_failover(
@@ -645,7 +665,8 @@ def main() -> int:
             for index, process in enumerate(processes)
         }
 
-        # Submit live traffic, terminate replica 0, then require every request to succeed
+        # Submit live traffic, terminate replica 0, then require every request
+        # to succeed
         # through the surviving replica or one bounded retry.
         load_count = max(40, args.concurrency * 3)
         termination_latencies: list[float] = []

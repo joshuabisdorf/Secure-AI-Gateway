@@ -14,7 +14,8 @@ def test_readiness_skips_unconfigured_shared_backends(monkeypatch) -> None:
         - Runtime backend-selection environment for this test.
 
     Effects:
-        - Verifies in-memory/environment test backends do not trigger network readiness checks.
+        - Verifies in-memory/environment test backends do not trigger network
+        - readiness checks.
 
     Inputs:
         - monkeypatch: pytest environment-patching fixture.
@@ -46,7 +47,8 @@ def test_readiness_fails_closed_when_postgres_config_is_missing(
         - Runtime backend-selection environment for this test.
 
     Effects:
-        - Verifies a required but unconfigured PostgreSQL backend makes the replica not ready.
+        - Verifies a required but unconfigured PostgreSQL backend makes the
+        - replica not ready.
 
     Inputs:
         - monkeypatch: pytest environment-patching fixture.
@@ -71,13 +73,16 @@ def test_readiness_checks_required_postgres_and_redis(monkeypatch) -> None:
     RME
 
     Requires:
-        - Readiness backend probes can be replaced with deterministic async stubs.
+        - Readiness backend probes can be replaced with deterministic async
+        - stubs.
 
     Modifies:
-        - Runtime backend-selection environment and probe functions for this test.
+        - Runtime backend-selection environment and probe functions for this
+        - test.
 
     Effects:
-        - Verifies required shared backends are both checked and failures use safe component names.
+        - Verifies required shared backends are both checked and failures use
+        - safe component names.
 
     Inputs:
         - monkeypatch: pytest patching fixture.

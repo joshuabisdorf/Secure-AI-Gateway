@@ -131,7 +131,7 @@ def _docstring_ranges(tree: ast.AST) -> list[tuple[int, int]]:
     ranges: list[tuple[int, int]] = []
     for node in ast.walk(tree):
         body = getattr(node, "body", None)
-        if not body:
+        if not isinstance(body, list) or not body:
             continue
         first = body[0]
         if not isinstance(first, ast.Expr):
@@ -559,6 +559,8 @@ def _format_generic_comments(path: Path) -> None:
 
 def _migrate() -> None:
     for path in _tracked_files():
+        if path.parts[:2] == (".github", "workflows"):
+            continue
         if path in SKIP_PATHS:
             continue
         if path.suffix == ".py" and path.parts[0] in PYTHON_ROOTS:

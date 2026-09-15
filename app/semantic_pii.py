@@ -73,13 +73,15 @@ class SemanticPIIUnavailable(HTTPException):
         RME
 
         Requires:
-            - reason is a safe internal reason label and contains no prompt data.
+            - reason is a safe internal reason label and contains no prompt
+            - data.
 
         Modifies:
             - Initializes exception state.
 
         Effects:
-            - Represents semantic PII unavailability as a sanitized HTTP 503 response.
+            - Represents semantic PII unavailability as a sanitized HTTP 503
+            - response.
 
         Inputs:
             - reason: Safe diagnostic reason label.
@@ -118,7 +120,8 @@ def _context_window(text: str, start: int, end: int) -> str:
         - Nothing.
 
     Effects:
-        - Limits context inspection around an entity/span to a bounded local window.
+        - Limits context inspection around an entity/span to a bounded local
+        - window.
 
     Inputs:
         - text: Source message text.
@@ -209,7 +212,8 @@ class SpacySemanticPIIAnalyzer:
             - Initializes lazy model state and synchronization primitives.
 
         Effects:
-            - Defers expensive NLP model loading until semantic inspection is needed.
+            - Defers expensive NLP model loading until semantic inspection is
+            - needed.
 
         Inputs:
             - model_name: Installed spaCy model package name.
@@ -233,7 +237,8 @@ class SpacySemanticPIIAnalyzer:
 
         Effects:
             - Loads only the components required for NER.
-            - Converts model-loading failures into a sanitized fail-closed 503 error.
+            - Converts model-loading failures into a sanitized fail-closed 503
+            - error.
 
         Inputs:
             - None.
@@ -273,8 +278,10 @@ class SpacySemanticPIIAnalyzer:
             - Lazy spaCy model state on first call.
 
         Effects:
-            - Uses local NER plus bounded context to identify person names, personal locations, and dates of birth.
-            - Identifies street addresses only when bounded personal/delivery context is present.
+            - Uses local NER plus bounded context to identify person names,
+            - personal locations, and dates of birth.
+            - Identifies street addresses only when bounded personal/delivery
+            - context is present.
             - Returns offsets/types only and never persists raw matched values.
 
         Inputs:
@@ -338,7 +345,8 @@ def redact_semantic_text(
         - Nothing.
 
     Effects:
-        - Replaces semantic PII spans from right to left so offsets remain valid.
+        - Replaces semantic PII spans from right to left so offsets remain
+        - valid.
         - Does not return or retain raw detected values separately.
 
     Inputs:
@@ -363,14 +371,17 @@ def build_semantic_pii_analyzer() -> SemanticPIIAnalyzer:
     RME
 
     Requires:
-        - SAG_SEMANTIC_PII_BACKEND may select a supported local analyzer backend.
+        - SAG_SEMANTIC_PII_BACKEND may select a supported local analyzer
+        - backend.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Constructs the configured semantic PII analyzer without loading its model yet.
-        - Rejects unsupported backends instead of silently disabling semantic inspection.
+        - Constructs the configured semantic PII analyzer without loading its
+        - model yet.
+        - Rejects unsupported backends instead of silently disabling semantic
+        - inspection.
 
     Inputs:
         - None.

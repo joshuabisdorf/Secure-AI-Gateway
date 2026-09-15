@@ -45,19 +45,23 @@ def load_json_secret(
     RME
 
     Requires:
-        - secret_id identifies a Secrets Manager secret containing a JSON object in SecretString.
-        - The current AWS identity has least-privilege access to the requested secret.
+        - secret_id identifies a Secrets Manager secret containing a JSON object
+        - in SecretString.
+        - The current AWS identity has least-privilege access to the requested
+        - secret.
 
     Modifies:
         - Short-lived AWS SDK request/session state only.
 
     Effects:
         - Retrieves one secret through the AWS default credential chain.
-        - Rejects binary, malformed, or non-object secret values without exposing contents.
+        - Rejects binary, malformed, or non-object secret values without
+        - exposing contents.
 
     Inputs:
         - secret_id: Secret ARN or name.
-        - client: Optional injected Secrets Manager client for deterministic tests.
+        - client: Optional injected Secrets Manager client for deterministic
+        - tests.
 
     Outputs:
         - Parsed JSON object.
@@ -117,7 +121,8 @@ def build_database_conninfo(
 
     Effects:
         - Produces a libpq connection string with TLS required.
-        - Escapes connection fields using psycopg rather than string concatenation.
+        - Escapes connection fields using psycopg rather than string
+        - concatenation.
 
     Inputs:
         - credentials: Runtime database secret JSON object.
@@ -182,18 +187,22 @@ def load_gateway_runtime_environment(
 
     Requires:
         - Cloud runtime non-secret endpoint/secret-ID environment is configured.
-        - The Pod Identity role can read only the gateway runtime secret containers.
+        - The Pod Identity role can read only the gateway runtime secret
+        - containers.
 
     Modifies:
         - Nothing; returns environment additions for the child gateway process.
 
     Effects:
-        - Resolves database credentials and execution-ticket signing material from Secrets Manager.
-        - Optionally resolves provider credentials when a provider-secret ID is configured.
+        - Resolves database credentials and execution-ticket signing material
+        - from Secrets Manager.
+        - Optionally resolves provider credentials when a provider-secret ID is
+        - configured.
         - Never returns AWS credentials or logs secret values.
 
     Inputs:
-        - client: Optional injected Secrets Manager client for deterministic tests.
+        - client: Optional injected Secrets Manager client for deterministic
+        - tests.
 
     Outputs:
         - Environment variables required by the gateway child process.

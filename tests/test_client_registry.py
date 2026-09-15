@@ -21,7 +21,8 @@ def test_environment_registry_returns_hashed_record(monkeypatch) -> None:
         - Temporarily configures SAG_CLIENTS.
 
     Effects:
-        - Verifies the test/legacy backend resolves hashed client identity metadata.
+        - Verifies the test/legacy backend resolves hashed client identity
+        - metadata.
 
     Inputs:
         - monkeypatch: pytest environment fixture.
@@ -55,13 +56,15 @@ def test_environment_registry_fails_closed_when_missing(monkeypatch) -> None:
         - Temporarily removes SAG_CLIENTS.
 
     Effects:
-        - Verifies the environment backend refuses unauthenticated configuration.
+        - Verifies the environment backend refuses unauthenticated
+        - configuration.
 
     Inputs:
         - monkeypatch: pytest environment fixture.
 
     Outputs:
-        - None. Assertions determine whether missing registry configuration fails closed.
+        - None. Assertions determine whether missing registry configuration
+        - fails closed.
     """
     monkeypatch.delenv("SAG_CLIENTS", raising=False)
     registry = EnvironmentClientRegistry()
@@ -83,7 +86,8 @@ def test_postgres_backend_fails_closed_without_database_url(
         - Temporarily selects PostgreSQL and removes DATABASE_URL.
 
     Effects:
-        - Verifies production registry configuration fails closed without a database.
+        - Verifies production registry configuration fails closed without a
+        - database.
 
     Inputs:
         - monkeypatch: pytest environment fixture.

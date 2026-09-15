@@ -115,7 +115,8 @@ def test_real_redis_execution_ticket_claim_race_has_one_winner() -> None:
         - One temporary shared replay key in Redis.
 
     Effects:
-        - Races 24 independent replay-store clients against the same execution ID.
+        - Races 24 independent replay-store clients against the same execution
+        - ID.
         - Verifies SET NX permits exactly one successful distributed claim.
 
     Inputs:
@@ -150,7 +151,8 @@ def test_real_redis_rate_limit_contention_never_exceeds_limit() -> None:
     RME
 
     Requires:
-        - Dedicated Redis/Valkey integration service supports the gateway Lua script.
+        - Dedicated Redis/Valkey integration service supports the gateway Lua
+        - script.
 
     Modifies:
         - One temporary shared rate-limit bucket in Redis.
@@ -212,7 +214,8 @@ def test_postgres_usage_ledger_concurrent_updates_are_lossless() -> None:
         - Creates one temporary gateway client/key and its daily usage row.
 
     Effects:
-        - Records 48 concurrent usage updates through the real PostgreSQL upsert path.
+        - Records 48 concurrent usage updates through the real PostgreSQL upsert
+        - path.
         - Verifies no token or cost increments are lost.
 
     Inputs:
@@ -314,8 +317,10 @@ def test_rotation_and_revocation_race_never_creates_multiple_active_keys() -> (
         - Creates one temporary client and races administrative key operations.
 
     Effects:
-        - Verifies concurrent explicit revocation and rotation cannot produce multiple active credentials.
-        - Allows zero active credentials when explicit revocation wins, which is fail-closed behavior.
+        - Verifies concurrent explicit revocation and rotation cannot produce
+        - multiple active credentials.
+        - Allows zero active credentials when explicit revocation wins, which is
+        - fail-closed behavior.
 
     Inputs:
         - None.
@@ -368,7 +373,8 @@ def test_usage_pool_exhaustion_is_bounded_and_fails_closed() -> None:
         - Creates one temporary gateway client and opens a one-connection pool.
 
     Effects:
-        - Holds the sole connection and verifies a second ledger operation fails closed within a bounded interval.
+        - Holds the sole connection and verifies a second ledger operation fails
+        - closed within a bounded interval.
 
     Inputs:
         - None.
@@ -420,11 +426,13 @@ def test_migration_failure_rolls_back_partial_migration(
         - tmp_path is writable for an isolated migration corpus.
 
     Modifies:
-        - Attempts one valid temporary migration followed by one invalid temporary migration.
+        - Attempts one valid temporary migration followed by one invalid
+        - temporary migration.
         - Temporarily replaces the migration directory used by app.database.
 
     Effects:
-        - Verifies a failing migration invocation rolls back all new schema and migration metadata from that invocation.
+        - Verifies a failing migration invocation rolls back all new schema and
+        - migration metadata from that invocation.
 
     Inputs:
         - tmp_path: Pytest temporary directory.

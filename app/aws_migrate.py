@@ -80,7 +80,8 @@ async def provision_runtime_role(
     RME
 
     Requires:
-        - admin_conninfo authenticates as the RDS administrative database role over TLS.
+        - admin_conninfo authenticates as the RDS administrative database role
+        - over TLS.
         - Database migrations have already created the gateway runtime tables.
         - runtime_username/password are generated deployment credentials.
 
@@ -88,9 +89,11 @@ async def provision_runtime_role(
         - PostgreSQL role metadata and grants for the gateway runtime login.
 
     Effects:
-        - Creates or rotates the gateway login without granting DDL/admin capabilities.
+        - Creates or rotates the gateway login without granting DDL/admin
+        - capabilities.
         - Grants CONNECT, schema USAGE, DML on current tables, and sequence use.
-        - Configures equivalent default privileges for future objects created by the migration role.
+        - Configures equivalent default privileges for future objects created by
+        - the migration role.
 
     Inputs:
         - admin_conninfo: Administrative PostgreSQL connection string.
@@ -175,11 +178,14 @@ async def migrate_aws_database() -> tuple[str, ...]:
     RME
 
     Requires:
-        - Migration Pod Identity can read the RDS-managed admin secret and runtime DB secret.
-        - Private RDS endpoint coordinates are supplied as non-secret environment variables.
+        - Migration Pod Identity can read the RDS-managed admin secret and
+        - runtime DB secret.
+        - Private RDS endpoint coordinates are supplied as non-secret
+        - environment variables.
 
     Modifies:
-        - PostgreSQL schema, migration metadata, runtime role password, and grants.
+        - PostgreSQL schema, migration metadata, runtime role password, and
+        - grants.
 
     Effects:
         - Applies versioned schema migrations using the administrative role.
@@ -226,7 +232,8 @@ def main() -> None:
 
     Effects:
         - Applies cloud database migrations and runtime-role grants.
-        - Exits nonzero with a safe reason when secret/configuration loading fails.
+        - Exits nonzero with a safe reason when secret/configuration loading
+        - fails.
 
     Inputs:
         - None.

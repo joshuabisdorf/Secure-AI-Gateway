@@ -31,7 +31,8 @@ def _measure_json_shape(value: Any, *, depth: int = 0) -> tuple[int, int]:
 
     Effects:
         - Rejects tool-schema structures deeper than MAX_TOOL_SCHEMA_DEPTH.
-        - Counts container/scalar nodes and textual characters without serializing secrets.
+        - Counts container/scalar nodes and textual characters without
+        - serializing secrets.
 
     Inputs:
         - value: JSON-like value to measure.
@@ -169,13 +170,15 @@ class ChatCompletionRequest(BaseModel):
             - Nothing.
 
         Effects:
-            - Rejects requests whose combined text/schema content exceeds the gateway budget.
+            - Rejects requests whose combined text/schema content exceeds the
+            - gateway budget.
 
         Inputs:
             - self: Validated chat-completion request candidate.
 
         Outputs:
-            - The same ChatCompletionRequest when aggregate complexity is within bounds.
+            - The same ChatCompletionRequest when aggregate complexity is within
+            - bounds.
         """
         text_chars = len(self.model)
 

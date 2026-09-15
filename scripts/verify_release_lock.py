@@ -177,7 +177,8 @@ def main() -> int:
     Inputs:
         None.
     Outputs:
-        Process exit code 0 on success; exceptions make verification fail closed.
+        Process exit code 0 on success; exceptions make verification fail
+        closed.
     """
     verify_release_lock()
     entries = read_lock_entries()

@@ -22,10 +22,12 @@ def _write_registry(tmp_path, monkeypatch) -> None:
         - tmp_path and monkeypatch are pytest fixtures.
 
     Modifies:
-        - Creates a temporary non-secret execution policy file and environment pointer.
+        - Creates a temporary non-secret execution policy file and environment
+        - pointer.
 
     Effects:
-        - Defines one deterministic read-only function for ticket-hardening tests.
+        - Defines one deterministic read-only function for ticket-hardening
+        - tests.
 
     Inputs:
         - tmp_path: Pytest temporary directory.
@@ -70,13 +72,15 @@ def test_malformed_execution_ticket_is_controlled_denial(
         - Audit logging only.
 
     Effects:
-        - Verifies malformed Base64 ticket encoding cannot escape as an internal server error.
+        - Verifies malformed Base64 ticket encoding cannot escape as an internal
+        - server error.
 
     Inputs:
         - gateway_api_key: Deterministic test gateway credential.
 
     Outputs:
-        - None. Assertions determine whether malformed-ticket handling fails closed.
+        - None. Assertions determine whether malformed-ticket handling fails
+        - closed.
     """
     client = TestClient(main.app)
     response = client.post(
@@ -113,7 +117,8 @@ def test_execution_risk_label_tampering_is_denied(
         - Temporary execution-policy configuration and audit logging.
 
     Effects:
-        - Verifies a caller cannot alter gateway-returned execution_risk independently of the signed ticket.
+        - Verifies a caller cannot alter gateway-returned execution_risk
+        - independently of the signed ticket.
 
     Inputs:
         - tmp_path: Pytest temporary directory.

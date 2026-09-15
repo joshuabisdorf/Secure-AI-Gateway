@@ -37,7 +37,8 @@ if [ "$NETWORK_POLICY_COUNT" -lt 8 ]; then
   echo "ERROR network_policy_count=$NETWORK_POLICY_COUNT expected_at_least=8" >&2
   exit 1
 fi
-if ! kubectl -n "$NAMESPACE" get networkpolicy sag-default-deny >/dev/null 2>&1; then
+if ! kubectl -n "$NAMESPACE" get networkpolicy sag-default-deny >/dev/null \
+  2>&1; then
   echo "ERROR default_deny_network_policy=missing" >&2
   exit 1
 fi
@@ -72,7 +73,8 @@ MEMORY_REQUEST="$(
   kubectl -n "$NAMESPACE" get deployment sag-gateway \
     -o jsonpath='{.spec.template.spec.containers[0].resources.requests.memory}'
 )"
-if [ -z "$CPU_LIMIT" ] || [ -z "$MEMORY_LIMIT" ] || [ -z "$CPU_REQUEST" ] || [ -z "$MEMORY_REQUEST" ]; then
+if [ -z "$CPU_LIMIT" ] || [ -z "$MEMORY_LIMIT" ] || [ -z "$CPU_REQUEST" ] \
+  || [ -z "$MEMORY_REQUEST" ]; then
   echo "ERROR gateway_resource_bounds=missing" >&2
   exit 1
 fi
@@ -101,7 +103,8 @@ PF_PIDS+=("$!")
 for port in 18001 18002; do
   ready=0
   for _ in $(seq 1 30); do
-    if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null 2>&1; then
+    if curl -fsS --max-time 2 "http://127.0.0.1:${port}/health" >/dev/null \
+      2>&1; then
       ready=1
       break
     fi
@@ -165,12 +168,14 @@ if [ "$STATUS_ONE" != "200" ] || [ "$STATUS_TWO" != "200" ]; then
   exit 1
 fi
 
-if [ -z "$RATE_ONE" ] || [ -z "$RATE_TWO" ] || [ "$RATE_TWO" -ge "$RATE_ONE" ]; then
+if [ -z "$RATE_ONE" ] || [ -z "$RATE_TWO" ] || [ "$RATE_TWO" -ge \
+  "$RATE_ONE" ]; then
   echo "ERROR shared_redis_rate_limit_not_observed" >&2
   exit 1
 fi
 
-if [ -z "$USAGE_ONE" ] || [ -z "$USAGE_TWO" ] || [ "$USAGE_TWO" -le "$USAGE_ONE" ]; then
+if [ -z "$USAGE_ONE" ] || [ -z "$USAGE_TWO" ] || [ "$USAGE_TWO" -le \
+  "$USAGE_ONE" ]; then
   echo "ERROR shared_postgres_usage_not_observed" >&2
   exit 1
 fi
@@ -274,7 +279,8 @@ if [ "$PROBE_PHASE" != "Failed" ]; then
   exit 1
 fi
 echo "default_deny_network_policy=enforced"
-kubectl -n "$NAMESPACE" delete pod sag-network-deny-probe --wait=false >/dev/null
+kubectl -n "$NAMESPACE" delete pod sag-network-deny-probe --wait=false \
+  >/dev/null
 
 DELETED_POD="${GATEWAY_PODS[1]}"
 kubectl -n "$NAMESPACE" delete pod "$DELETED_POD" --wait=false >/dev/null
@@ -283,7 +289,8 @@ if [ "$SURVIVOR_STATUS" != "200" ]; then
   echo "ERROR surviving_replica_status=$SURVIVOR_STATUS expected=200" >&2
   exit 1
 fi
-kubectl -n "$NAMESPACE" rollout status deployment/sag-gateway --timeout=180s >/dev/null
+kubectl -n "$NAMESPACE" rollout status deployment/sag-gateway \
+  --timeout=180s >/dev/null
 
 mapfile -t RESCHEDULED_PODS < <(
   kubectl -n "$NAMESPACE" get pods \

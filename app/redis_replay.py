@@ -22,7 +22,8 @@ class SharedRedisToolExecutionReplayStore:
             - Initializes a lazy shared Redis/Valkey client.
 
         Effects:
-            - Uses the central Redis factory so TLS/IAM cloud authentication and local Redis behave consistently.
+            - Uses the central Redis factory so TLS/IAM cloud authentication and
+            - local Redis behave consistently.
 
         Inputs:
             - redis_url: Redis-compatible connection URL.

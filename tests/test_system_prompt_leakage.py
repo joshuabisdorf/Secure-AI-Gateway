@@ -56,7 +56,8 @@ def test_leakage_detector_accepts_safe_response() -> None:
         - Nothing.
 
     Effects:
-        - Verifies normal refusal text is not classified as system-prompt leakage.
+        - Verifies normal refusal text is not classified as system-prompt
+        - leakage.
 
     Inputs:
         - None.
@@ -113,13 +114,15 @@ def test_leakage_detector_decodes_base64_response() -> None:
     RME
 
     Requires:
-        - Provider output contains Base64-encoded protected synthetic instructions.
+        - Provider output contains Base64-encoded protected synthetic
+        - instructions.
 
     Modifies:
         - Nothing.
 
     Effects:
-        - Verifies encoded prompt disclosure is detected without printing decoded content.
+        - Verifies encoded prompt disclosure is detected without printing
+        - decoded content.
 
     Inputs:
         - None.
@@ -151,14 +154,16 @@ def test_live_evaluation_harness_is_network_independent_with_test_provider() -> 
         - Nothing outside local test objects.
 
     Effects:
-        - Verifies all configured leakage cases are exercised without network access.
+        - Verifies all configured leakage cases are exercised without network
+        - access.
         - Verifies safe provider responses produce no leakage failures.
 
     Inputs:
         - None.
 
     Outputs:
-        - None. Assertions determine whether the evaluation harness works correctly.
+        - None. Assertions determine whether the evaluation harness works
+        - correctly.
     """
     results = asyncio.run(
         run_live_evaluation(

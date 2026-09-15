@@ -12,7 +12,8 @@ def parse_cidrs_json(value: str, label: str) -> list[str]:
     """Parse and canonicalize a JSON array of IPv4 CIDR strings.
 
     Requires:
-        value is intended to contain a JSON array and label identifies the source.
+        value is intended to contain a JSON array and label identifies the
+        source.
     Modifies:
         Nothing.
     Effects:
@@ -76,7 +77,8 @@ def render_policies(private_cidrs: list[str], data_cidrs: list[str]) -> str:
         Performs no I/O.
     Inputs:
         private_cidrs: EKS worker/private subnet CIDRs from Terraform outputs.
-        data_cidrs: Isolated RDS/ElastiCache subnet CIDRs from Terraform outputs.
+        data_cidrs: Isolated RDS/ElastiCache subnet CIDRs from Terraform
+        outputs.
     Outputs:
         Multi-document Kubernetes YAML for gateway, migration, and Prometheus
         runtime egress.
