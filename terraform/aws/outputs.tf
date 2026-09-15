@@ -75,10 +75,7 @@ output "postgres_database_name" {
 }
 
 output "postgres_master_secret_arn" {
-  description = join(" ", [
-    "RDS-managed administrative secret ARN. This is not intended for gateway",
-    "runtime use.",
-  ])
+  description = "RDS-managed admin secret ARN; not for gateway runtime use."
   value = (
     try(aws_db_instance.gateway.master_user_secret[0].secret_arn, null)
   )
@@ -97,35 +94,23 @@ output "valkey_port" {
 }
 
 output "valkey_replication_group_id" {
-  description = join(" ", [
-    "ElastiCache replication-group name used when signing IAM authentication",
-    "tokens.",
-  ])
-  value = aws_elasticache_replication_group.gateway.replication_group_id
+  description = "ElastiCache replication-group name for IAM token signing."
+  value       = aws_elasticache_replication_group.gateway.replication_group_id
 }
 
 output "valkey_iam_user_id" {
-  description = join(" ", [
-    "ElastiCache IAM-authenticated user ID expected by the gateway cloud",
-    "runtime.",
-  ])
-  value = aws_elasticache_user.gateway.user_id
+  description = "ElastiCache IAM user ID expected by the gateway runtime."
+  value       = aws_elasticache_user.gateway.user_id
 }
 
 output "gateway_workload_role_arn" {
-  description = join(" ", [
-    "IAM role associated with the sag-gateway Kubernetes service account",
-    "through EKS Pod Identity.",
-  ])
-  value = aws_iam_role.gateway_workload.arn
+  description = "IAM role for sag-gateway via EKS Pod Identity."
+  value       = aws_iam_role.gateway_workload.arn
 }
 
 output "migration_workload_role_arn" {
-  description = join(" ", [
-    "IAM role associated with the sag-migration Kubernetes service account",
-    "through EKS Pod Identity.",
-  ])
-  value = aws_iam_role.migration_workload.arn
+  description = "IAM role for sag-migration via EKS Pod Identity."
+  value       = aws_iam_role.migration_workload.arn
 }
 
 output "runtime_secret_arns" {
