@@ -1,31 +1,32 @@
 PYTHON ?= python
 
-.PHONY: help install release-install lock-verify style
-.PHONY: test evals security check preflight demo resilience
-.PHONY: m10-adversarial m10-integration benchmark
-.PHONY: up down kind-up kind-verify terraform-validate
+.PHONY: \
+	help install release-install lock-verify style style-strict test evals \
+	security check preflight demo resilience m10-adversarial m10-integration \
+	benchmark up down kind-up kind-verify terraform-validate
 
 help:
 	@printf '%s\n' \
 	  'install             Install project with development tooling' \
-	  'release-install     Install exact runtime dependencies from release lock' \
+	  'release-install     Install exact runtime dependencies from lock' \
 	  'lock-verify         Validate release dependency lock invariants' \
-	  'style               Enforce project-owned source style rules' \
+	  'style               Check new/modified files against project style' \
+	  'style-strict        Check the entire tree against project style' \
 	  'test                Run pytest' \
-	  'evals               Run prompt-injection and semantic-PII baselines' \
+	  'evals               Run security evaluation baselines' \
 	  'security            Run Bandit and dependency audit' \
 	  'check               Run style + test + evals + security' \
 	  'preflight           Run repository/release hygiene checks' \
-	  'demo                Run the zero-cost end-to-end portfolio demo' \
-	  'resilience          Inject backend and telemetry outages' \
+	  'demo                Run zero-cost end-to-end portfolio demo' \
+	  'resilience          Inject dependency outages and verify behavior' \
 	  'm10-adversarial     Run deterministic M10 adversarial coverage' \
-	  'm10-integration     Run real Redis/PostgreSQL concurrency tests' \
-	  'benchmark           Run local two-replica runtime benchmark' \
+	  'm10-integration     Run M10 Redis/PostgreSQL concurrency tests' \
+	  'benchmark           Run local M10 runtime performance baseline' \
 	  'up                  Start the Docker Compose stack' \
 	  'down                Stop Compose without deleting volumes' \
 	  'kind-up             Build/start the local kind environment' \
 	  'kind-verify         Verify policy, resilience, and load in kind' \
-	  'terraform-validate  Format-check and validate Terraform roots'
+	  'terraform-validate  Validate both Terraform roots'
 
 install:
 	$(PYTHON) -m pip install -e '.[dev]'
@@ -41,16 +42,17 @@ lock-verify:
 style:
 	$(PYTHON) scripts/style_check.py
 
+style-strict:
+	$(PYTHON) scripts/style_check.py --strict
+
 test:
 	pytest -q
 
 evals:
 	$(PYTHON) -m app.evals.prompt_injection_benchmark \
-	  --enforce-baseline \
-	  --show-errors
+		--enforce-baseline --show-errors
 	$(PYTHON) -m app.evals.semantic_pii_benchmark \
-	  --enforce-baseline \
-	  --show-errors
+		--enforce-baseline --show-errors
 
 security:
 	bandit -q -r app -ll -ii
@@ -72,16 +74,16 @@ m10-adversarial:
 
 m10-integration:
 	@test -n "$$DATABASE_URL" || \
-	  (echo 'DATABASE_URL is required.' >&2; exit 1)
+		(echo 'DATABASE_URL is required.' >&2; exit 1)
 	@test -n "$$REDIS_URL" || \
-	  (echo 'REDIS_URL is required.' >&2; exit 1)
+		(echo 'REDIS_URL is required.' >&2; exit 1)
 	SAG_RUN_M10_INTEGRATION=1 pytest -q tests/test_m10_integration.py
 
 benchmark:
 	@test -n "$$DATABASE_URL" || \
-	  (echo 'DATABASE_URL is required.' >&2; exit 1)
+		(echo 'DATABASE_URL is required.' >&2; exit 1)
 	@test -n "$$REDIS_URL" || \
-	  (echo 'REDIS_URL is required.' >&2; exit 1)
+		(echo 'REDIS_URL is required.' >&2; exit 1)
 	$(PYTHON) scripts/m10_runtime_verification.py
 
 up:
@@ -98,11 +100,7 @@ kind-verify:
 
 terraform-validate:
 	terraform fmt -check -diff -recursive terraform
-	terraform -chdir=terraform/bootstrap init \
-	  -backend=false \
-	  -input=false
+	terraform -chdir=terraform/bootstrap init -backend=false -input=false
 	terraform -chdir=terraform/bootstrap validate -no-color
-	terraform -chdir=terraform/aws init \
-	  -backend=false \
-	  -input=false
+	terraform -chdir=terraform/aws init -backend=false -input=false
 	terraform -chdir=terraform/aws validate -no-color

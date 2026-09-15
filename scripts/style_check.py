@@ -1,582 +1,704 @@
 from __future__ import annotations
 
+import argparse
 import ast
 import re
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+BASELINE_FILE = ROOT / ".style-baseline"
 MAX_LINE_LENGTH = 80
-ALLOW_NEXT_LINE = "# sag-style: allow-next-line=unsplittable"
-TEXT_SUFFIXES = {
-    ".cfg",
-    ".env",
-    ".example",
-    ".ini",
+
+_TEXT_SUFFIXES = {
     ".json",
-    ".lock",
     ".md",
     ".py",
     ".sh",
     ".sql",
     ".tf",
+    ".tfvars",
     ".toml",
-    ".txt",
     ".yaml",
     ".yml",
 }
-TEXT_NAMES = {
+_TEXT_NAMES = {
+    ".client.env.example",
     ".dockerignore",
     ".editorconfig",
+    ".env.example",
     ".gitignore",
+    ".style-baseline",
     "Dockerfile",
     "Makefile",
     "NOTICE",
     "SECURITY.md",
 }
-LEGAL_LINE_LENGTH_EXEMPT = {"LICENSE"}
-RMEIO_SECTIONS = (
+_EXCLUDED_PATHS = {
+    "LICENSE",
+    "requirements/release.lock",
+}
+_EXCLUDED_PREFIXES = ("evals/datasets/",)
+_URL_RE = re.compile(r"https?://\S+")
+_ACTION_RE = re.compile(
+    r"^\s*uses:\s*[^\s]+@[0-9a-f]{40}(?:\s+#.*)?$"
+)
+_LONG_ATOM_RE = re.compile(r"\S{81,}")
+_SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+_CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")
+_RMEIO_HEADINGS = (
     "Requires:",
     "Modifies:",
     "Effects:",
     "Inputs:",
     "Outputs:",
 )
-SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
-CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")
-HEX_TOKEN_RE = re.compile(r"^[0-9a-fA-F]{40,}$")
-OPAQUE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_./:+@#%?&=~-]{81,}$")
-JSON_STRING_RE = re.compile(r'"(?:\\.|[^"\\])*"')
 
 
 @dataclass(frozen=True)
 class Violation:
-    """One deterministic project-style violation."""
+    """Represent one project style violation.
 
-    path: Path
+    Requires:
+        path identifies a repository-relative file.
+    Modifies:
+        Nothing.
+    Effects:
+        Stores one immutable diagnostic record.
+    Inputs:
+        path: Repository-relative file path.
+        line: One-based line number, or zero for file-level errors.
+        rule: Stable rule identifier.
+        message: Human-readable diagnostic text.
+    Outputs:
+        An immutable violation value.
+    """
+
+    path: str
     line: int
-    code: str
+    rule: str
     message: str
 
 
-def tracked_files() -> list[Path]:
-    """Return tracked repository files.
+def _run_git(
+    *args: str,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    """Run a read-only Git command from the repository root.
 
     Requires:
-        - ROOT is inside a Git working tree.
-        - Git is installed and executable.
-
+        Git is installed and ROOT is inside a Git working tree.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Executes a read-only Git subprocess.
-
+        Executes a Git subprocess and captures its output.
     Inputs:
-        - None.
-
+        args: Git arguments after the executable name.
+        check: Whether non-zero exit status raises an exception.
     Outputs:
-        - Sorted repository-relative tracked file paths.
+        Completed subprocess result with text output.
     """
-    result = subprocess.run(
-        ["git", "ls-files", "-z"],
+    return subprocess.run(
+        ["git", *args],
         cwd=ROOT,
-        check=True,
+        check=check,
+        text=True,
         stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
     )
-    names = result.stdout.decode("utf-8").split("\0")
-    return sorted(Path(name) for name in names if name)
 
 
-def is_text_candidate(path: Path) -> bool:
-    """Return whether a tracked file is governed as text.
+def _baseline_commit() -> str:
+    """Return the commit that predates project style enforcement.
 
     Requires:
-        - path is repository-relative.
-
+        BASELINE_FILE contains one full Git commit SHA.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        Reads the repository-owned style baseline file.
     Inputs:
-        - path: Tracked repository path.
-
+        None.
     Outputs:
-        - True when text-style rules apply to the file.
+        Forty-character lowercase Git commit SHA.
     """
-    if path.name in TEXT_NAMES or path.name in LEGAL_LINE_LENGTH_EXEMPT:
-        return True
-    return path.suffix.lower() in TEXT_SUFFIXES
+    baseline = BASELINE_FILE.read_text(encoding="utf-8").strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", baseline):
+        raise ValueError("invalid .style-baseline commit")
+    return baseline
 
 
-def normalized_token(token: str) -> str:
-    """Strip syntax punctuation surrounding one opaque token.
+def _baseline_available(baseline: str) -> bool:
+    """Return whether the baseline commit exists in the local clone.
 
     Requires:
-        - token is one whitespace-delimited source token.
-
+        baseline is a full Git commit SHA.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        Queries the local Git object database.
     Inputs:
-        - token: Candidate token from a source line.
-
+        baseline: Commit used for transitional style comparison.
     Outputs:
-        - Token with common surrounding punctuation removed.
+        True when Git can resolve the baseline commit locally.
     """
-    return token.strip("'\"`()[]{}<>,;\\")
+    result = _run_git(
+        "cat-file",
+        "-e",
+        f"{baseline}^{{commit}}",
+        check=False,
+    )
+    return result.returncode == 0
 
 
-def is_unsplittable_token(token: str) -> bool:
-    """Return whether one long token qualifies for the narrow exception.
+def _tracked_files() -> list[Path]:
+    """Return tracked text candidates in deterministic order.
 
     Requires:
-        - token is a source token after whitespace splitting.
-
+        The repository index is readable by Git.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        Reads tracked paths from Git.
     Inputs:
-        - token: Candidate source token.
-
+        None.
     Outputs:
-        - True only for a long URL, digest, or opaque machine token.
+        Sorted repository-relative paths eligible for style checks.
     """
-    value = normalized_token(token)
-    if len(value) <= MAX_LINE_LENGTH:
-        return False
-    if value.startswith(("https://", "http://")):
-        return True
-    if HEX_TOKEN_RE.fullmatch(value):
-        return True
-    return OPAQUE_TOKEN_RE.fullmatch(value) is not None
+    output = _run_git("ls-files").stdout
+    candidates: list[Path] = []
+    for raw_path in output.splitlines():
+        if not raw_path:
+            continue
+        if raw_path in _EXCLUDED_PATHS:
+            continue
+        if raw_path.startswith(_EXCLUDED_PREFIXES):
+            continue
+        path = Path(raw_path)
+        if path.name in _TEXT_NAMES or path.suffix in _TEXT_SUFFIXES:
+            candidates.append(path)
+    return sorted(candidates)
 
 
-def has_unsplittable_content(path: Path, line: str) -> bool:
-    """Return whether a long line contains intrinsically unsplittable data.
+def _changed_since_baseline(path: Path, baseline: str) -> bool:
+    """Return whether a tracked file differs from the style baseline.
 
     Requires:
-        - path is repository-relative.
-        - line does not include a newline character.
-
+        baseline exists in the local Git object database.
+        path is repository-relative and currently tracked.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        Compares current tracked content with the baseline commit.
     Inputs:
-        - path: File containing the source line.
-        - line: Source line to inspect.
-
+        path: Repository-relative path.
+        baseline: Commit predating style enforcement.
     Outputs:
-        - True when the hard line-length exception is justified.
+        True for new or modified files, otherwise False.
     """
-    if any(is_unsplittable_token(token) for token in line.split()):
-        return True
-    if path.suffix.lower() == ".json":
-        return any(
-            len(match.group(0)) > MAX_LINE_LENGTH
-            for match in JSON_STRING_RE.finditer(line)
+    result = _run_git(
+        "diff",
+        "--quiet",
+        baseline,
+        "--",
+        str(path),
+        check=False,
+    )
+    if result.returncode not in (0, 1):
+        raise RuntimeError(
+            f"unable to compare {path} with style baseline"
         )
+    return result.returncode == 1
+
+
+def _line_length_exception(path: Path, line: str) -> bool:
+    """Return whether an overlong line is indivisible by project policy.
+
+    Requires:
+        line does not include its trailing newline.
+    Modifies:
+        Nothing.
+    Effects:
+        None.
+    Inputs:
+        path: Repository-relative path containing the line.
+        line: Candidate overlong line.
+    Outputs:
+        True only for narrow atomic forms that should not be split.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return False
+    if path.suffix == ".md" and stripped.startswith("|"):
+        return True
+    if _ACTION_RE.fullmatch(line):
+        return True
+    if _URL_RE.search(line):
+        return True
+    if _LONG_ATOM_RE.search(line):
+        return True
     return False
 
 
-def check_text(path: Path, data: bytes) -> list[Violation]:
-    """Check generic text invariants for one tracked file.
+def _check_text_file(path: Path) -> list[Violation]:
+    """Check universal text-file invariants.
 
     Requires:
-        - path is repository-relative.
-        - data contains the tracked file bytes.
-
+        path exists under ROOT and contains tracked text.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Decodes the file as UTF-8.
-
+        Reads the file contents.
     Inputs:
-        - path: File being checked.
-        - data: Raw tracked file bytes.
-
+        path: Repository-relative file path.
     Outputs:
-        - Style violations found in the file.
+        Violations for universal text style rules.
     """
+    full_path = ROOT / path
     violations: list[Violation] = []
+    data = full_path.read_bytes()
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
-        return [Violation(path, 1, "T001", "text file is not UTF-8")]
+        return [
+            Violation(str(path), 0, "TXT001", "file is not UTF-8")
+        ]
 
-    if "\r" in text:
-        violations.append(
-            Violation(path, 1, "T002", "carriage return found; use LF")
-        )
     if data and not data.endswith(b"\n"):
         violations.append(
             Violation(
-                path, len(text.splitlines()), "T003", "missing final newline"
+                str(path),
+                0,
+                "TXT002",
+                "missing final newline",
             )
         )
 
-    allow_next = False
-    for number, line in enumerate(text.splitlines(), start=1):
+    for line_number, line in enumerate(text.splitlines(), start=1):
         if line.rstrip(" \t") != line:
             violations.append(
-                Violation(path, number, "T004", "trailing whitespace")
+                Violation(
+                    str(path),
+                    line_number,
+                    "TXT003",
+                    "trailing whitespace",
+                )
             )
         if "\t" in line and path.name != "Makefile":
             violations.append(
-                Violation(path, number, "T005", "tab character is not allowed")
+                Violation(
+                    str(path),
+                    line_number,
+                    "TXT004",
+                    "tab character",
+                )
             )
-        if (
-            len(line) > MAX_LINE_LENGTH
-            and path.name not in LEGAL_LINE_LENGTH_EXEMPT
-            and not allow_next
-            and not has_unsplittable_content(path, line)
+        if len(line) > MAX_LINE_LENGTH and not _line_length_exception(
+            path,
+            line,
         ):
             violations.append(
                 Violation(
-                    path,
-                    number,
-                    "L001",
-                    f"line is {len(line)} characters; maximum is 80",
+                    str(path),
+                    line_number,
+                    "TXT005",
+                    f"line length {len(line)} exceeds "
+                    f"{MAX_LINE_LENGTH}",
                 )
             )
-        allow_next = line.strip() == ALLOW_NEXT_LINE
-
     return violations
 
 
-def is_dunder(name: str) -> bool:
-    """Return whether a Python name is a language-protocol dunder name.
+def _is_runtime_python(path: Path) -> bool:
+    """Return whether a Python file is maintained project code.
 
     Requires:
-        - name is a Python identifier.
-
+        path is repository-relative.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        None.
     Inputs:
-        - name: Identifier to inspect.
-
+        path: Repository-relative path.
     Outputs:
-        - True when the name begins and ends with two underscores.
+        True for app modules and Python utilities under scripts.
+    """
+    return (
+        path.suffix == ".py"
+        and path.parts[0] in {"app", "scripts"}
+        and path.name != "style_check.py"
+    )
+
+
+def _is_dunder(name: str) -> bool:
+    """Return whether a Python name is a language-protocol dunder.
+
+    Requires:
+        name is a Python identifier.
+    Modifies:
+        Nothing.
+    Effects:
+        None.
+    Inputs:
+        name: Identifier to inspect.
+    Outputs:
+        True when name starts and ends with two underscores.
     """
     return name.startswith("__") and name.endswith("__")
 
 
-def project_function_nodes(
-    tree: ast.Module,
-) -> list[ast.FunctionDef | ast.AsyncFunctionDef]:
-    """Return module-level functions and direct class methods.
+def _rmeio_positions(node: ast.AST) -> list[int]:
+    """Return RMEIO heading positions from a node docstring.
 
     Requires:
-        - tree is a parsed Python module.
-
+        node supports an AST docstring.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        None.
     Inputs:
-        - tree: Parsed Python syntax tree.
-
+        node: Function or method AST node.
     Outputs:
-        - Functions that represent repository-level callable contracts.
+        Heading positions in required RMEIO order; missing headings are -1.
     """
-    functions: list[ast.FunctionDef | ast.AsyncFunctionDef] = []
-    for node in tree.body:
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            functions.append(node)
-        elif isinstance(node, ast.ClassDef):
-            for item in node.body:
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                    functions.append(item)
-    return functions
+    docstring = ast.get_docstring(node, clean=False) or ""
+    return [docstring.find(heading) for heading in _RMEIO_HEADINGS]
 
 
-def requires_rmeio(path: Path) -> bool:
-    """Return whether project functions in a Python file require RMEIO.
+def _requires_rmeio(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> bool:
+    """Return whether a function must use the full RMEIO contract.
 
     Requires:
-        - path is repository-relative.
-
+        node is a parsed function definition.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        None.
     Inputs:
-        - path: Python source path.
-
+        node: Parsed function definition.
     Outputs:
-        - True for application and Python utility implementation files.
+        True for non-trivial project functions.
     """
-    if not path.parts:
+    if _is_dunder(node.name):
         return False
-    if path.parts[0] == "app":
-        return True
-    return path.parts[0] == "scripts" and path.suffix == ".py"
+    if node.name.startswith("_") and len(node.body) <= 3:
+        return False
+    return True
 
 
-def check_rmeio(
+def _check_rmeio(
     path: Path,
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> list[Violation]:
-    """Validate one project function's RMEIO contract.
+    """Check one function's RMEIO documentation contract.
 
     Requires:
-        - node belongs to a file where RMEIO is required.
-
+        path identifies maintained runtime Python.
+        node requires a full RMEIO contract.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        Reads the function docstring from the parsed syntax tree.
     Inputs:
-        - path: Python source path.
-        - node: Function or method syntax node.
-
+        path: Repository-relative Python path.
+        node: Function or method syntax node.
     Outputs:
-        - RMEIO violations for the function.
+        RMEIO presence or ordering violations.
     """
-    if is_dunder(node.name):
-        return []
-    docstring = ast.get_docstring(node, clean=False)
-    if docstring is None:
-        return [
-            Violation(
-                path,
-                node.lineno,
-                "D001",
-                f"function {node.name} requires an RMEIO docstring",
-            )
-        ]
-    positions = [docstring.find(section) for section in RMEIO_SECTIONS]
+    positions = _rmeio_positions(node)
     if any(position < 0 for position in positions):
         return [
             Violation(
-                path,
+                str(path),
                 node.lineno,
-                "D002",
-                f"function {node.name} is missing an RMEIO section",
+                "PY006",
+                f"{node.name} requires full RMEIO docstring",
             )
         ]
     if positions != sorted(positions):
         return [
             Violation(
-                path,
+                str(path),
                 node.lineno,
-                "D003",
-                f"function {node.name} has RMEIO sections out of order",
+                "PY007",
+                f"{node.name} has RMEIO headings out of order",
             )
         ]
     return []
 
 
-def check_python(path: Path, text: str) -> list[Violation]:
-    """Check Python-specific project style rules.
+def _check_python(path: Path) -> list[Violation]:
+    """Check Python-specific structural rules without external linters.
 
     Requires:
-        - path names a UTF-8 Python file.
-        - text is the decoded file content.
-
+        path identifies UTF-8 Python source under ROOT.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Parses Python syntax into an AST.
-
+        Parses source into an AST.
     Inputs:
-        - path: Python source path.
-        - text: Python source text.
-
+        path: Repository-relative Python path.
     Outputs:
-        - Python-specific style violations.
+        Python-specific style violations.
     """
-    violations: list[Violation] = []
+    source = (ROOT / path).read_text(encoding="utf-8")
     try:
-        tree = ast.parse(text, filename=str(path))
+        tree = ast.parse(source, filename=str(path))
     except SyntaxError as exc:
         return [
             Violation(
-                path,
-                exc.lineno or 1,
-                "P001",
-                f"Python syntax error: {exc.msg}",
+                str(path),
+                exc.lineno or 0,
+                "PY001",
+                f"syntax error: {exc.msg}",
             )
         ]
 
+    violations: list[Violation] = []
     module_name = path.stem
-    if module_name != "__init__" and not SNAKE_CASE_RE.fullmatch(module_name):
+    if module_name != "__init__" and not _SNAKE_CASE_RE.fullmatch(
+        module_name
+    ):
         violations.append(
-            Violation(path, 1, "N001", "Python module name must be snake_case")
+            Violation(
+                str(path),
+                1,
+                "PY008",
+                "Python module name must be snake_case",
+            )
         )
 
     for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and any(
+            alias.name == "*" for alias in node.names
+        ):
+            violations.append(
+                Violation(
+                    str(path),
+                    node.lineno,
+                    "PY002",
+                    "wildcard import",
+                )
+            )
+        if isinstance(node, ast.Import) and len(node.names) > 1:
+            violations.append(
+                Violation(
+                    str(path),
+                    node.lineno,
+                    "PY003",
+                    "multiple imports in one statement",
+                )
+            )
+        if isinstance(node, ast.ExceptHandler) and node.type is None:
+            violations.append(
+                Violation(
+                    str(path),
+                    node.lineno,
+                    "PY004",
+                    "bare except",
+                )
+            )
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            if not is_dunder(node.name) and not SNAKE_CASE_RE.fullmatch(
+            if not _is_dunder(node.name) and not _SNAKE_CASE_RE.fullmatch(
                 node.name
             ):
                 violations.append(
                     Violation(
-                        path,
+                        str(path),
                         node.lineno,
-                        "N002",
+                        "PY009",
                         f"function name is not snake_case: {node.name}",
                     )
                 )
-        elif isinstance(node, ast.ClassDef):
-            if not CLASS_NAME_RE.fullmatch(node.name):
+            defaults = [*node.args.defaults, *node.args.kw_defaults]
+            for default in defaults:
+                if isinstance(default, (ast.List, ast.Dict, ast.Set)):
+                    violations.append(
+                        Violation(
+                            str(path),
+                            node.lineno,
+                            "PY005",
+                            f"mutable default in {node.name}",
+                        )
+                    )
+            if _is_runtime_python(path) and _requires_rmeio(node):
+                violations.extend(_check_rmeio(path, node))
+        if isinstance(node, ast.ClassDef):
+            if not _CLASS_NAME_RE.fullmatch(node.name):
                 violations.append(
                     Violation(
-                        path,
+                        str(path),
                         node.lineno,
-                        "N003",
-                        f"class name is not UpperCamelCase with optional private prefix: {node.name}",
+                        "PY010",
+                        f"class name is not CapWords: {node.name}",
                     )
                 )
-        elif isinstance(node, ast.ImportFrom):
-            if any(alias.name == "*" for alias in node.names):
-                violations.append(
-                    Violation(path, node.lineno, "P002", "wildcard import")
-                )
-        elif isinstance(node, ast.ExceptHandler) and node.type is None:
-            violations.append(
-                Violation(path, node.lineno, "P003", "bare except clause")
-            )
-
-    if requires_rmeio(path):
-        for function in project_function_nodes(tree):
-            violations.extend(check_rmeio(path, function))
-
     return violations
 
 
-def check_shell(path: Path, text: str) -> list[Violation]:
-    """Check Bash entrypoint and strict-mode conventions.
+def _check_shell(path: Path) -> list[Violation]:
+    """Check repository shell entrypoint conventions.
 
     Requires:
-        - path names a repository shell program.
-        - text is decoded shell source.
-
+        path identifies a UTF-8 shell script under ROOT.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Nothing.
-
+        Reads the script text.
     Inputs:
-        - path: Shell source path.
-        - text: Shell source text.
-
+        path: Repository-relative shell script path.
     Outputs:
-        - Shell-specific style violations.
+        Shell shebang and strict-mode violations.
     """
-    violations: list[Violation] = []
+    text = (ROOT / path).read_text(encoding="utf-8")
     lines = text.splitlines()
+    violations: list[Violation] = []
     if not lines or lines[0] != "#!/usr/bin/env bash":
         violations.append(
             Violation(
-                path, 1, "S001", "shell program must use env bash shebang"
+                str(path),
+                1,
+                "SH001",
+                "shell script must use env bash shebang",
             )
         )
     early_lines = lines[1:12]
     if not any(line.strip() == "set -euo pipefail" for line in early_lines):
         violations.append(
-            Violation(path, 2, "S002", "shell program must enable strict mode")
+            Violation(
+                str(path),
+                2,
+                "SH002",
+                "shell script must enable set -euo pipefail",
+            )
         )
     return violations
 
 
-def check_file(path: Path) -> list[Violation]:
-    """Check all automated style rules for one tracked file.
+def collect_violations(
+    *,
+    strict: bool,
+) -> tuple[list[Violation], int, int]:
+    """Collect machine-checkable project style violations.
 
     Requires:
-        - path is repository-relative and tracked by Git.
-
+        Repository files are readable and Git is available.
+        The baseline commit is available for non-strict checks.
     Modifies:
-        - Nothing.
-
+        Nothing.
     Effects:
-        - Reads the file from the working tree.
-
+        Reads tracked files and parses selected source files.
     Inputs:
-        - path: Tracked repository path.
-
+        strict: Whether to check unchanged pre-standard files too.
     Outputs:
-        - All automated style violations for the file.
+        Violations, checked-file count, and skipped legacy-file count.
     """
-    absolute = ROOT / path
-    if not absolute.is_file() or not is_text_candidate(path):
-        return []
-    data = absolute.read_bytes()
-    violations = check_text(path, data)
-    try:
-        text = data.decode("utf-8")
-    except UnicodeDecodeError:
-        return violations
-    if path.suffix == ".py":
-        violations.extend(check_python(path, text))
-    if path.suffix == ".sh" or path.as_posix() == "docker/entrypoint.sh":
-        violations.extend(check_shell(path, text))
-    return violations
+    baseline = _baseline_commit()
+    if not strict and not _baseline_available(baseline):
+        raise RuntimeError(
+            "style baseline is unavailable; use a full Git clone"
+        )
 
-
-def main() -> int:
-    """Run the repository style gate.
-
-    Requires:
-        - The command runs from a checkout containing Git metadata.
-
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Reads tracked files and prints deterministic diagnostics.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Zero when all style checks pass; one when violations exist.
-    """
     violations: list[Violation] = []
-    for path in tracked_files():
-        violations.extend(check_file(path))
+    checked_files = 0
+    legacy_skipped = 0
+    for path in _tracked_files():
+        if not strict and not _changed_since_baseline(path, baseline):
+            legacy_skipped += 1
+            continue
+        checked_files += 1
+        violations.extend(_check_text_file(path))
+        if path.suffix == ".py":
+            violations.extend(_check_python(path))
+        if path.suffix == ".sh":
+            violations.extend(_check_shell(path))
 
     violations.sort(
         key=lambda item: (
-            item.path.as_posix(),
+            item.path,
             item.line,
-            item.code,
+            item.rule,
             item.message,
         )
     )
-    for item in violations:
-        print(f"{item.path.as_posix()}:{item.line}: {item.code} {item.message}")
+    return violations, checked_files, legacy_skipped
 
+
+def _build_parser() -> argparse.ArgumentParser:
+    """Build the project style command-line parser.
+
+    Requires:
+        Nothing.
+    Modifies:
+        Nothing.
+    Effects:
+        None.
+    Inputs:
+        None.
+    Outputs:
+        Configured argument parser.
+    """
+    parser = argparse.ArgumentParser(
+        description="Check Secure AI Gateway project style.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="check the entire tree, including pre-standard files",
+    )
+    return parser
+
+
+def main() -> int:
+    """Run the repository style gate and print stable diagnostics.
+
+    Requires:
+        The command runs from a Git checkout of this project.
+    Modifies:
+        Nothing.
+    Effects:
+        Prints style violations and migration status.
+    Inputs:
+        Command-line arguments parsed by `_build_parser`.
+    Outputs:
+        Process status 0 when clean, otherwise 1.
+    """
+    args = _build_parser().parse_args()
+    try:
+        violations, checked_files, legacy_skipped = collect_violations(
+            strict=args.strict,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        print(f"style_check=ERROR detail={exc}")
+        return 2
+
+    for violation in violations:
+        location = violation.path
+        if violation.line:
+            location = f"{location}:{violation.line}"
+        print(
+            f"{location}: {violation.rule} "
+            f"{violation.message}"
+        )
+
+    mode = "strict" if args.strict else "incremental"
     if violations:
-        print(f"style_check=FAIL violations={len(violations)}")
+        print(
+            f"style_check=FAIL mode={mode} "
+            f"violations={len(violations)} "
+            f"checked_files={checked_files} "
+            f"legacy_skipped={legacy_skipped}"
+        )
         return 1
-    print("style_check=PASS")
+
+    print(
+        f"style_check=PASS mode={mode} violations=0 "
+        f"checked_files={checked_files} "
+        f"legacy_skipped={legacy_skipped}"
+    )
     return 0
 
 
