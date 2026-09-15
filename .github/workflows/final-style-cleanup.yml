@@ -1,0 +1,259 @@
+name: Temporary final style cleanup
+
+on:
+  push:
+    branches:
+      - pre-v1-full-style-conformance
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out cleanup branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: pre-v1-full-style-conformance
+          fetch-depth: 0
+
+      - name: Finalize checker and documentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("scripts/style_check.py")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace("import argparse\n", "", 1)
+          text = text.replace(
+              'BASELINE_FILE = ROOT / ".style-baseline"\n',
+              "",
+              1,
+          )
+          text = text.replace('    ".style-baseline",\n', "", 1)
+          text = text.replace(
+              '_LONG_ATOM_RE = re.compile(r"\\S{81,}")\n',
+              '_TF_BLOCK_HEADER_RE = re.compile(\n'
+              '    r\'^\\s*(?:resource|data)\\s+"[^\"]+"\\s+"[^\"]+"\\s+\\{$\'\n'
+              ')\n'
+              '_LONG_ATOM_RE = re.compile(r"\\S{81,}")\n',
+              1,
+          )
+          text, count = re.subn(
+              r"\ndef _baseline_commit\(\) -> str:\n.*?\n\ndef _tracked_files",
+              "\n\ndef _tracked_files",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          assert count == 1
+          text, count = re.subn(
+              r"\ndef _changed_since_baseline\(.*?\n\ndef _line_length_exception",
+              "\n\ndef _line_length_exception",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          assert count == 1
+          needle = (
+              '    if _ACTION_RE.fullmatch(line):\n'
+              '        return True\n'
+          )
+          replacement = (
+              '    if (\n'
+              '        path.suffix == ".tf"\n'
+              '        and _TF_BLOCK_HEADER_RE.fullmatch(line)\n'
+              '    ):\n'
+              '        return True\n'
+              + needle
+          )
+          assert needle in text
+          text = text.replace(needle, replacement, 1)
+
+          collect = '''def collect_violations() -> tuple[list[Violation], int]:
+              """Collect machine-checkable project style violations.
+
+              Requires:
+                  Repository files are readable and Git is available.
+              Modifies:
+                  Nothing.
+              Effects:
+                  Reads every tracked project text file and parses source files.
+              Inputs:
+                  None.
+              Outputs:
+                  Violations and the checked-file count.
+              """
+              violations: list[Violation] = []
+              checked_files = 0
+              for path in _tracked_files():
+                  checked_files += 1
+                  violations.extend(_check_text_file(path))
+                  if path.suffix == ".py":
+                      violations.extend(_check_python(path))
+                  if path.suffix == ".sh":
+                      violations.extend(_check_shell(path))
+
+              violations.sort(
+                  key=lambda item: (
+                      item.path,
+                      item.line,
+                      item.rule,
+                      item.message,
+                  )
+              )
+              return violations, checked_files
+          '''
+          collect = "\n".join(
+              line[14:] if line.startswith("              ") else line
+              for line in collect.splitlines()
+          )
+          text, count = re.subn(
+              r"def collect_violations\(.*?\n\ndef _build_parser",
+              collect + "\n\ndef _build_parser",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          assert count == 1
+
+          main = '''def main() -> int:
+              """Run the whole-repository style gate and print diagnostics.
+
+              Requires:
+                  The command runs from a Git checkout of this project.
+              Modifies:
+                  Nothing.
+              Effects:
+                  Checks all tracked project text and prints style violations.
+              Inputs:
+                  None.
+              Outputs:
+                  Process status 0 when clean, otherwise 1.
+              """
+              try:
+                  violations, checked_files = collect_violations()
+              except (OSError, RuntimeError, ValueError) as exc:
+                  print(f"style_check=ERROR detail={exc}")
+                  return 2
+
+              for violation in violations:
+                  location = violation.path
+                  if violation.line:
+                      location = f"{location}:{violation.line}"
+                  print(
+                      f"{location}: {violation.rule} "
+                      f"{violation.message}"
+                  )
+
+              if violations:
+                  print(
+                      "style_check=FAIL mode=whole-tree "
+                      f"violations={len(violations)} "
+                      f"checked_files={checked_files}"
+                  )
+                  return 1
+
+              print(
+                  "style_check=PASS mode=whole-tree violations=0 "
+                  f"checked_files={checked_files}"
+              )
+              return 0
+          '''
+          main = "\n".join(
+              line[14:] if line.startswith("              ") else line
+              for line in main.splitlines()
+          )
+          text, count = re.subn(
+              r"def _build_parser\(\).*?\n\nif __name__ == \"__main__\":",
+              main + '\n\nif __name__ == "__main__":',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          assert count == 1
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("Makefile")
+          text = path.read_text(encoding="utf-8")
+          text = text.replace(" style style-strict test", " style test", 1)
+          text = text.replace(
+              "\t  'style               Check new/modified files against project style' \\\n"
+              "\t  'style-strict        Check the entire tree against project style' \\\n",
+              "\t  'style               Check the entire tree against project style' \\\n",
+              1,
+          )
+          text = text.replace(
+              "\nstyle-strict:\n\t$(PYTHON) scripts/style_check.py --strict\n",
+              "",
+              1,
+          )
+          path.write_text(text, encoding="utf-8")
+
+          path = Path("docs/style-standard.md")
+          text = path.read_text(encoding="utf-8")
+          section = '''## Enforcement
+
+          `scripts/style_check.py` is the repository-owned checker for rules that
+          can be validated safely without importing a third-party formatting or
+          linting policy.
+
+          The checker evaluates the entire tracked repository on every run. There
+          is no legacy baseline, moving exemption, or grandfathered file set.
+          Existing and newly modified project files are held to the same standard.
+
+          Run the whole-repository gate with:
+
+          ```bash
+          make style
+          ```
+
+          CI runs the same whole-repository command. Machine-enforced checks include
+          text hygiene, the 80-character limit, Python syntax and structural
+          hazards, Python naming, RMEIO presence and order, and Bash shebang and
+          strict-mode requirements.
+
+          The checker is intentionally conservative: it rejects clear violations
+          and leaves subjective review decisions to code review rather than
+          rewriting source automatically.
+
+          A line-length exception should make its necessity obvious from the line
+          itself. The checker recognizes only narrow atomic or canonical forms;
+          new blanket exclusions must not be added merely to make CI pass.
+          '''
+          section = "\n".join(
+              line[10:] if line.startswith("          ") else line
+              for line in section.splitlines()
+          ) + "\n"
+          text, count = re.subn(
+              r"## Enforcement\n.*\Z",
+              section,
+              text,
+              count=1,
+              flags=re.S,
+          )
+          assert count == 1
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Validate final checker syntax
+        run: python -m py_compile scripts/style_check.py
+
+      - name: Commit cleanup result
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email \
+            "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scripts/style_check.py Makefile docs/style-standard.md
+          git commit -m "Retire transitional style baseline"
+          git push origin HEAD:pre-v1-full-style-conformance
