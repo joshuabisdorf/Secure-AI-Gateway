@@ -104,7 +104,8 @@ PostgreSQL is authoritative for client/key identity and persistent usage.
 Redis/Valkey is authoritative for distributed rate-limit state and one-time
 execution claims. Telemetry is deliberately not an authorization dependency.
 
-See [`docs/architecture.md`](docs/architecture.md) for the complete trust-boundary
+See the reviewer-oriented
+[`architecture guide`](docs/architecture.md) for the complete trust-boundary
 review.
 
 ## Request processing
@@ -198,10 +199,10 @@ Terraform
 Separate workflows provide project style enforcement, repository/history
 preflight, CodeQL, Trivy container scanning, and public GHCR publication.
 
-The live kind job enforces Pod Security and NetworkPolicy, proves an unauthorized
-Redis path is denied, verifies shared state across replicas, deletes a replica
-under traffic, waits for its replacement, and performs bounded load/resource
-checks.
+The live kind job enforces Pod Security and NetworkPolicy. It proves an
+unauthorized Redis path is denied, verifies shared state across replicas,
+deletes a replica under traffic, waits for its replacement, and performs
+bounded load/resource checks.
 
 The release workflow publishes an immutable SHA image, resolves its OCI digest,
 generates an SPDX image SBOM, creates build-provenance and SBOM attestations,
