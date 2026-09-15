@@ -22,7 +22,7 @@ output "private_subnet_cidrs" {
   description = (
     "Private EKS worker subnet CIDRs used to render cloud NetworkPolicies."
   )
-  value       = values(aws_subnet.private)[*].cidr_block
+  value = values(aws_subnet.private)[*].cidr_block
 }
 
 output "data_subnet_ids" {
@@ -34,14 +34,14 @@ output "data_subnet_cidrs" {
   description = (
     "Isolated data subnet CIDRs used to render cloud NetworkPolicies."
   )
-  value       = values(aws_subnet.data)[*].cidr_block
+  value = values(aws_subnet.data)[*].cidr_block
 }
 
 output "secretsmanager_vpc_endpoint_id" {
   description = (
     "Private Secrets Manager interface endpoint used by gateway workloads."
   )
-  value       = aws_vpc_endpoint.secretsmanager.id
+  value = aws_vpc_endpoint.secretsmanager.id
 }
 
 output "eks_cluster_name" {
@@ -101,7 +101,7 @@ output "valkey_replication_group_id" {
     "ElastiCache replication-group name used when signing IAM authentication",
     "tokens.",
   ])
-  value       = aws_elasticache_replication_group.gateway.replication_group_id
+  value = aws_elasticache_replication_group.gateway.replication_group_id
 }
 
 output "valkey_iam_user_id" {
@@ -109,7 +109,7 @@ output "valkey_iam_user_id" {
     "ElastiCache IAM-authenticated user ID expected by the gateway cloud",
     "runtime.",
   ])
-  value       = aws_elasticache_user.gateway.user_id
+  value = aws_elasticache_user.gateway.user_id
 }
 
 output "gateway_workload_role_arn" {
@@ -117,7 +117,7 @@ output "gateway_workload_role_arn" {
     "IAM role associated with the sag-gateway Kubernetes service account",
     "through EKS Pod Identity.",
   ])
-  value       = aws_iam_role.gateway_workload.arn
+  value = aws_iam_role.gateway_workload.arn
 }
 
 output "migration_workload_role_arn" {
@@ -125,7 +125,7 @@ output "migration_workload_role_arn" {
     "IAM role associated with the sag-migration Kubernetes service account",
     "through EKS Pod Identity.",
   ])
-  value       = aws_iam_role.migration_workload.arn
+  value = aws_iam_role.migration_workload.arn
 }
 
 output "runtime_secret_arns" {

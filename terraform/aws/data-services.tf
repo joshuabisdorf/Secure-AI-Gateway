@@ -13,10 +13,10 @@ resource "aws_security_group" "postgres" {
   vpc_id      = aws_vpc.gateway.id
 
   ingress {
-    description     = "PostgreSQL from EKS cluster security group"
-    from_port       = 5432
-    to_port         = 5432
-    protocol        = "tcp"
+    description = "PostgreSQL from EKS cluster security group"
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
     security_groups = (
       [aws_eks_cluster.gateway.vpc_config[0].cluster_security_group_id]
     )
@@ -76,9 +76,9 @@ resource "aws_db_instance" "gateway" {
   auto_minor_version_upgrade          = true
   iam_database_authentication_enabled = true
 
-  deletion_protection       = var.protect_data
-  delete_automated_backups  = !var.protect_data
-  skip_final_snapshot       = !var.protect_data
+  deletion_protection      = var.protect_data
+  delete_automated_backups = !var.protect_data
+  skip_final_snapshot      = !var.protect_data
   final_snapshot_identifier = (
     var.protect_data ? "${local.name}-postgres-final" : null
   )
@@ -97,10 +97,10 @@ resource "aws_security_group" "valkey" {
   vpc_id      = aws_vpc.gateway.id
 
   ingress {
-    description     = "Valkey TLS from EKS cluster security group"
-    from_port       = 6379
-    to_port         = 6379
-    protocol        = "tcp"
+    description = "Valkey TLS from EKS cluster security group"
+    from_port   = 6379
+    to_port     = 6379
+    protocol    = "tcp"
     security_groups = (
       [aws_eks_cluster.gateway.vpc_config[0].cluster_security_group_id]
     )

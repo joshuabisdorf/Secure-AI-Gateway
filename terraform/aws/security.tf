@@ -14,7 +14,7 @@ resource "aws_kms_alias" "platform" {
 }
 
 resource "aws_secretsmanager_secret" "provider_credentials" {
-  name                    = "${local.name}/provider-credentials"
+  name = "${local.name}/provider-credentials"
   description = (
     "Provider credentials populated during the cloud deployment stage."
   )
@@ -23,7 +23,7 @@ resource "aws_secretsmanager_secret" "provider_credentials" {
 }
 
 resource "aws_secretsmanager_secret" "database_credentials" {
-  name                    = "${local.name}/database-credentials"
+  name = "${local.name}/database-credentials"
   description = join(" ", [
     "Gateway database credentials populated during the cloud deployment",
     "stage.",
@@ -33,7 +33,7 @@ resource "aws_secretsmanager_secret" "database_credentials" {
 }
 
 resource "aws_secretsmanager_secret" "tool_signing_key" {
-  name                    = "${local.name}/tool-execution-signing-key"
+  name = "${local.name}/tool-execution-signing-key"
   description = join(" ", [
     "Gateway tool execution signing key populated during the cloud deployment",
     "stage.",

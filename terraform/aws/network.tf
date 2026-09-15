@@ -114,7 +114,7 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.gateway.id
 
   route {
-    cidr_block     = "0.0.0.0/0"
+    cidr_block = "0.0.0.0/0"
     nat_gateway_id = (
       var.nat_gateway_mode == "per_az" ?
       aws_nat_gateway.gateway[each.key].id :

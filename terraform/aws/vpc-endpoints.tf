@@ -4,7 +4,7 @@ resource "aws_security_group" "secretsmanager_endpoint" {
     "Allow Secure AI Gateway private subnets to reach Secrets Manager",
     "privately.",
   ])
-  vpc_id      = aws_vpc.gateway.id
+  vpc_id = aws_vpc.gateway.id
 
   ingress {
     description = "HTTPS from EKS private subnets"

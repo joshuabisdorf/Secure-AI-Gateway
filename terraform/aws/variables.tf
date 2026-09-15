@@ -72,8 +72,8 @@ variable "nat_gateway_mode" {
     "NAT topology: single is cost-oriented; per_az provides zonal egress",
     "redundancy.",
   ])
-  type        = string
-  default     = "single"
+  type    = string
+  default = "single"
 
   validation {
     condition     = contains(["single", "per_az"], var.nat_gateway_mode)
@@ -87,7 +87,7 @@ variable "eks_version" {
   default     = "1.36"
 
   validation {
-    condition     = can(regex("^1\\.[0-9]+$", var.eks_version))
+    condition = can(regex("^1\\.[0-9]+$", var.eks_version))
     error_message = (
       "eks_version must be a Kubernetes minor version such as 1.36."
     )
@@ -99,8 +99,8 @@ variable "eks_public_access_cidrs" {
     "CIDRs allowed to reach the public EKS API endpoint. Empty keeps the API",
     "private-only.",
   ])
-  type        = list(string)
-  default     = []
+  type    = list(string)
+  default = []
 
   validation {
     condition = alltrue([
@@ -118,9 +118,9 @@ variable "eks_admin_role_arn" {
     "Optional IAM role ARN granted EKS cluster-admin access through an EKS",
     "access entry.",
   ])
-  type        = string
-  default     = null
-  nullable    = true
+  type     = string
+  default  = null
+  nullable = true
 }
 
 variable "eks_node_instance_types" {
@@ -194,8 +194,8 @@ variable "protect_data" {
     "Enable deletion protection/final snapshots for persistent data services.",
     "Recommended outside disposable development environments.",
   ])
-  type        = bool
-  default     = false
+  type    = bool
+  default = false
 }
 
 variable "ecr_force_delete" {
@@ -203,6 +203,6 @@ variable "ecr_force_delete" {
     "Allow Terraform to delete a non-empty ECR repository. Keep false outside",
     "disposable development environments.",
   ])
-  type        = bool
-  default     = false
+  type    = bool
+  default = false
 }

@@ -13,7 +13,7 @@ data "aws_iam_policy_document" "migration_workload_assume" {
 }
 
 resource "aws_iam_role" "migration_workload" {
-  name               = "${local.name}-migration-workload"
+  name = "${local.name}-migration-workload"
   assume_role_policy = (
     data.aws_iam_policy_document.migration_workload_assume.json
   )
