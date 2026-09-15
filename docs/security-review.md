@@ -278,8 +278,6 @@ they do not prove that the artifact is vulnerability-free.
   unknown vulnerability or malicious dependency.
 - Failure injection does not simulate every partition, kernel failure,
   managed-service failover, or Byzantine condition.
-- The style baseline defers pre-standard formatting debt in untouched files.
-  New and modified files are held to the project-owned style standard.
 
 ## Release decision
 
