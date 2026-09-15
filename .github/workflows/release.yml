@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
       - name: Derive immutable image tags
-        id: image
+        id: img
         shell: bash
         run: |
           set -euo pipefail
@@ -37,7 +37,7 @@ jobs:
           SHORT_SHA="${GITHUB_SHA:0:12}"
           {
             echo "image=$IMAGE"
-            echo "sha_tag=sha-$SHORT_SHA"
+            echo "tag=sha-$SHORT_SHA"
           } >> "$GITHUB_OUTPUT"
 
       - name: Log in to GitHub Container Registry
@@ -53,10 +53,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          SOURCE="https://github.com/${GITHUB_REPOSITORY}"
+          IMAGE="${{ steps.img.outputs.image }}"
+          TAG="${{ steps.img.outputs.tag }}"
           docker build \
-            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.source=$SOURCE" \
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
-            --tag "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
+            --tag "$IMAGE:$TAG" \
             .
 
       - name: Smoke-test built image
@@ -65,23 +68,28 @@ jobs:
           set -euo pipefail
           docker run --rm \
             --entrypoint python \
-            "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
+            "${{ steps.img.outputs.image }}:${{ steps.img.outputs.tag }}" \
             -c 'import app.server; print("production_server_import=OK")'
 
       - name: Publish immutable image
         shell: bash
         run: |
           set -euo pipefail
-          docker push "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}"
+          IMAGE="${{ steps.img.outputs.image }}"
+          TAG="${{ steps.img.outputs.tag }}"
+          docker push "$IMAGE:$TAG"
 
       - name: Resolve published image digest
-        id: published
+        id: pub
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE_REF="${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}"
+          IMAGE="${{ steps.img.outputs.image }}"
+          TAG="${{ steps.img.outputs.tag }}"
+          IMAGE_REF="$IMAGE:$TAG"
           DIGEST="$(
-            docker buildx imagetools inspect "$IMAGE_REF" --format '{{json .Manifest}}' \
+            docker buildx imagetools inspect "$IMAGE_REF" \
+              --format '{{json .Manifest}}' \
               | jq -r '.digest'
           )"
           if [[ ! "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]]; then
@@ -94,7 +102,7 @@ jobs:
       - name: Generate image SBOM
         uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0
         with:
-          image: ${{ steps.image.outputs.image }}@${{ steps.published.outputs.digest }}
+          image: ${{ steps.img.outputs.image }}@${{ steps.pub.outputs.digest }}
           format: spdx-json
           output-file: secure-ai-gateway.spdx.json
           upload-artifact: false
@@ -103,15 +111,15 @@ jobs:
       - name: Attest image build provenance
         uses: actions/attest-build-provenance@977bb373ede98d70efdf65b84cb5f73e068dcc2a # v3
         with:
-          subject-name: ${{ steps.image.outputs.image }}
-          subject-digest: ${{ steps.published.outputs.digest }}
+          subject-name: ${{ steps.img.outputs.image }}
+          subject-digest: ${{ steps.pub.outputs.digest }}
           push-to-registry: true
 
       - name: Attest image SBOM
         uses: actions/attest-sbom@4651f806c01d8637787e274ac3bdf724ef169f34 # v3
         with:
-          subject-name: ${{ steps.image.outputs.image }}
-          subject-digest: ${{ steps.published.outputs.digest }}
+          subject-name: ${{ steps.img.outputs.image }}
+          subject-digest: ${{ steps.pub.outputs.digest }}
           sbom-path: secure-ai-gateway.spdx.json
           push-to-registry: true
 
@@ -120,17 +128,19 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          IMAGE="${{ steps.img.outputs.image }}"
+          TAG="${{ steps.img.outputs.tag }}"
           RELEASE_TAG="${GITHUB_REF_NAME,,}"
-          docker tag \
-            "${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}" \
-            "${{ steps.image.outputs.image }}:${RELEASE_TAG}"
-          docker push "${{ steps.image.outputs.image }}:${RELEASE_TAG}"
+          docker tag "$IMAGE:$TAG" "$IMAGE:$RELEASE_TAG"
+          docker push "$IMAGE:$RELEASE_TAG"
 
       - name: Verify anonymous public pull
         shell: bash
         run: |
           set -euo pipefail
-          IMAGE_REF="${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}"
+          IMAGE="${{ steps.img.outputs.image }}"
+          TAG="${{ steps.img.outputs.tag }}"
+          IMAGE_REF="$IMAGE:$TAG"
           docker logout ghcr.io >/dev/null 2>&1 || true
           docker image rm "$IMAGE_REF" >/dev/null
           docker pull "$IMAGE_REF" >/dev/null
@@ -142,15 +152,21 @@ jobs:
       - name: Summary
         shell: bash
         run: |
+          IMAGE="${{ steps.img.outputs.image }}"
+          TAG="${{ steps.img.outputs.tag }}"
+          DIGEST="${{ steps.pub.outputs.digest }}"
           {
             echo '## Zero-cost container release'
             echo
-            echo 'Published using the repository GITHUB_TOKEN; no AWS account or cloud infrastructure is required.'
-            echo 'The workflow generated SPDX SBOM and build-provenance attestations for the immutable image digest.'
-            echo 'The workflow logged out of GHCR and successfully pulled the image anonymously, proving public package access.'
+            echo 'Published with GITHUB_TOKEN; no AWS account is required.'
+            echo 'No cloud infrastructure is required for publication.'
+            echo 'The workflow generated an SPDX SBOM and build provenance.'
+            echo 'Attestations bind those artifacts to the immutable digest.'
+            echo 'The workflow logged out of GHCR before the pull test.'
+            echo 'The anonymous pull therefore verifies public package access.'
             echo
             echo '```text'
-            echo '${{ steps.image.outputs.image }}:${{ steps.image.outputs.sha_tag }}'
-            echo '${{ steps.image.outputs.image }}@${{ steps.published.outputs.digest }}'
+            echo "$IMAGE:$TAG"
+            echo "$IMAGE@$DIGEST"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
