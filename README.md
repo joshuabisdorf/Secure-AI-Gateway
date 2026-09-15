@@ -170,7 +170,7 @@ ID once.
 | Container | Non-root, read-only root, dropped capabilities, no-new-privileges |
 | Kubernetes | Two replicas, probes, PDB, resources, restricted Pod Security, default deny |
 | Supply chain | Exact lock, SHA pins, scanners, SBOMs, immutable GHCR tags, attestations |
-| Repository | Project style gate and repository/history preflight |
+| Repository | Whole-tree style gate and repository/history preflight |
 
 See [`SECURITY.md`](SECURITY.md),
 [`docs/security-review.md`](docs/security-review.md),
@@ -271,8 +271,7 @@ Dependency maintenance is documented in
 make install             install project + development/security tooling
 make release-install     install exact runtime dependency lock
 make lock-verify         validate release-lock invariants
-make style               enforce style on new/modified files
-make style-strict        audit whole-repository style conformance
+make style               enforce whole-repository project style
 make test                run pytest
 make evals               enforce security evaluation baselines
 make security            run Bandit + dependency audit
@@ -304,9 +303,8 @@ use the RMEIO contract:
 - **Inputs** -- function inputs;
 - **Outputs** -- returned or produced outputs.
 
-Normal CI requires full compliance for every new or modified file. A fixed
-pre-standard baseline defers untouched legacy formatting debt. `make
-style-strict` audits the entire tree without that deferral.
+`make style` checks the entire tracked project tree, and CI runs the same gate.
+There is no legacy baseline, moving exemption, or grandfathered file set.
 
 See [`docs/style-standard.md`](docs/style-standard.md).
 
