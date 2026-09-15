@@ -68,12 +68,9 @@ variable "availability_zone_count" {
 }
 
 variable "nat_gateway_mode" {
-  description = join(" ", [
-    "NAT topology: single is cost-oriented; per_az provides zonal egress",
-    "redundancy.",
-  ])
-  type    = string
-  default = "single"
+  description = "NAT topology: single for cost, per_az for zonal redundancy."
+  type        = string
+  default     = "single"
 
   validation {
     condition     = contains(["single", "per_az"], var.nat_gateway_mode)
@@ -95,12 +92,9 @@ variable "eks_version" {
 }
 
 variable "eks_public_access_cidrs" {
-  description = join(" ", [
-    "CIDRs allowed to reach the public EKS API endpoint. Empty keeps the API",
-    "private-only.",
-  ])
-  type    = list(string)
-  default = []
+  description = "CIDRs for the public EKS API; empty keeps the API private."
+  type        = list(string)
+  default     = []
 
   validation {
     condition = alltrue([
@@ -114,13 +108,10 @@ variable "eks_public_access_cidrs" {
 }
 
 variable "eks_admin_role_arn" {
-  description = join(" ", [
-    "Optional IAM role ARN granted EKS cluster-admin access through an EKS",
-    "access entry.",
-  ])
-  type     = string
-  default  = null
-  nullable = true
+  description = "Optional IAM role granted EKS admin access through an entry."
+  type        = string
+  default     = null
+  nullable    = true
 }
 
 variable "eks_node_instance_types" {
@@ -190,19 +181,13 @@ variable "valkey_node_type" {
 }
 
 variable "protect_data" {
-  description = join(" ", [
-    "Enable deletion protection/final snapshots for persistent data services.",
-    "Recommended outside disposable development environments.",
-  ])
-  type    = bool
-  default = false
+  description = "Protect data with deletion protection and snapshots."
+  type        = bool
+  default     = false
 }
 
 variable "ecr_force_delete" {
-  description = join(" ", [
-    "Allow Terraform to delete a non-empty ECR repository. Keep false outside",
-    "disposable development environments.",
-  ])
-  type    = bool
-  default = false
+  description = "Allow deletion of non-empty ECR repos in disposable envs."
+  type        = bool
+  default     = false
 }
