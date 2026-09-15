@@ -351,7 +351,7 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
     Modifies:
         Process-local Prometheus security and usage metrics.
     Effects:
-        Derives counters without using unbounded sensitive identifiers as labels.
+        Derives bounded counters from sanitized metadata.
     Inputs:
         payload: Sanitized audit event mapping.
     Outputs:
