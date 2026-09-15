@@ -35,8 +35,8 @@ security-state failures are fail-closed.
 - Exact release dependency lock and direct-artifact SHA-256 pinning.
 - CodeQL, Bandit, `pip-audit`, Trivy, dependency SBOM, and repository preflight.
 - Immutable public GHCR images with SPDX SBOM and provenance attestations.
-- Project-owned style standard with an 80-character line limit and RMEIO
-  function contracts.
+- Project-owned whole-repository style enforcement with an 80-character line
+  limit and RMEIO function contracts.
 
 ## Verification
 
@@ -75,8 +75,6 @@ same digest, and anonymously pull that tag too.
   it implements the authorization boundary for one.
 - Internet ingress, TLS termination, WAF/DDoS controls, DNS, and certificate
   lifecycle remain deployment responsibilities.
-- The project style baseline defers pre-standard formatting debt in untouched
-  files while requiring full compliance for new/modified files.
 
 The complete accepted-risk record is in `docs/security-review.md`.
 
