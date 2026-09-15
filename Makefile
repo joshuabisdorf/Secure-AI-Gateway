@@ -1,7 +1,7 @@
 PYTHON ?= python
 
 .PHONY: \
-	help install release-install lock-verify style style-strict test evals \
+	help install release-install lock-verify style test evals \
 	security check preflight demo resilience m10-adversarial m10-integration \
 	benchmark up down kind-up kind-verify terraform-validate
 
@@ -10,8 +10,7 @@ help:
 	  'install             Install project with development tooling' \
 	  'release-install     Install exact runtime dependencies from lock' \
 	  'lock-verify         Validate release dependency lock invariants' \
-	  'style               Check new/modified files against project style' \
-	  'style-strict        Check the entire tree against project style' \
+	  'style               Check the entire tree against project style' \
 	  'test                Run pytest' \
 	  'evals               Run security evaluation baselines' \
 	  'security            Run Bandit and dependency audit' \
@@ -41,9 +40,6 @@ lock-verify:
 
 style:
 	$(PYTHON) scripts/style_check.py
-
-style-strict:
-	$(PYTHON) scripts/style_check.py --strict
 
 test:
 	pytest -q

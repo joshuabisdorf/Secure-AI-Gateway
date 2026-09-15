@@ -118,31 +118,29 @@ reference-only, or optional behavior.
 
 ## Enforcement
 
-`scripts/style_check.py` is the repository-owned checker for rules that can be
-validated safely without importing a third-party formatting or linting policy.
+`scripts/style_check.py` is the repository-owned checker for rules that
+can be validated safely without importing a third-party formatting or
+linting policy.
 
-The entire maintained repository is subject to the style gate. There is no
-legacy-file exemption or moving style baseline. A style violation in any
-tracked maintained file fails the gate regardless of when that file was added.
+The checker evaluates the entire tracked repository on every run. There
+is no legacy baseline, moving exemption, or grandfathered file set.
+Existing and newly modified project files are held to the same standard.
 
-Run the repository gate with:
+Run the whole-repository gate with:
 
 ```bash
 make style
 ```
 
-`make style-strict` is retained as an explicit whole-tree audit command and must
-produce the same clean result.
+CI runs the same whole-repository command. Machine-enforced checks include
+text hygiene, the 80-character limit, Python syntax and structural
+hazards, Python naming, RMEIO presence and order, and Bash shebang and
+strict-mode requirements.
 
-CI checks the complete maintained tree. Machine-enforced checks include text
-hygiene, the 80-character limit, Python syntax and structural hazards, Python
-naming, RMEIO presence and order, and Bash shebang and strict-mode
-requirements.
+The checker is intentionally conservative: it rejects clear violations
+and leaves subjective review decisions to code review rather than
+rewriting source automatically.
 
-The checker is intentionally conservative: it rejects clear violations and
-leaves subjective review decisions to code review rather than automatically
-rewriting maintained source.
-
-A change that requires a line-length exception should normally make the reason
-obvious from the line itself. The checker recognizes a narrow set of atomic
-forms; new blanket exclusions should not be added merely to make CI pass.
+A line-length exception should make its necessity obvious from the line
+itself. The checker recognizes only narrow atomic or canonical forms;
+new blanket exclusions must not be added merely to make CI pass.
