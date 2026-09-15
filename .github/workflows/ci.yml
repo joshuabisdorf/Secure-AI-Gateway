@@ -59,17 +59,21 @@ jobs:
         run: |
           set -euo pipefail
           python -m venv /tmp/sag-release-venv
-          /tmp/sag-release-venv/bin/python -m pip install -r requirements/release.lock
-          /tmp/sag-release-venv/bin/python -m pip install --no-deps --no-build-isolation -e .
+          /tmp/sag-release-venv/bin/python -m pip install \
+            -r requirements/release.lock
+          /tmp/sag-release-venv/bin/python -m pip install \
+            --no-deps --no-build-isolation -e .
           /tmp/sag-release-venv/bin/python -m pip check
-          /tmp/sag-release-venv/bin/python -c 'import app.server, en_core_web_sm; print("release_lock_install=OK")'
+          /tmp/sag-release-venv/bin/python -c \
+            'import app.server, en_core_web_sm; print("release_lock_install=OK")'
 
   m10-verification:
     name: M10 adversarial/reliability/performance
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DATABASE_URL: postgresql://sag:sag_m10_password@127.0.0.1:5432/secure_ai_gateway
+      DATABASE_URL: >-
+        postgresql://sag:sag_m10_password@127.0.0.1:5432/secure_ai_gateway
       REDIS_URL: redis://127.0.0.1:6379/15
       SAG_RUN_M10_INTEGRATION: "1"
 
@@ -245,7 +249,9 @@ jobs:
 
       - name: Validate M11 helper scripts
         run: |
-          python -m py_compile scripts/verify_release_lock.py scripts/render_cloud_network_policies.py
+          python -m py_compile \
+            scripts/verify_release_lock.py \
+            scripts/render_cloud_network_policies.py
           python scripts/verify_release_lock.py
 
       - name: Validate developer task surface
@@ -309,7 +315,8 @@ jobs:
       - name: Render Kustomize manifests
         run: |
           kubectl kustomize k8s/ci > rendered-kubernetes.yaml
-          kubectl kustomize k8s/cloud > rendered-cloud-kubernetes.yaml
+          kubectl kustomize k8s/cloud \
+            > rendered-cloud-kubernetes.yaml
           python scripts/render_cloud_network_policies.py \
             --private-cidrs-json '["10.90.10.0/24","10.90.11.0/24"]' \
             --data-cidrs-json '["10.90.20.0/24","10.90.21.0/24"]' \
@@ -317,16 +324,27 @@ jobs:
 
       - name: Enforce M11 Kubernetes policy surface
         run: |
-          grep -Fq 'pod-security.kubernetes.io/enforce: restricted' rendered-kubernetes.yaml
+          grep -Fq \
+            'pod-security.kubernetes.io/enforce: restricted' \
+            rendered-kubernetes.yaml
           grep -Fq 'name: sag-default-deny' rendered-kubernetes.yaml
-          grep -Fq 'name: sag-default-deny' rendered-cloud-kubernetes.yaml
-          grep -Fq 'name: sag-cloud-gateway-runtime-egress' rendered-cloud-network-policies.yaml
+          grep -Fq \
+            'name: sag-default-deny' \
+            rendered-cloud-kubernetes.yaml
+          grep -Fq \
+            'name: sag-cloud-gateway-runtime-egress' \
+            rendered-cloud-network-policies.yaml
 
       - name: Reject committed Kubernetes Secret objects
-        run: >-
-          if grep -q '^kind: Secret$' rendered-kubernetes.yaml rendered-cloud-kubernetes.yaml rendered-cloud-network-policies.yaml; then
-            echo 'Kubernetes Secret objects must not be committed in rendered deployment targets.' >&2;
-            exit 1;
+        run: |
+          if grep -q '^kind: Secret$' \
+            rendered-kubernetes.yaml \
+            rendered-cloud-kubernetes.yaml \
+            rendered-cloud-network-policies.yaml; then
+            echo \
+              'Kubernetes Secret objects are forbidden in rendered targets.' \
+              >&2
+            exit 1
           fi
 
       - name: Validate Kubernetes schemas strictly
@@ -413,13 +431,19 @@ jobs:
         run: terraform fmt -check -diff -recursive terraform
 
       - name: Initialize state bootstrap configuration
-        run: terraform -chdir=terraform/bootstrap init -backend=false -input=false
+        run: >-
+          terraform -chdir=terraform/bootstrap init
+          -backend=false
+          -input=false
 
       - name: Validate state bootstrap configuration
         run: terraform -chdir=terraform/bootstrap validate -no-color
 
       - name: Initialize AWS environment configuration
-        run: terraform -chdir=terraform/aws init -backend=false -input=false
+        run: >-
+          terraform -chdir=terraform/aws init
+          -backend=false
+          -input=false
 
       - name: Validate AWS environment configuration
         run: terraform -chdir=terraform/aws validate -no-color
