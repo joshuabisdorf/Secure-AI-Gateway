@@ -31,5 +31,5 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Run project style checks
-        run: python scripts/style_check.py
+      - name: Run whole-repository style checks
+        run: python scripts/style_check.py --strict
