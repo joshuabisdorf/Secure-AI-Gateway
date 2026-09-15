@@ -45,6 +45,8 @@ _ACTION_RE = re.compile(
     r"^\s*uses:\s*[^\s]+@[0-9a-f]{40}(?:\s+#.*)?$"
 )
 _LONG_ATOM_RE = re.compile(r"\S{81,}")
+_SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
+_CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")
 _RMEIO_HEADINGS = (
     "Requires:",
     "Modifies:",
@@ -329,8 +331,25 @@ def _is_runtime_python(path: Path) -> bool:
     )
 
 
-def _docstring_has_full_rmeio(node: ast.AST) -> bool:
-    """Return whether a node docstring contains every RMEIO heading.
+def _is_dunder(name: str) -> bool:
+    """Return whether a Python name is a language-protocol dunder.
+
+    Requires:
+        name is a Python identifier.
+    Modifies:
+        Nothing.
+    Effects:
+        None.
+    Inputs:
+        name: Identifier to inspect.
+    Outputs:
+        True when name starts and ends with two underscores.
+    """
+    return name.startswith("__") and name.endswith("__")
+
+
+def _rmeio_positions(node: ast.AST) -> list[int]:
+    """Return RMEIO heading positions from a node docstring.
 
     Requires:
         node supports an AST docstring.
@@ -341,13 +360,10 @@ def _docstring_has_full_rmeio(node: ast.AST) -> bool:
     Inputs:
         node: Function or method AST node.
     Outputs:
-        True when all required RMEIO headings are present.
+        Heading positions in required RMEIO order; missing headings are -1.
     """
     docstring = ast.get_docstring(node, clean=False) or ""
-    return all(
-        heading in docstring
-        for heading in _RMEIO_HEADINGS
-    )
+    return [docstring.find(heading) for heading in _RMEIO_HEADINGS]
 
 
 def _requires_rmeio(
@@ -366,11 +382,52 @@ def _requires_rmeio(
     Outputs:
         True for non-trivial project functions.
     """
-    if node.name.startswith("__") and node.name.endswith("__"):
+    if _is_dunder(node.name):
         return False
     if node.name.startswith("_") and len(node.body) <= 3:
         return False
     return True
+
+
+def _check_rmeio(
+    path: Path,
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> list[Violation]:
+    """Check one function's RMEIO documentation contract.
+
+    Requires:
+        path identifies maintained runtime Python.
+        node requires a full RMEIO contract.
+    Modifies:
+        Nothing.
+    Effects:
+        Reads the function docstring from the parsed syntax tree.
+    Inputs:
+        path: Repository-relative Python path.
+        node: Function or method syntax node.
+    Outputs:
+        RMEIO presence or ordering violations.
+    """
+    positions = _rmeio_positions(node)
+    if any(position < 0 for position in positions):
+        return [
+            Violation(
+                str(path),
+                node.lineno,
+                "PY006",
+                f"{node.name} requires full RMEIO docstring",
+            )
+        ]
+    if positions != sorted(positions):
+        return [
+            Violation(
+                str(path),
+                node.lineno,
+                "PY007",
+                f"{node.name} has RMEIO headings out of order",
+            )
+        ]
+    return []
 
 
 def _check_python(path: Path) -> list[Violation]:
@@ -401,6 +458,19 @@ def _check_python(path: Path) -> list[Violation]:
         ]
 
     violations: list[Violation] = []
+    module_name = path.stem
+    if module_name != "__init__" and not _SNAKE_CASE_RE.fullmatch(
+        module_name
+    ):
+        violations.append(
+            Violation(
+                str(path),
+                1,
+                "PY008",
+                "Python module name must be snake_case",
+            )
+        )
+
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and any(
             alias.name == "*" for alias in node.names
@@ -432,6 +502,17 @@ def _check_python(path: Path) -> list[Violation]:
                 )
             )
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            if not _is_dunder(node.name) and not _SNAKE_CASE_RE.fullmatch(
+                node.name
+            ):
+                violations.append(
+                    Violation(
+                        str(path),
+                        node.lineno,
+                        "PY009",
+                        f"function name is not snake_case: {node.name}",
+                    )
+                )
             defaults = [*node.args.defaults, *node.args.kw_defaults]
             for default in defaults:
                 if isinstance(default, (ast.List, ast.Dict, ast.Set)):
@@ -444,15 +525,56 @@ def _check_python(path: Path) -> list[Violation]:
                         )
                     )
             if _is_runtime_python(path) and _requires_rmeio(node):
-                if not _docstring_has_full_rmeio(node):
-                    violations.append(
-                        Violation(
-                            str(path),
-                            node.lineno,
-                            "PY006",
-                            f"{node.name} requires full RMEIO docstring",
-                        )
+                violations.extend(_check_rmeio(path, node))
+        if isinstance(node, ast.ClassDef):
+            if not _CLASS_NAME_RE.fullmatch(node.name):
+                violations.append(
+                    Violation(
+                        str(path),
+                        node.lineno,
+                        "PY010",
+                        f"class name is not CapWords: {node.name}",
                     )
+                )
+    return violations
+
+
+def _check_shell(path: Path) -> list[Violation]:
+    """Check repository shell entrypoint conventions.
+
+    Requires:
+        path identifies a UTF-8 shell script under ROOT.
+    Modifies:
+        Nothing.
+    Effects:
+        Reads the script text.
+    Inputs:
+        path: Repository-relative shell script path.
+    Outputs:
+        Shell shebang and strict-mode violations.
+    """
+    text = (ROOT / path).read_text(encoding="utf-8")
+    lines = text.splitlines()
+    violations: list[Violation] = []
+    if not lines or lines[0] != "#!/usr/bin/env bash":
+        violations.append(
+            Violation(
+                str(path),
+                1,
+                "SH001",
+                "shell script must use env bash shebang",
+            )
+        )
+    early_lines = lines[1:12]
+    if not any(line.strip() == "set -euo pipefail" for line in early_lines):
+        violations.append(
+            Violation(
+                str(path),
+                2,
+                "SH002",
+                "shell script must enable set -euo pipefail",
+            )
+        )
     return violations
 
 
@@ -468,7 +590,7 @@ def collect_violations(
     Modifies:
         Nothing.
     Effects:
-        Reads tracked files and parses selected Python source.
+        Reads tracked files and parses selected source files.
     Inputs:
         strict: Whether to check unchanged pre-standard files too.
     Outputs:
@@ -491,6 +613,8 @@ def collect_violations(
         violations.extend(_check_text_file(path))
         if path.suffix == ".py":
             violations.extend(_check_python(path))
+        if path.suffix == ".sh":
+            violations.extend(_check_shell(path))
 
     violations.sort(
         key=lambda item: (
