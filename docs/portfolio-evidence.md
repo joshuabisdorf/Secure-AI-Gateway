@@ -13,8 +13,7 @@ reviewer does not have to reconstruct the development history.
 | `make m10-integration` | real Redis/PostgreSQL replay, rate, usage, key lifecycle, pool exhaustion, migration rollback | local PostgreSQL + Redis |
 | `make benchmark` | RPS/latency/RSS, inspection overhead, limiter contention, two replicas, termination failover | local PostgreSQL + Redis |
 | `make lock-verify` | exact release pins, artifact hash, root dependency coverage, build-backend pin | repository only |
-| `make style` | project-owned rules on every new/modified file | repository + Git history |
-| `make style-strict` | whole-tree style debt/conformance audit | repository only |
+| `make style` | whole-repository project-owned style enforcement | repository only |
 | `make check` | style, tests, evaluation baselines, Bandit, dependency audit | local Python |
 | `make kind-up && make kind-verify` | Pod Security, default deny, shared state, telemetry, rescheduling, bounded load/resources | local kind |
 | `make terraform-validate` | formatting/static validity of both Terraform roots | local Terraform |
@@ -124,9 +123,8 @@ content. Python project functions use ordered RMEIO contracts. The checker also
 covers text hygiene, Python syntax/naming and structural hazards, and Bash
 entrypoint/strict-mode requirements.
 
-Normal CI checks every file changed since the fixed pre-standard baseline. The
-baseline cannot move forward to hide new violations. `make style-strict` audits
-the complete repository without legacy deferral.
+`make style` checks the entire tracked project tree. CI runs the same command.
+There is no legacy baseline, moving exemption, or grandfathered file set.
 
 ## Security benchmark evidence
 
