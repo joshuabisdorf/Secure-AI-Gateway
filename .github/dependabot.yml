@@ -19,6 +19,10 @@ updates:
       time: "09:15"
       timezone: America/Toronto
     open-pull-requests-limit: 5
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
     labels:
       - dependencies
 
