@@ -26,7 +26,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install --only-upgrade -y --no-install-recommends libpcre2-8-0 \
+    && apt-get upgrade -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && /usr/local/bin/python -m pip uninstall -y setuptools \
     && /usr/local/bin/python -m pip uninstall -y pip \
