@@ -62,11 +62,5 @@ updates:
         update-types:
           - minor
           - patch
-    ignore:
-      # Python 3.15.0rc3 cannot install the pinned blis 1.3.3 dependency.
-      # Restrict only the known incompatible prerelease, not stable 3.15.
-      - dependency-name: python
-        versions:
-          - "3.15.0rc3"
     labels:
       - dependencies
