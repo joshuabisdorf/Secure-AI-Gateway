@@ -263,6 +263,34 @@ jobs:
           grep -Fq 'SAG_CONFIRM_AWS_APPLY' scripts/aws-cloud-deploy.sh
           grep -Fq 'require_billable_aws_opt_in' scripts/aws-cloud-deploy.sh
 
+      - name: Require stable Docker base image tags
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          prerelease = re.compile(
+              r"(?i)\d+(?:\.\d+){1,2}"
+              r"(?:a\d+|b\d+|rc\d+|dev\d*|pre\d*"
+              r"|[-._](?:(?:a|b)\d+"
+              r"|(?:alpha|beta|rc|dev|pre|preview|nightly)\d*))"
+          )
+          for line in Path("Dockerfile").read_text().splitlines():
+              parts = line.split()
+              if not parts or parts[0].upper() != "FROM":
+                  continue
+              image = next(
+                  (part for part in parts[1:] if not part.startswith("--")),
+                  "",
+              )
+              tag = image.rsplit(":", 1)[-1]
+              if prerelease.search(tag):
+                  raise SystemExit(
+                      f"Prerelease Docker base image is not allowed: {image}"
+                  )
+          print("Docker base image tags are stable.")
+          PY
+
       - name: Build gateway image
         run: docker build --tag secure-ai-gateway:ci .
 
