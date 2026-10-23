@@ -153,9 +153,15 @@ def verify_release_lock() -> None:
             + ", ".join(missing)
         )
 
-    if build_requirements != ["setuptools==84.0.0"]:
+    locked_setuptools = lock_entries.get("setuptools")
+    if (
+        locked_setuptools is None
+        or EXACT_PIN_RE.fullmatch(locked_setuptools) is None
+        or build_requirements != [locked_setuptools]
+    ):
         raise LockVerificationError(
-            "build-system requires must be exactly pinned to setuptools==84.0.0"
+            "build-system requires must match the exact setuptools pin "
+            "in requirements/release.lock"
         )
 
     model_line = lock_entries.get("en-core-web-sm", "")
