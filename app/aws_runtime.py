@@ -212,7 +212,8 @@ def load_gateway_runtime_environment(
     *,
     client: SecretsManagerClient | None = None,
 ) -> dict[str, str]:
-    """Resolve database credentials and execution-ticket signing material from Secrets
+    """Resolve database credentials and execution-ticket signing material from
+        Secrets
     Manager.
 
     Args:

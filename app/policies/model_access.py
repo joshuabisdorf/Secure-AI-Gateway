@@ -8,7 +8,8 @@ _model_name_pattern = re.compile(r"^[^\s,]{1,256}$")
 
 
 def get_allowed_models() -> frozenset[str]:
-    """Reject policy evaluation when no usable global model allowlist is configured.
+    """Reject policy evaluation when no usable global model allowlist is
+        configured.
 
     Returns:
         A frozen set containing globally allowed model names.

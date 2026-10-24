@@ -124,7 +124,8 @@ def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
 
 
 def get_client_rate_limit(client_id: str) -> int:
-    """Fail closed when rate-limit policy is absent, malformed, or missing the client.
+    """Fail closed when rate-limit policy is absent, malformed, or missing the
+        client.
 
     Args:
         client_id: Authenticated gateway client identity.

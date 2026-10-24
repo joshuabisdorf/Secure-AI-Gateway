@@ -12,7 +12,8 @@ from app.tool_execution import (
 
 class SharedRedisToolExecutionReplayStore:
     def __init__(self, redis_url: str) -> None:
-        """Use the central Redis factory so TLS/IAM cloud authentication and local Redis
+        """Use the central Redis factory so TLS/IAM cloud authentication and
+            local Redis
         behave consistently.
 
         Args:

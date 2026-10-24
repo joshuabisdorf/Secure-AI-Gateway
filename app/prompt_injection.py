@@ -179,7 +179,8 @@ def parse_client_prompt_injection_policies(
 
 
 def get_client_prompt_injection_policy(client_id: str) -> PromptInjectionPolicy:
-    """Fail closed when prompt-injection policy is absent, malformed, or missing the
+    """Fail closed when prompt-injection policy is absent, malformed, or
+        missing the
     client.
 
     Args:
@@ -288,7 +289,8 @@ def _match_encoded_indicators(text: str) -> set[str]:
 def inspect_prompt_injection(
     request: ChatCompletionRequest,
 ) -> PromptInjectionResult:
-    """Inspect textual client-supplied message content for explicit prompt-injection
+    """Inspect textual client-supplied message content for explicit
+        prompt-injection
     indicators.
 
     Args:

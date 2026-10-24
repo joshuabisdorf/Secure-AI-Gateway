@@ -173,7 +173,8 @@ def format_client_record(record: ClientKeyRecord) -> str:
 
 
 def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
-    """Open a new API-key delivery file without following or overwriting an existing
+    """Open a new API-key delivery file without following or overwriting an
+        existing
     path.
 
     Args:

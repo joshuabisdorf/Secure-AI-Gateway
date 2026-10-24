@@ -147,7 +147,8 @@ class ChatCompletionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_aggregate_complexity(self) -> "ChatCompletionRequest":
-        """Reject requests whose combined text/schema content exceeds the gateway budget.
+        """Reject requests whose combined text/schema content exceeds the
+            gateway budget.
 
         Args:
             self: Validated chat-completion request candidate.

@@ -217,7 +217,8 @@ def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
 def parse_benchmark_dataset(
     document: str, *, sha256: str = "unknown"
 ) -> PromptInjectionDataset:
-    """Strictly validates dataset structure, thresholds, unique IDs, labels, and
+    """Strictly validates dataset structure, thresholds, unique IDs, labels,
+        and
     messages.
 
     Args:
@@ -287,7 +288,8 @@ def parse_benchmark_dataset(
 def load_benchmark_dataset(
     path: Path = _DEFAULT_DATASET,
 ) -> PromptInjectionDataset:
-    """Read the dataset, computes its SHA-256 digest, and validates its complete
+    """Read the dataset, computes its SHA-256 digest, and validates its
+        complete
     schema.
 
     Args:
@@ -325,7 +327,8 @@ def _ratio(numerator: int, denominator: int) -> float:
 
 
 def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
-    """Run the deterministic prompt-injection detector against every benchmark case.
+    """Run the deterministic prompt-injection detector against every benchmark
+        case.
 
     Args:
         dataset: Validated benchmark dataset.
@@ -554,7 +557,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """Run an offline reproducible detector evaluation with no provider/network calls.
+    """Run an offline reproducible detector evaluation with no provider/network
+        calls.
 
     Returns:
         Text or JSON benchmark metrics without raw benchmark prompt bodies.

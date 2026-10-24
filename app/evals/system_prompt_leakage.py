@@ -88,7 +88,8 @@ def _normalize(text: str) -> str:
 
 
 def build_synthetic_system_prompt(canary: str) -> str:
-    """Build protected test instructions containing only synthetic evaluation data.
+    """Build protected test instructions containing only synthetic evaluation
+        data.
 
     Args:
         canary: Unique marker used to detect disclosure.

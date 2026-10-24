@@ -33,7 +33,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         session: boto3.Session | None = None,
         clock=time.monotonic,
     ) -> None:
-        """Use the AWS default credential chain to create SigV4 ElastiCache connect
+        """Use the AWS default credential chain to create SigV4 ElastiCache
+            connect
         tokens.
 
         Args:
@@ -134,7 +135,8 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             return (self._user_id, self._cached_token)
 
     async def get_credentials_async(self) -> tuple[str, str]:
-        """Generate credentials without blocking the async Redis connection path.
+        """Generate credentials without blocking the async Redis connection
+            path.
 
         Returns:
             A value matching the declared tuple[str, str] return contract.

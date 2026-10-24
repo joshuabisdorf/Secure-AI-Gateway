@@ -157,7 +157,8 @@ def _luhn_valid(candidate: str) -> bool:
 
 
 def _redact_structured_text(text: str) -> tuple[str, list[str]]:
-    """Detect and redacts deterministic email, SSN, phone, and payment-card values.
+    """Detect and redact deterministic email, SSN, phone, and payment-card
+        values.
 
     Args:
         text: Message text to inspect.

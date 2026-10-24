@@ -196,7 +196,8 @@ async def authenticate_api_key(
     response: Response,
     credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
 ) -> AsyncIterator[Principal]:
-    """Authenticate and authorizes the request before yielding the principal to the
+    """Authenticate and authorize the request before yielding the principal to
+        the
     endpoint.
 
     Args:

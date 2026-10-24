@@ -514,7 +514,8 @@ async def _run_command(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """Initialize schema, migrates records, creates keys, revokes keys, rotates keys,
+    """Initialize schema, migrates records, creates keys, revokes keys, rotates
+        keys,
     or lists non-secret metadata.
 
     Returns:

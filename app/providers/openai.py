@@ -93,7 +93,8 @@ class OpenAIProvider(Provider):
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        """Send messages and optional authorized function tools/tool choice upstream.
+        """Send messages and optional authorized function tools/tool choice
+            upstream.
 
         Args:
             request: Requested upstream model, messages, and optional

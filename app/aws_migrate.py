@@ -99,7 +99,8 @@ async def provision_runtime_role(
     runtime_username: str,
     runtime_password: str,
 ) -> None:
-    """Create or rotates the gateway login without granting DDL/admin capabilities.
+    """Create or rotate the gateway login without granting DDL/admin
+        capabilities.
 
     Args:
         admin_conninfo: Administrative PostgreSQL connection string.
