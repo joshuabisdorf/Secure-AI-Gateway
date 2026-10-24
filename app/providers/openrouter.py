@@ -17,14 +17,13 @@ class OpenRouterProvider(OpenAIProvider):
         timeout_seconds: float = 30.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        """Configure the shared OpenAI-compatible chat transport for.
+        """Configure OpenRouter with the shared OpenAI-compatible transport.
 
         :param api_key: Optional explicit OpenRouter API key.
         :param base_url: Optional OpenRouter API root override.
         :param timeout_seconds: Maximum duration of an upstream request.
         :param transport: Optional httpx transport used for deterministic
             testing.
-        :returns: A configured OpenRouter provider instance.
 
         .. note::
 

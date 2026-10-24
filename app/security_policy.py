@@ -127,7 +127,7 @@ def _parse_string_list(
     allow_empty: bool,
     invalid_reason: str,
 ) -> frozenset[str]:
-    """Perform the parse string list operation.
+    """Validate a list of allowed policy identifiers.
 
     :param value: Function input.
     :param pattern: Function input.
@@ -156,7 +156,7 @@ def _parse_string_list(
 
 
 def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
-    """Perform the parse daily budget operation.
+    """Parse and validate a daily usage budget policy.
 
     :param value: Function input.
     :returns: A value matching the declared DailyBudgetPolicy return contract.
@@ -211,7 +211,7 @@ def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
 
 
 def _parse_profile(value: Any) -> SecurityPolicyProfile:
-    """Perform the parse profile operation.
+    """Parse and validate a security policy profile.
 
     :param value: Function input.
     :returns: A value matching the declared SecurityPolicyProfile return
@@ -357,7 +357,7 @@ def clear_security_policy_cache() -> None:
 def load_security_policy_registry(
     configured_path: str | None = None,
 ) -> SecurityPolicyRegistry:
-    """Read and validates the configured non-secret policy registry.
+    """Read and validate the configured non-secret policy registry.
 
     :param configured_path: Optional explicit file path, primarily for
         validation/tests.

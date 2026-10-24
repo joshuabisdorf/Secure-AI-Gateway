@@ -220,7 +220,7 @@ class RequestBodyLimitMiddleware:
         replayed = False
 
         async def replay_receive() -> dict[str, Any]:
-            """Perform the replay receive operation.
+            """Replay the buffered request body to the downstream ASGI application.
 
             :returns: A value matching the declared dict[str, Any] return
                 contract.
@@ -243,7 +243,7 @@ class RequestBodyLimitMiddleware:
             return {"type": "http.disconnect"}
 
         async def hardened_send(message: dict[str, Any]) -> None:
-            """Perform the hardened send operation.
+            """Forward ASGI response messages with gateway security headers.
 
             :param message: Function input.
 

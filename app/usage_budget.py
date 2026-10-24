@@ -420,7 +420,7 @@ class PostgresUsageLedger:
         connection_timeout_seconds: float = _default_connection_timeout_seconds,
         clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     ) -> None:
-        """Create a closed async pool and defers connections until first use.
+        """Create a closed async pool and defer connections until first use.
 
         :param database_url: PostgreSQL connection string.
         :param min_size: Minimum pooled connections.

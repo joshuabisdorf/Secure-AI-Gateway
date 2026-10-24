@@ -77,7 +77,7 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         self._refresh_at = 0.0
 
     def _generate_token(self) -> str:
-        """Perform the generate token operation.
+        """Generate a SigV4 authentication token for ElastiCache IAM.
 
         :returns: A value matching the declared str return contract.
 
@@ -152,7 +152,7 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
 
 
 def _elasticache_iam_provider() -> ElastiCacheIamCredentialProvider:
-    """Perform the elasticache iam provider operation.
+    """Build an ElastiCache IAM credential provider from runtime settings.
 
     :returns: A value matching the declared ElastiCacheIamCredentialProvider
         return contract.

@@ -244,7 +244,7 @@ def _decode_hex(candidate: str) -> str | None:
 
 
 def _match_encoded_indicators(text: str) -> set[str]:
-    """Perform the match encoded indicators operation.
+    """Detect encoded indicators of prompt injection in untrusted text.
 
     :param text: Function input.
     :returns: A value matching the declared set[str] return contract.

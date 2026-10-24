@@ -57,7 +57,7 @@ def _deny_execution(
     source_request_id: str | None = None,
     status_code: int = status.HTTP_403_FORBIDDEN,
 ) -> None:
-    """Emit a metadata-only execution denial and raises a generic HTTP error.
+    """Emit a metadata-only execution denial and raise a generic HTTP error.
 
     :param request_id: Authorization request correlation ID.
     :param principal: Current authenticated client/key identity.

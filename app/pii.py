@@ -121,7 +121,7 @@ def get_client_pii_policy(client_id: str) -> PIIPolicy:
 
 
 def _luhn_valid(candidate: str) -> bool:
-    """Applie the Luhn checksum only to 13-19 digit candidates.
+    """Apply the Luhn checksum only to 13-19 digit candidates.
 
     :param candidate: Potential payment-card number.
     :returns: True when the candidate has a valid supported-length Luhn
@@ -169,7 +169,7 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
         pii_type: str,
         replacement: str,
     ) -> str:
-        """Perform the redact pattern operation.
+        """Redact matches for a configured PII pattern and record its type.
 
         :param current_text: Function input.
         :param pattern: Function input.
@@ -183,7 +183,7 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
               required configured dependencies are available.
         """
         def replace(_: re.Match[str]) -> str:
-            """Perform the replace operation.
+            """Record the detected PII type and emit the redaction marker.
 
             :param _: Function input.
             :returns: A value matching the declared str return contract.
@@ -205,7 +205,7 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
     )
 
     def replace_card(match: re.Match[str]) -> str:
-        """Perform the replace card operation.
+        """Redact valid payment-card matches and preserve non-card text.
 
         :param match: Function input.
         :returns: A value matching the declared str return contract.

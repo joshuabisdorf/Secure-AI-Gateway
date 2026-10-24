@@ -274,7 +274,7 @@ def parse_tool_execution_registry(document: str) -> ToolExecutionRegistry:
 def load_tool_execution_registry(
     configured_path: str | None = None,
 ) -> ToolExecutionRegistry:
-    """Load and validates the authoritative tool execution registry.
+    """Load and validate the authoritative tool execution registry.
 
     :param configured_path: Optional explicit registry path.
     :returns: Validated ToolExecutionRegistry.
@@ -282,8 +282,7 @@ def load_tool_execution_registry(
     .. note::
 
         - Precondition: configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may
-          identify a local
-        - Precondition: JSON registry.
+          identify a local JSON registry.
         - Side effect: Process-local registry cache when the file changes.
         - Fails closed when the registry is absent, unreadable, oversized, or
           invalid.
@@ -325,7 +324,7 @@ def load_tool_execution_registry(
 
 
 def _get_ticket_ttl_seconds() -> int:
-    """Applie a short maximum lifetime to execution authorization tickets.
+    """Apply a short maximum lifetime to execution authorization tickets.
 
     :returns: Ticket lifetime in seconds.
 
@@ -444,7 +443,7 @@ def _issue_execution_ticket(
 def _validate_tool_arguments(
     tool_call: ToolCall, spec: ToolExecutionSpec
 ) -> None:
-    """Parse untrusted model arguments as JSON and validates them against the
+    """Parse untrusted model arguments as JSON and validate them against the
     authoritative schema.
 
     :param tool_call: Model-generated function call.

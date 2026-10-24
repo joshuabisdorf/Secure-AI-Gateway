@@ -186,7 +186,7 @@ class InMemoryRateLimiter:
         self._lock = threading.Lock()
 
     async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
-        """Applie a fixed-window rate limit atomically for the current process.
+        """Apply a fixed-window rate limit atomically for the current process.
 
         :param client_id: Authenticated gateway client identity.
         :param limit_rpm: Maximum requests allowed during the current window.

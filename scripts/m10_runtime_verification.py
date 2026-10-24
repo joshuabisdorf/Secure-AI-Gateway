@@ -220,7 +220,7 @@ def _wait_for_health(
     *,
     timeout_seconds: float = 45.0,
 ) -> None:
-    """Wait for bounded startup and fails if the replica exits or never becomes
+    """Wait for bounded startup and fail if the replica exits or never becomes
     healthy.
 
     :param base_url: Replica HTTP base URL.
