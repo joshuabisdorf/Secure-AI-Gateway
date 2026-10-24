@@ -1,0 +1,136 @@
+name: Publish v1.0.1 GitHub Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-v1.0.1.yml
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    if: github.repository == 'joshuabisdorf/Secure-AI-Gateway'
+    name: Tag, verify, and publish v1.0.1
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v1.0.1
+      RELEASE_SHA: 54e12023e8d89de421b0b16c16f66c9bd9e58db3
+
+    steps:
+      - name: Check out repository with history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Verify release source and publication state
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          git cat-file -e "$RELEASE_SHA^{commit}"
+          git merge-base --is-ancestor "$RELEASE_SHA" HEAD
+          git show "$RELEASE_SHA:pyproject.toml" \
+            | grep -Fx 'version = "1.0.1"'
+          if gh release view "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "The stable release already exists."
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create and verify the annotated Git tag
+        if: steps.guard.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email \
+            '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --tags origin \
+            "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            git fetch origin \
+              "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          else
+            git tag -a "$RELEASE_TAG" "$RELEASE_SHA" \
+              -m "Secure AI Gateway $RELEASE_TAG"
+            git push origin "refs/tags/$RELEASE_TAG"
+          fi
+          test "$(git rev-parse "$RELEASE_TAG^{}")" = "$RELEASE_SHA"
+          test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
+
+      - name: Dispatch the existing tagged container workflow
+        if: steps.guard.outputs.publish == 'true'
+        id: dispatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+            >> "$GITHUB_OUTPUT"
+          gh workflow run release.yml \
+            --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_TAG"
+
+      - name: Wait for successful tagged image verification
+        if: steps.guard.outputs.publish == 'true'
+        shell: bash
+        env:
+          STARTED: ${{ steps.dispatch.outputs.started }}
+        run: |
+          set -euo pipefail
+          run_id=''
+          for attempt in $(seq 1 60); do
+            runs="$(gh api \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/"\
+              "release.yml/runs?event=workflow_dispatch&per_page=50")"
+            run_id="$(jq -r \
+              --arg sha "$RELEASE_SHA" --arg started "$STARTED" \
+              '[.workflow_runs[] | select(.head_sha == $sha'\
+              ' and .created_at >= $started)]'\
+              ' | sort_by(.created_at) | last | .id // empty' \
+              <<< "$runs")"
+            if [[ -n "$run_id" ]]; then
+              break
+            fi
+            sleep 5
+          done
+          if [[ -z "$run_id" ]]; then
+            echo "Tagged release workflow did not start." >&2
+            exit 1
+          fi
+          gh run watch "$run_id" \
+            --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
+
+      - name: Verify exact version and immutable image digest
+        if: steps.guard.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          immutable_ref="$image:sha-${RELEASE_SHA:0:12}"
+          version_ref="$image:$RELEASE_TAG"
+          immutable_digest="$(docker buildx imagetools inspect \
+            "$immutable_ref" --format '{{json .Manifest}}' \
+            | jq -r '.digest')"
+          version_digest="$(docker buildx imagetools inspect \
+            "$version_ref" --format '{{json .Manifest}}' \
+            | jq -r '.digest')"
+          test "$immutable_digest" = "$version_digest"
+          [[ "$version_digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "verified_release_digest=$version_digest"
+
+      - name: Publish GitHub Release from reviewed notes
+        if: steps.guard.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Secure AI Gateway $RELEASE_TAG" \
+            --notes-file docs/release-notes-v1.0.1.md \
+            --verify-tag --latest
