@@ -78,7 +78,7 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(
     title="Secure AI Gateway",
-    version="1.0.0",
+    version="1.0.1",
     lifespan=lifespan,
 )
 app.include_router(tool_execution_router)
