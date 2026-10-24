@@ -193,7 +193,7 @@ def configure_tracing() -> None:
                 "OTEL_SERVICE_NAME",
                 _service_name,
             ),
-            "service.version": "1.0.0",
+            "service.version": "1.0.1",
         }
     )
     provider = TracerProvider(resource=resource)

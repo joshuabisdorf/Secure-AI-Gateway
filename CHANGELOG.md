@@ -6,6 +6,41 @@ All notable project changes are summarized here.
 
 No unreleased changes are currently documented.
 
+## 1.0.1 - 2026-10-24
+
+Patch release focused on dependency security, image hardening, release
+automation maintenance, and developer documentation.
+
+### Security and container maintenance
+
+- Updated the Python base image from `3.14.7-slim-bookworm` to
+  `3.14.8-slim-bookworm`.
+- Apply available Debian security/package upgrades when building the runtime
+  image, replacing a targeted `libpcre2` upgrade.
+- Updated locked runtime packages: `urllib3` 2.7.0 to 2.8.0 and
+  `certifi` 2026.7.22 to 2026.10.19.
+- Updated `setuptools` from 84.0.0 to 84.2.0, including the pinned build
+  backend requirement.
+
+### Verification and supply chain
+
+- Updated pinned GitHub Actions for CodeQL, build-provenance attestations,
+  SPDX SBOM attestations, and SBOM generation.
+- Updated kind and kubectl setup actions for Kubernetes verification.
+- Added a CI check that rejects prerelease Docker base-image tags.
+- Grouped routine Dependabot maintenance and adjusted its update cadence.
+
+### Documentation and development
+
+- Migrated application and Python utility docstrings from RMEIO to native
+  Sphinx/reStructuredText fields and directives.
+- Updated the source style checker to enforce Sphinx field order and reject
+  legacy docstring headings; added six regression tests.
+- Improved module descriptions and contributor documentation.
+
+No intentional change to the public API, request authorization behavior,
+database schema, or required deployment configuration.
+
 ## 1.0.0 - 2026-09-14
 
 First stable portfolio release.

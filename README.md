@@ -11,15 +11,23 @@ belongs outside the model, and security-critical state must remain
 authoritative across replicas. The required development and verification path
 runs without paid cloud infrastructure or paid model-provider calls.
 
-## Stable release
+## Releases
 
-The repository is preparing its first stable `v1.0.0` release. Package metadata
-on the release-candidate branch is `1.0.0`; the stable Git tag is created only
-after the final release checklist and immutable container evidence are complete.
+The current source package version is `1.0.1`. The published Git tags and
+container releases are available on the
+[GitHub Releases page](https://github.com/joshuabisdorf/Secure-AI-Gateway/releases).
+The first stable release was `v1.0.0`; `v1.0.1` contains security maintenance,
+container updates, and the Sphinx documentation migration.
 
-Release criteria are documented in
-[`docs/release-checklist.md`](docs/release-checklist.md). Release notes are in
-[`docs/release-notes-v1.0.0.md`](docs/release-notes-v1.0.0.md).
+See the [v1.0.1 release notes](docs/release-notes-v1.0.1.md) and the
+[v1.0.1 release checklist](docs/release-checklist-v1.0.1.md).
+The existing [v1.0.0 notes](docs/release-notes-v1.0.0.md) are retained
+as historical release documentation.
+
+Commits to `main` publish immutable `sha-<commit>` container images.
+Pushing the annotated `v1.0.1` Git tag on the verified release commit
+publishes the `ghcr.io/joshuabisdorf/secure-ai-gateway:v1.0.1` alias;
+do not assume that alias exists before the tagged workflow succeeds.
 
 ## Capabilities
 
