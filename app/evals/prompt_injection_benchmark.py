@@ -1,3 +1,5 @@
+"""Benchmark prompt-injection detection on a versioned corpus."""
+
 import argparse
 import hashlib
 import json

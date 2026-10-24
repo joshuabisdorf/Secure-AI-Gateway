@@ -1,3 +1,5 @@
+"""Evaluate semantic PII detection against local test cases."""
+
 import argparse
 import hashlib
 import json

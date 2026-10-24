@@ -1,3 +1,5 @@
+"""Measure leakage of synthetic protected instructions."""
+
 import argparse
 import asyncio
 import base64

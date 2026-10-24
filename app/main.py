@@ -1,3 +1,5 @@
+"""Expose the gateway HTTP API and orchestrate request policies."""
+
 import re
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
