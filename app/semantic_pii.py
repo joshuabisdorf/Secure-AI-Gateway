@@ -76,7 +76,9 @@ class SemanticPIIUnavailable(HTTPException):
 
     def __init__(self, reason: str) -> None:
         """Represent semantic PII unavailability as a sanitized HTTP 503
-            response.        :param reason: Safe diagnostic reason label.
+            response.
+
+        :param reason: Safe diagnostic reason label.
 
         .. note::
 
@@ -101,7 +103,9 @@ class SemanticPIIFinding:
 class SemanticPIIAnalyzer(Protocol):
     def analyze(self, text: str) -> tuple[SemanticPIIFinding, ...]:
         """Return non-overlapping semantic PII spans without retaining raw
-            values.        :param text: Function input.
+            values.
+
+        :param text: Function input.
         :returns: A value matching the declared tuple[SemanticPIIFinding, ...]
             return contract.
 
@@ -115,7 +119,9 @@ class SemanticPIIAnalyzer(Protocol):
 
 def _context_window(text: str, start: int, end: int) -> str:
     """Limit context inspection around an entity/span to a bounded local
-        window.    :param text: Source message text.
+        window.
+
+    :param text: Source message text.
     :param start: Entity start offset.
     :param end: Entity end offset.
     :returns: Bounded text surrounding the entity.
@@ -179,7 +185,9 @@ def _select_non_overlapping(
 class SpacySemanticPIIAnalyzer:
     def __init__(self, model_name: str = _DEFAULT_MODEL) -> None:
         """Defer expensive NLP model loading until semantic inspection is
-            needed.        :param model_name: Installed spaCy model package name.
+            needed.
+
+        :param model_name: Installed spaCy model package name.
 
         .. note::
 
@@ -312,7 +320,9 @@ def redact_semantic_text(
 
 def build_semantic_pii_analyzer() -> SemanticPIIAnalyzer:
     """Construct the configured semantic PII analyzer without loading its model
-        yet.    :returns: Configured SemanticPIIAnalyzer.
+        yet.
+
+    :returns: Configured SemanticPIIAnalyzer.
 
     .. note::
 

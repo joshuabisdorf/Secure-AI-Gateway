@@ -391,7 +391,9 @@ def _issue_execution_ticket(
     spec: ToolExecutionSpec,
 ) -> tuple[str, ExecutionTicketMetadata]:
     """Issue a short-lived HMAC-SHA256 ticket without embedding raw tool
-        arguments.    :param client_id: Authenticated client identity.
+        arguments.
+
+    :param client_id: Authenticated client identity.
     :param key_id: Authenticated API-key identifier.
     :param source_request_id: Chat request that produced the tool call.
     :param tool_call: Validated model-generated function call.
@@ -444,7 +446,9 @@ def _validate_tool_arguments(
     tool_call: ToolCall, spec: ToolExecutionSpec
 ) -> None:
     """Parse untrusted model arguments as JSON and validate them against the
-    authoritative schema.    :param tool_call: Model-generated function call.
+    authoritative schema.
+
+    :param tool_call: Model-generated function call.
     :param spec: Trusted tool execution specification.
     :returns: None when arguments are valid; raises ToolExecutionRejected
         otherwise.
@@ -768,7 +772,9 @@ class RedisToolExecutionReplayStore:
 
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
         """Use SET NX with expiry so only one gateway replica can authorize the
-            ticket.        :param execution_id: Ticket execution identifier.
+            ticket.
+
+        :param execution_id: Ticket execution identifier.
         :param ttl_seconds: Remaining ticket lifetime.
         :returns: True only when the execution ID was newly claimed.
 
