@@ -295,7 +295,7 @@ or vendoring an external guide or linter policy.
 
 The hard line-length rule is 80 characters except for genuinely indivisible
 content such as URLs or immutable machine identifiers. Python project functions
-use native Sphinx docstrings with `:param:`, `:returns:`, `:raises:`,
+use native Sphinx docstrings with `:param name:`, `:returns:`, `:raises Error:`,
 and `.. note::` directives. Security-critical preconditions, side effects, and
 fail-closed guarantees remain documented.
 

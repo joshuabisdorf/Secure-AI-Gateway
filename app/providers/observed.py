@@ -37,7 +37,6 @@ def observe_provider_chat(
     async def wrapped(self: Any, request: Any) -> _Result:
         """Measure one exact provider call.
 
-        :param self: Concrete provider instance.
         :param request: Provider request passed through unchanged.
         :returns: Exact result returned by the decorated method.
 

@@ -19,7 +19,6 @@ class SharedRedisToolExecutionReplayStore:
         behave consistently.
 
         :param redis_url: Redis-compatible connection URL.
-        :returns: Distributed replay-store instance.
 
         .. note::
 

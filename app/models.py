@@ -76,7 +76,6 @@ class ToolFunction(BaseModel):
     def validate_schema_complexity(self) -> "ToolFunction":
         """Reject excessively deep, large, or text-heavy tool schemas.
 
-        :param self: Validated tool function candidate.
         :returns: The same ToolFunction when complexity is within bounds.
 
         .. note::
@@ -146,9 +145,7 @@ class ChatCompletionRequest(BaseModel):
     @model_validator(mode="after")
     def validate_aggregate_complexity(self) -> "ChatCompletionRequest":
         """Reject requests whose combined text/schema content exceeds the
-        gateway budget.
-
-        :param self: Validated chat-completion request candidate.
+        gateway budget.        :param self: Validated chat-completion request candidate.
         :returns: The same ChatCompletionRequest when aggregate complexity is
             within bounds.
 

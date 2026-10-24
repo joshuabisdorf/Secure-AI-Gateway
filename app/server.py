@@ -85,7 +85,6 @@ class RequestBodyLimitMiddleware:
         :param max_body_bytes: Maximum accepted body size in bytes.
         :param block_api_docs: Whether production documentation routes are
             hidden.
-        :returns: Configured middleware instance.
 
         .. note::
 
@@ -140,9 +139,7 @@ class RequestBodyLimitMiddleware:
         send: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
         """Reject declared or streamed request bodies above max_body_bytes with
-            HTTP 413.
-
-        :param scope: ASGI connection scope.
+            HTTP 413.        :param scope: ASGI connection scope.
         :param receive: ASGI request receiver.
         :param send: ASGI response sender.
 

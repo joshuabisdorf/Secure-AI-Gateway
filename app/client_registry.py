@@ -73,7 +73,6 @@ class PostgresClientRegistry:
         :param database_url: PostgreSQL connection string.
         :param min_size: Minimum number of pooled connections.
         :param max_size: Maximum number of pooled connections.
-        :returns: A configured PostgresClientRegistry instance.
 
         .. note::
 

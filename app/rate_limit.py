@@ -123,9 +123,7 @@ def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
 
 def get_client_rate_limit(client_id: str) -> int:
     """Fail closed when rate-limit policy is absent, malformed, or missing the
-        client.
-
-    :param client_id: Authenticated gateway client identity.
+        client.    :param client_id: Authenticated gateway client identity.
     :returns: Requests-per-minute limit configured for the client.
 
     .. note::
@@ -171,7 +169,6 @@ class InMemoryRateLimiter:
         :param window_seconds: Duration of one rate-limit window.
         :param clock: Monotonic time source, injectable for deterministic
             tests.
-        :returns: A configured InMemoryRateLimiter instance.
 
         .. note::
 
@@ -268,7 +265,6 @@ class RedisRateLimiter:
         :param redis_url: Redis-compatible connection URL.
         :param window_seconds: Fixed rate-limit window duration.
         :param client: Optional compatible client for deterministic tests.
-        :returns: A configured RedisRateLimiter instance.
 
         .. note::
 
