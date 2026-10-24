@@ -31,10 +31,10 @@ _max_execution_token_chars = 4096
 def prometheus_metrics() -> Response:
     """Serialize the dedicated Secure AI Gateway Prometheus registry.
 
-    Returns:
-        Prometheus text exposition response.
+    :returns: Prometheus text exposition response.
 
-    Notes:
+    .. note::
+
         - Precondition: The endpoint is exposed only on a trusted/internal
           network boundary in production.
         - Does not expose prompts, credentials, client IDs, request IDs, model
@@ -59,20 +59,18 @@ def _deny_execution(
 ) -> None:
     """Emit a metadata-only execution denial and raises a generic HTTP error.
 
-    Args:
-        request_id: Authorization request correlation ID.
-        principal: Current authenticated client/key identity.
-        reason: Safe internal denial reason.
-        tool_name: Optional validated function name.
-        tool_call_id: Optional provider tool-call ID.
-        risk: Optional read/write/destructive classification.
-        source_request_id: Optional source chat request ID.
-        status_code: HTTP status returned to the caller.
+    :param request_id: Authorization request correlation ID.
+    :param principal: Current authenticated client/key identity.
+    :param reason: Safe internal denial reason.
+    :param tool_name: Optional validated function name.
+    :param tool_call_id: Optional provider tool-call ID.
+    :param risk: Optional read/write/destructive classification.
+    :param source_request_id: Optional source chat request ID.
+    :param status_code: HTTP status returned to the caller.
+    :returns: None; always raises HTTPException.
 
-    Returns:
-        None; always raises HTTPException.
+    .. note::
 
-    Notes:
         - Precondition: principal is authenticated and reason contains no tool
           arguments/tickets.
         - Side effect: Audit logging stream.
@@ -106,14 +104,12 @@ def _is_canonical_execution_token(token: str) -> bool:
         ticket
     text before the Base64 decoder is reached.
 
-    Args:
-        token: Candidate gateway execution ticket.
-
-    Returns:
-        True only for the gateway's unpadded URL-safe Base64 two-segment
+    :param token: Candidate gateway execution ticket.
+    :returns: True only for the gateway's unpadded URL-safe Base64 two-segment
         encoding.
 
-    Notes:
+    .. note::
+
         - Precondition: token is untrusted caller-controlled execution-ticket
           text.
     """
@@ -135,17 +131,15 @@ async def authorize_tool_execution(
 ) -> ToolExecutionAuthorizationResponse:
     """Re-authenticates execution context independently of model output.
 
-    Args:
-        authorization_request: Exact gateway-returned tool call including
-            execution token/risk.
-        http_request: HTTP request with correlation context.
-        outgoing_response: Response used for safe authorization headers.
-        principal: Current independently authenticated client identity.
+    :param authorization_request: Exact gateway-returned tool call including
+        execution token/risk.
+    :param http_request: HTTP request with correlation context.
+    :param outgoing_response: Response used for safe authorization headers.
+    :param principal: Current independently authenticated client identity.
+    :returns: Metadata-only authorization response for a downstream executor.
 
-    Returns:
-        Metadata-only authorization response for a downstream executor.
+    .. note::
 
-    Notes:
         - Precondition: Caller authenticates with the same gateway client/key
           that received the ticket.
         - Precondition: tool_call is the exact model-generated call returned by

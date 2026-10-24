@@ -21,13 +21,12 @@ class LockVerificationError(RuntimeError):
 def normalize_name(name: str) -> str:
     """Normalize a Python distribution name for requirement comparisons.
 
-    Args:
-        name: Python distribution name.
+    :param name: Python distribution name.
+    :returns: PEP 503-style lowercase name with separator runs converted to
+        hyphens.
 
-    Returns:
-        PEP 503-style lowercase name with separator runs converted to hyphens.
+    .. note::
 
-    Notes:
         - Precondition: name is a non-empty distribution name.
     """
     return re.sub(r"[-_.]+", "-", name).lower()
@@ -36,13 +35,12 @@ def normalize_name(name: str) -> str:
 def dependency_name(requirement: str) -> str:
     """Extract the normalized distribution name from a project requirement.
 
-    Args:
-        requirement: Requirement string from pyproject.toml.
+    :param requirement: Requirement string from pyproject.toml.
+    :returns: Normalized distribution name without extras or version
+        constraints.
 
-    Returns:
-        Normalized distribution name without extras or version constraints.
+    .. note::
 
-    Notes:
         - Precondition: requirement begins with a valid distribution name.
     """
     match = NAME_RE.match(requirement.strip())
@@ -56,10 +54,11 @@ def dependency_name(requirement: str) -> str:
 def read_lock_entries() -> dict[str, str]:
     """Read and validate release-lock entry syntax.
 
-    Returns:
-        Mapping of normalized distribution name to its validated lock line.
+    :returns: Mapping of normalized distribution name to its validated lock
+        line.
 
-    Notes:
+    .. note::
+
         - Precondition: LOCK_PATH exists and is UTF-8 text.
     """
     entries: dict[str, str] = {}
@@ -97,11 +96,11 @@ def read_lock_entries() -> dict[str, str]:
 def read_project_dependencies() -> tuple[set[str], list[str]]:
     """Read production dependencies and build requirements from pyproject.toml.
 
-    Returns:
-        A pair containing normalized production dependency names and raw build
-        requirement strings.
+    :returns: A pair containing normalized production dependency names and raw
+        build requirement strings.
 
-    Notes:
+    .. note::
+
         - Precondition: PYPROJECT_PATH exists and contains project/build-system
           tables.
     """
@@ -117,10 +116,10 @@ def read_project_dependencies() -> tuple[set[str], list[str]]:
 def verify_release_lock() -> None:
     """Verify the committed release lock covers the declared runtime surface.
 
-    Returns:
-        None on success.
+    :returns: None on success.
 
-    Notes:
+    .. note::
+
         - Precondition: The release lock and pyproject.toml are present and
           readable.
     """
@@ -155,11 +154,11 @@ def verify_release_lock() -> None:
 def main() -> int:
     """Run release-lock verification and print a compact success signal.
 
-    Returns:
-        Process exit code 0 on success; exceptions make verification fail
+    :returns: Process exit code 0 on success; exceptions make verification fail
         closed.
 
-    Notes:
+    .. note::
+
         - Precondition: Repository metadata and release lock are available
           under ROOT.
     """

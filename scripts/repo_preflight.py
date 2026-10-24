@@ -37,14 +37,12 @@ class PreflightFailure(RuntimeError):
 def run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     """Run Git from the repository root.
 
-    Args:
-        args: Git command arguments after the `git` executable. check: Whether
-            a non-zero exit status should raise an exception.
+    :param args: Git command arguments after the `git` executable. check:
+        Whether a non-zero exit status should raise an exception.
+    :returns: The completed subprocess result with text stdout/stderr.
 
-    Returns:
-        The completed subprocess result with text stdout/stderr.
+    .. note::
 
-    Notes:
         - Precondition: ROOT is inside a Git working tree and Git is installed.
         - Side effect: No repository files or Git refs.
     """
@@ -61,10 +59,10 @@ def run_git(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 def tracked_files() -> list[str]:
     """Return all files tracked in the current Git index.
 
-    Returns:
-        Sorted repository-relative tracked file paths.
+    :returns: Sorted repository-relative tracked file paths.
 
-    Notes:
+    .. note::
+
         - Precondition: The repository is readable by Git.
     """
     output = run_git("ls-files").stdout
@@ -74,13 +72,11 @@ def tracked_files() -> list[str]:
 def check_required_paths(files: list[str]) -> None:
     """Verify release-critical files are tracked.
 
-    Args:
-        files: Current tracked file paths.
+    :param files: Current tracked file paths.
+    :returns: None on success.
 
-    Returns:
-        None on success.
+    .. note::
 
-    Notes:
         - Precondition: files contains repository-relative tracked paths.
     """
     tracked = set(files)
@@ -93,13 +89,11 @@ def check_tracked_artifacts(files: list[str]) -> None:
     """Reject tracked local secrets, state files, and generated Python \
         artifacts.
 
-    Args:
-        files: Current tracked file paths.
+    :param files: Current tracked file paths.
+    :returns: None on success.
 
-    Returns:
-        None on success.
+    .. note::
 
-    Notes:
         - Precondition: files contains repository-relative tracked paths.
     """
     forbidden: list[str] = []
@@ -125,13 +119,11 @@ def check_action_pins(files: list[str]) -> None:
     """Require third-party GitHub Actions to use immutable 40-character SHA \
         pins.
 
-    Args:
-        files: Current tracked file paths.
+    :param files: Current tracked file paths.
+    :returns: None on success.
 
-    Returns:
-        None on success.
+    .. note::
 
-    Notes:
         - Precondition: Workflow files are UTF-8 YAML text.
     """
     failures: list[str] = []
@@ -161,13 +153,11 @@ def check_action_pins(files: list[str]) -> None:
 def check_current_tree_secret_markers(files: list[str]) -> None:
     """Scan tracked UTF-8 text for high-confidence credential markers.
 
-    Args:
-        files: Current tracked file paths.
+    :param files: Current tracked file paths.
+    :returns: None on success.
 
-    Returns:
-        None on success.
+    .. note::
 
-    Notes:
         - Precondition: Tracked files are readable from the working tree.
     """
     findings: list[str] = []
@@ -194,10 +184,10 @@ def check_history_sensitive_filenames() -> None:
     """Inspect full Git history for filenames that commonly contain local \
         secrets.
 
-    Returns:
-        None on success.
+    :returns: None on success.
 
-    Notes:
+    .. note::
+
         - Precondition: A non-shallow clone containing the repository history.
     """
     shallow = run_git("rev-parse", "--is-shallow-repository").stdout.strip()
@@ -229,13 +219,11 @@ def check_history_sensitive_filenames() -> None:
 def check_clean_tree(allow_dirty: bool) -> None:
     """Require a clean worktree for a release-oriented local preflight.
 
-    Args:
-        allow_dirty: Whether uncommitted changes are permitted.
+    :param allow_dirty: Whether uncommitted changes are permitted.
+    :returns: None on success.
 
-    Returns:
-        None on success.
+    .. note::
 
-    Notes:
         - Precondition: Git can inspect the working tree.
     """
     if allow_dirty:
@@ -248,10 +236,10 @@ def check_clean_tree(allow_dirty: bool) -> None:
 def parse_args() -> argparse.Namespace:
     """Parse command-line options.
 
-    Returns:
-        Parsed argparse namespace.
+    :returns: Parsed argparse namespace.
 
-    Notes:
+    .. note::
+
         - Precondition: Command-line arguments are available through Python's
           process state.
     """
@@ -274,10 +262,10 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     """Run repository hygiene and release-readiness checks.
 
-    Returns:
-        Process exit code 0 on success and 1 on a failed invariant.
+    :returns: Process exit code 0 on success and 1 on a failed invariant.
 
-    Notes:
+    .. note::
+
         - Input: Command-line options from parse_args().
         - Precondition: The script is executed from a usable Git checkout.
         - Side effect: No files, refs, credentials, or external services.

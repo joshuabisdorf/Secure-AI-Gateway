@@ -11,14 +11,12 @@ POD_IDENTITY_AGENT_IPV4 = "169.254.170.23/32"
 def parse_cidrs_json(value: str, label: str) -> list[str]:
     """Parse and canonicalize a JSON array of IPv4 CIDR strings.
 
-    Args:
-        value: JSON text containing CIDR strings. label: Human-readable
-            argument name used in validation errors.
+    :param value: JSON text containing CIDR strings. label: Human-readable
+        argument name used in validation errors.
+    :returns: Sorted canonical IPv4 CIDR strings.
 
-    Returns:
-        Sorted canonical IPv4 CIDR strings.
+    .. note::
 
-    Notes:
         - Precondition: value is intended to contain a JSON array and label
           identifies the source.
     """
@@ -43,14 +41,12 @@ def parse_cidrs_json(value: str, label: str) -> list[str]:
 def ip_block_list(cidrs: list[str], indentation: int) -> str:
     """Render a NetworkPolicy `to` list for IPv4 CIDRs.
 
-    Args:
-        cidrs: Canonical IPv4 CIDR strings. indentation: Number of spaces
-            before each list item.
+    :param cidrs: Canonical IPv4 CIDR strings. indentation: Number of spaces
+        before each list item.
+    :returns: YAML fragment containing one ipBlock item per CIDR.
 
-    Returns:
-        YAML fragment containing one ipBlock item per CIDR.
+    .. note::
 
-    Notes:
         - Precondition: cidrs contains validated canonical IPv4 networks and
           indentation is non-negative.
     """
@@ -64,16 +60,15 @@ def ip_block_list(cidrs: list[str], indentation: int) -> str:
 def render_policies(private_cidrs: list[str], data_cidrs: list[str]) -> str:
     """Render cloud runtime egress NetworkPolicies from real subnet CIDRs.
 
-    Args:
-        private_cidrs: EKS worker/private subnet CIDRs from Terraform outputs.
-            data_cidrs: Isolated RDS/ElastiCache subnet CIDRs from Terraform
-            outputs.
+    :param private_cidrs: EKS worker/private subnet CIDRs from Terraform
+        outputs.
+    :param data_cidrs: Isolated RDS/ElastiCache subnet CIDRs from Terraform
+        outputs.
+    :returns: Multi-document Kubernetes YAML for gateway, migration, and
+        Prometheus runtime egress.
 
-    Returns:
-        Multi-document Kubernetes YAML for gateway, migration, and Prometheus
-        runtime egress.
+    .. note::
 
-    Notes:
         - Precondition: private_cidrs and data_cidrs contain validated
           non-empty IPv4 networks.
     """
@@ -162,10 +157,10 @@ spec:
 def build_parser() -> argparse.ArgumentParser:
     """Build the command-line parser for cloud NetworkPolicy rendering.
 
-    Returns:
-        Configured ArgumentParser instance.
+    :returns: Configured ArgumentParser instance.
 
-    Notes:
+    .. note::
+
         - Precondition: argparse is available from the Python standard library.
         - Side effect: Nothing outside the newly created parser object.
     """
@@ -184,10 +179,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     """Render validated cloud NetworkPolicies to the requested output path.
 
-    Returns:
-        Process exit code 0 and the rendered YAML file at --output.
+    :returns: Process exit code 0 and the rendered YAML file at --output.
 
-    Notes:
+    .. note::
+
         - Input: Command-line arguments parsed by build_parser().
         - Precondition: CLI inputs contain real Terraform subnet CIDR JSON
           arrays and the output parent directory exists.

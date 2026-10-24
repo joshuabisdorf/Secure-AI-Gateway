@@ -28,14 +28,12 @@ _DEFAULT_PORTS = (18101, 18102)
 def _percentile(values: list[float], percentile: float) -> float:
     """Compute a deterministic nearest-rank percentile.
 
-    Args:
-        values: Numeric samples.
-        percentile: Requested percentile.
+    :param values: Numeric samples.
+    :param percentile: Requested percentile.
+    :returns: Selected percentile value.
 
-    Returns:
-        Selected percentile value.
+    .. note::
 
-    Notes:
         - Precondition: values is non-empty.
         - Precondition: percentile is between 0 and 100 inclusive.
     """
@@ -55,14 +53,12 @@ def _latency_summary(
         pass/fail
     capacity threshold.
 
-    Args:
-        latencies_ms: End-to-end request latency samples in milliseconds.
-        elapsed_seconds: Wall-clock batch duration.
+    :param latencies_ms: End-to-end request latency samples in milliseconds.
+    :param elapsed_seconds: Wall-clock batch duration.
+    :returns: JSON-serializable throughput and p50/p95/p99 metrics.
 
-    Returns:
-        JSON-serializable throughput and p50/p95/p99 metrics.
+    .. note::
 
-    Notes:
         - Precondition: latencies_ms is non-empty.
         - Precondition: elapsed_seconds is positive.
     """
@@ -80,13 +76,11 @@ def _latency_summary(
 def _rss_bytes(pid: int) -> int | None:
     """Read resident-set size from /proc when available.
 
-    Args:
-        pid: Process identifier.
+    :param pid: Process identifier.
+    :returns: Resident memory in bytes, or None when unavailable.
 
-    Returns:
-        Resident memory in bytes, or None when unavailable.
+    .. note::
 
-    Notes:
         - Precondition: pid may identify a running Linux gateway process.
         - Returns None on platforms without compatible process accounting.
     """
@@ -112,15 +106,13 @@ def _gateway_environment(
         and
     real shared state.
 
-    Args:
-        client_id: Temporary benchmark client identity.
-        database_url: PostgreSQL connection string.
-        redis_url: Redis-compatible connection URL.
+    :param client_id: Temporary benchmark client identity.
+    :param database_url: PostgreSQL connection string.
+    :param redis_url: Redis-compatible connection URL.
+    :returns: Environment mapping for a benchmark gateway process.
 
-    Returns:
-        Environment mapping for a benchmark gateway process.
+    .. note::
 
-    Notes:
         - Precondition: client_id is the temporary benchmark client created in
           PostgreSQL.
         - Precondition: database_url and redis_url identify local integration
@@ -167,14 +159,12 @@ def _spawn_gateway(port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
         benchmark
     output.
 
-    Args:
-        port: Loopback TCP port for the replica.
-        env: Child process environment.
+    :param port: Loopback TCP port for the replica.
+    :param env: Child process environment.
+    :returns: Running subprocess handle.
 
-    Returns:
-        Running subprocess handle.
+    .. note::
 
-    Notes:
         - Precondition: port is available on loopback.
         - Precondition: env contains complete local gateway runtime
           configuration.
@@ -207,10 +197,10 @@ def _stop_process(process: subprocess.Popen[bytes]) -> None:
         bounded
     wait.
 
-    Args:
-        process: Gateway subprocess handle.
+    :param process: Gateway subprocess handle.
 
-    Notes:
+    .. note::
+
         - Precondition: process is a subprocess created by this verifier.
         - Side effect: Child process lifecycle.
     """
@@ -233,15 +223,13 @@ def _wait_for_health(
     """Wait for bounded startup and fails if the replica exits or never becomes
     healthy.
 
-    Args:
-        base_url: Replica HTTP base URL.
-        process: Gateway subprocess handle.
-        timeout_seconds: Maximum startup wait.
+    :param base_url: Replica HTTP base URL.
+    :param process: Gateway subprocess handle.
+    :param timeout_seconds: Maximum startup wait.
+    :returns: None after a healthy response is observed.
 
-    Returns:
-        None after a healthy response is observed.
+    .. note::
 
-    Notes:
         - Precondition: process is expected to expose /health at base_url.
         - Side effect: Performs local HTTP health requests.
     """
@@ -274,18 +262,17 @@ def _post_with_failover(
         replica
     after transport/5xx failure.
 
-    Args:
-        client: Shared local HTTP client.
-        urls: Candidate gateway replica URLs.
-        index: Request index used for deterministic round-robin preference.
-        api_key: Temporary raw gateway credential kept only in process memory.
-        payload: Chat request body.
+    :param client: Shared local HTTP client.
+    :param urls: Candidate gateway replica URLs.
+    :param index: Request index used for deterministic round-robin preference.
+    :param api_key: Temporary raw gateway credential kept only in process
+        memory.
+    :param payload: Chat request body.
+    :returns: Tuple of elapsed milliseconds, successful replica URL, and
+        whether failover was required.
 
-    Returns:
-        Tuple of elapsed milliseconds, successful replica URL, and whether
-        failover was required.
+    .. note::
 
-    Notes:
         - Precondition: urls contains at least one gateway replica URL.
         - Precondition: api_key authenticates the temporary benchmark client.
         - Side effect: Gateway rate-limit and usage state through local HTTP
@@ -333,18 +320,16 @@ def _benchmark_requests(
         end-to-end
     latency.
 
-    Args:
-        urls: Healthy gateway replica URLs.
-        api_key: Temporary benchmark credential.
-        payload: Request body.
-        request_count: Number of requests to issue.
-        concurrency: Maximum worker threads.
+    :param urls: Healthy gateway replica URLs.
+    :param api_key: Temporary benchmark credential.
+    :param payload: Request body.
+    :param request_count: Number of requests to issue.
+    :param concurrency: Maximum worker threads.
+    :returns: Throughput/latency summary plus per-replica success counts and
+        failover count.
 
-    Returns:
-        Throughput/latency summary plus per-replica success counts and failover
-        count.
+    .. note::
 
-    Notes:
         - Precondition: At least one healthy gateway URL is supplied.
         - Precondition: request_count and concurrency are positive.
         - Side effect: Local gateway shared rate-limit/usage state.
@@ -391,14 +376,12 @@ async def _rate_limiter_contention_benchmark(
     """Measure direct distributed limiter contention across four independent
         clients.
 
-    Args:
-        redis_url: Redis-compatible connection URL.
-        operations: Number of contention operations.
+    :param redis_url: Redis-compatible connection URL.
+    :param operations: Number of contention operations.
+    :returns: Operation count, operations/sec, and elapsed seconds.
 
-    Returns:
-        Operation count, operations/sec, and elapsed seconds.
+    .. note::
 
-    Notes:
         - Precondition: redis_url identifies the local Redis/Valkey integration
           service.
         - Precondition: operations is positive and below the temporary
@@ -441,10 +424,10 @@ async def _rate_limiter_contention_benchmark(
 def _parse_args() -> argparse.Namespace:
     """Validate benchmark dimensions and local service URLs.
 
-    Returns:
-        Parsed argparse namespace.
+    :returns: Parsed argparse namespace.
 
-    Notes:
+    .. note::
+
         - Input: Process command line.
         - Precondition: Command-line values use the documented M10 verifier
           options.
@@ -482,11 +465,11 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     """Benchmark one and two mock-provider replicas.
 
-    Returns:
-        JSON benchmark/report on stdout and optionally at --output.
+    :returns: JSON benchmark/report on stdout and optionally at --output.
         Process exit code 0 only when all reliability assertions succeed.
 
-    Notes:
+    .. note::
+
         - Input: Command-line service URLs, request/concurrency counts, and
           optional output path.
         - Precondition: Local PostgreSQL and Redis/Valkey services are
