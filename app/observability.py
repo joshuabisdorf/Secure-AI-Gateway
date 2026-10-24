@@ -1,3 +1,5 @@
+"""Record bounded metrics and distributed request traces."""
+
 import os
 import re
 from contextlib import contextmanager

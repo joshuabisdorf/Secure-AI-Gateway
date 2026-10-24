@@ -1,3 +1,5 @@
+"""Instrument provider calls with safe latency and outcome metadata."""
+
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from time import perf_counter

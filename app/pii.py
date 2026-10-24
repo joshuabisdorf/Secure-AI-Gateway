@@ -1,3 +1,5 @@
+"""Detect and redact structured personally identifiable information."""
+
 import os
 import re
 from dataclasses import dataclass

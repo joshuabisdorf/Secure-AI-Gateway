@@ -1,3 +1,5 @@
+"""Implement an OpenRouter adapter using the shared transport."""
+
 import os
 
 import httpx

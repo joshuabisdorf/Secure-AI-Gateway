@@ -1,3 +1,5 @@
+"""Provide deterministic local chat responses without provider calls."""
+
 from uuid import uuid4
 
 from app.models import (

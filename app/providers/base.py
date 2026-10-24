@@ -1,3 +1,5 @@
+"""Define the common upstream provider contract."""
+
 from abc import ABC, abstractmethod
 
 from app.models import ChatCompletionRequest, ChatCompletionResponse

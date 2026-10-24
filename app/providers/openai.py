@@ -1,3 +1,5 @@
+"""Implement the OpenAI-compatible upstream request transport."""
+
 import os
 
 import httpx

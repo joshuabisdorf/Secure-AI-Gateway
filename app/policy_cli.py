@@ -1,3 +1,5 @@
+"""Validate the configured security policy from the command line."""
+
 import argparse
 
 from app.security_policy import (

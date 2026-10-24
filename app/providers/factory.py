@@ -1,3 +1,5 @@
+"""Select the configured LLM provider implementation."""
+
 import os
 
 from app.providers.base import Provider, ProviderConfigurationError

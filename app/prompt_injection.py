@@ -1,3 +1,5 @@
+"""Inspect client content for prompt-injection indicators."""
+
 import base64
 import binascii
 import os
