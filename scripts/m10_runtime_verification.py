@@ -26,25 +26,18 @@ _DEFAULT_PORTS = (18101, 18102)
 
 
 def _percentile(values: list[float], percentile: float) -> float:
-    """
-    RME
+    """Compute a deterministic nearest-rank percentile.
 
-    Requires:
-        - values is non-empty.
-        - percentile is between 0 and 100 inclusive.
+    Args:
+        values: Numeric samples.
+        percentile: Requested percentile.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Selected percentile value.
 
-    Effects:
-        - Computes a deterministic nearest-rank percentile.
-
-    Inputs:
-        - values: Numeric samples.
-        - percentile: Requested percentile.
-
-    Outputs:
-        - Selected percentile value.
+    Notes:
+        - Precondition: values is non-empty.
+        - Precondition: percentile is between 0 and 100 inclusive.
     """
     if not values:
         raise ValueError("percentile_requires_samples")
@@ -58,26 +51,19 @@ def _percentile(values: list[float], percentile: float) -> float:
 def _latency_summary(
     latencies_ms: list[float], elapsed_seconds: float
 ) -> dict[str, float]:
-    """
-    RME
+    """Summarize local request throughput and latency without applying a pass/fail
+    capacity threshold.
 
-    Requires:
-        - latencies_ms is non-empty.
-        - elapsed_seconds is positive.
+    Args:
+        latencies_ms: End-to-end request latency samples in milliseconds.
+        elapsed_seconds: Wall-clock batch duration.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        JSON-serializable throughput and p50/p95/p99 metrics.
 
-    Effects:
-        - Summarizes local request throughput and latency without applying a
-        - pass/fail capacity threshold.
-
-    Inputs:
-        - latencies_ms: End-to-end request latency samples in milliseconds.
-        - elapsed_seconds: Wall-clock batch duration.
-
-    Outputs:
-        - JSON-serializable throughput and p50/p95/p99 metrics.
+    Notes:
+        - Precondition: latencies_ms is non-empty.
+        - Precondition: elapsed_seconds is positive.
     """
     if elapsed_seconds <= 0:
         raise ValueError("invalid_elapsed_seconds")
@@ -91,24 +77,17 @@ def _latency_summary(
 
 
 def _rss_bytes(pid: int) -> int | None:
-    """
-    RME
+    """Read resident-set size from /proc when available.
 
-    Requires:
-        - pid may identify a running Linux gateway process.
+    Args:
+        pid: Process identifier.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Resident memory in bytes, or None when unavailable.
 
-    Effects:
-        - Reads resident-set size from /proc when available.
+    Notes:
+        - Precondition: pid may identify a running Linux gateway process.
         - Returns None on platforms without compatible process accounting.
-
-    Inputs:
-        - pid: Process identifier.
-
-    Outputs:
-        - Resident memory in bytes, or None when unavailable.
     """
     try:
         status = Path(f"/proc/{pid}/status").read_text(encoding="utf-8")
@@ -128,29 +107,25 @@ def _gateway_environment(
     database_url: str,
     redis_url: str,
 ) -> dict[str, str]:
-    """
-    RME
+    """Build an isolated zero-cost runtime environment using the mock provider and
+    real shared state.
 
-    Requires:
-        - client_id is the temporary benchmark client created in PostgreSQL.
-        - database_url and redis_url identify local integration services.
+    Args:
+        client_id: Temporary benchmark client identity.
+        database_url: PostgreSQL connection string.
+        redis_url: Redis-compatible connection URL.
 
-    Modifies:
-        - Nothing in the parent process environment.
+    Returns:
+        Environment mapping for a benchmark gateway process.
 
-    Effects:
-        - Builds an isolated zero-cost runtime environment using the mock
-        - provider and real shared state.
+    Notes:
+        - Precondition: client_id is the temporary benchmark client created in
+          PostgreSQL.
+        - Precondition: database_url and redis_url identify local integration
+          services.
+        - Side effect: Nothing in the parent process environment.
         - Removes unified-policy configuration so explicit benchmark legacy
-        - policy values are authoritative.
-
-    Inputs:
-        - client_id: Temporary benchmark client identity.
-        - database_url: PostgreSQL connection string.
-        - redis_url: Redis-compatible connection URL.
-
-    Outputs:
-        - Environment mapping for a benchmark gateway process.
+          policy values are authoritative.
     """
     env = os.environ.copy()
     env.pop("SAG_SECURITY_POLICY_FILE", None)
@@ -186,26 +161,21 @@ def _gateway_environment(
 
 
 def _spawn_gateway(port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
-    """
-    RME
+    """Start a single-worker gateway replica with logs suppressed from benchmark
+    output.
 
-    Requires:
-        - port is available on loopback.
-        - env contains complete local gateway runtime configuration.
+    Args:
+        port: Loopback TCP port for the replica.
+        env: Child process environment.
 
-    Modifies:
-        - Creates one local Uvicorn subprocess.
+    Returns:
+        Running subprocess handle.
 
-    Effects:
-        - Starts a single-worker gateway replica with logs suppressed from
-        - benchmark output.
-
-    Inputs:
-        - port: Loopback TCP port for the replica.
-        - env: Child process environment.
-
-    Outputs:
-        - Running subprocess handle.
+    Notes:
+        - Precondition: port is available on loopback.
+        - Precondition: env contains complete local gateway runtime
+          configuration.
+        - Side effect: Creates one local Uvicorn subprocess.
     """
     return subprocess.Popen(
         [
@@ -230,24 +200,15 @@ def _spawn_gateway(port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
 
 
 def _stop_process(process: subprocess.Popen[bytes]) -> None:
-    """
-    RME
+    """Terminate the process gracefully when possible and kills it after a bounded
+    wait.
 
-    Requires:
-        - process is a subprocess created by this verifier.
+    Args:
+        process: Gateway subprocess handle.
 
-    Modifies:
-        - Child process lifecycle.
-
-    Effects:
-        - Terminates the process gracefully when possible and kills it after a
-        - bounded wait.
-
-    Inputs:
-        - process: Gateway subprocess handle.
-
-    Outputs:
-        - None.
+    Notes:
+        - Precondition: process is a subprocess created by this verifier.
+        - Side effect: Child process lifecycle.
     """
     if process.poll() is not None:
         return
@@ -265,26 +226,20 @@ def _wait_for_health(
     *,
     timeout_seconds: float = 45.0,
 ) -> None:
-    """
-    RME
+    """Wait for bounded startup and fails if the replica exits or never becomes
+    healthy.
 
-    Requires:
-        - process is expected to expose /health at base_url.
+    Args:
+        base_url: Replica HTTP base URL.
+        process: Gateway subprocess handle.
+        timeout_seconds: Maximum startup wait.
 
-    Modifies:
-        - Performs local HTTP health requests.
+    Returns:
+        None after a healthy response is observed.
 
-    Effects:
-        - Waits for bounded startup and fails if the replica exits or never
-        - becomes healthy.
-
-    Inputs:
-        - base_url: Replica HTTP base URL.
-        - process: Gateway subprocess handle.
-        - timeout_seconds: Maximum startup wait.
-
-    Outputs:
-        - None after a healthy response is observed.
+    Notes:
+        - Precondition: process is expected to expose /health at base_url.
+        - Side effect: Performs local HTTP health requests.
     """
     deadline = time.monotonic() + timeout_seconds
     with httpx.Client(timeout=1.0) as client:
@@ -311,31 +266,26 @@ def _post_with_failover(
     api_key: str,
     payload: dict[str, object],
 ) -> tuple[float, str, bool]:
-    """
-    RME
+    """Send one request to the preferred replica and retries once on another replica
+    after transport/5xx failure.
 
-    Requires:
-        - urls contains at least one gateway replica URL.
-        - api_key authenticates the temporary benchmark client.
+    Args:
+        client: Shared local HTTP client.
+        urls: Candidate gateway replica URLs.
+        index: Request index used for deterministic round-robin preference.
+        api_key: Temporary raw gateway credential kept only in process memory.
+        payload: Chat request body.
 
-    Modifies:
-        - Gateway rate-limit and usage state through local HTTP requests.
+    Returns:
+        Tuple of elapsed milliseconds, successful replica URL, and whether
+        failover was required.
 
-    Effects:
-        - Sends one request to the preferred replica and retries once on another
-        - replica after transport/5xx failure.
+    Notes:
+        - Precondition: urls contains at least one gateway replica URL.
+        - Precondition: api_key authenticates the temporary benchmark client.
+        - Side effect: Gateway rate-limit and usage state through local HTTP
+          requests.
         - Raises when no replica returns a successful completion.
-
-    Inputs:
-        - client: Shared local HTTP client.
-        - urls: Candidate gateway replica URLs.
-        - index: Request index used for deterministic round-robin preference.
-        - api_key: Temporary raw gateway credential kept only in process memory.
-        - payload: Chat request body.
-
-    Outputs:
-        - Tuple of elapsed milliseconds, successful replica URL, and whether
-        - failover was required.
     """
     if not urls:
         raise ValueError("no_gateway_urls")
@@ -374,31 +324,25 @@ def _benchmark_requests(
     request_count: int,
     concurrency: int,
 ) -> dict[str, Any]:
-    """
-    RME
+    """Issue a bounded concurrent request batch and records successful end-to-end
+    latency.
 
-    Requires:
-        - At least one healthy gateway URL is supplied.
-        - request_count and concurrency are positive.
+    Args:
+        urls: Healthy gateway replica URLs.
+        api_key: Temporary benchmark credential.
+        payload: Request body.
+        request_count: Number of requests to issue.
+        concurrency: Maximum worker threads.
 
-    Modifies:
-        - Local gateway shared rate-limit/usage state.
+    Returns:
+        Throughput/latency summary plus per-replica success counts and failover
+        count.
 
-    Effects:
-        - Issues a bounded concurrent request batch and records successful
-        - end-to-end latency.
+    Notes:
+        - Precondition: At least one healthy gateway URL is supplied.
+        - Precondition: request_count and concurrency are positive.
+        - Side effect: Local gateway shared rate-limit/usage state.
         - Does not enforce a throughput target; results are descriptive only.
-
-    Inputs:
-        - urls: Healthy gateway replica URLs.
-        - api_key: Temporary benchmark credential.
-        - payload: Request body.
-        - request_count: Number of requests to issue.
-        - concurrency: Maximum worker threads.
-
-    Outputs:
-        - Throughput/latency summary plus per-replica success counts and
-        - failover count.
     """
     if request_count < 1 or concurrency < 1:
         raise ValueError("invalid_benchmark_dimensions")
@@ -438,28 +382,23 @@ async def _rate_limiter_contention_benchmark(
     *,
     operations: int,
 ) -> dict[str, float]:
-    """
-    RME
+    """Measure direct distributed limiter contention across four independent clients.
 
-    Requires:
-        - redis_url identifies the local Redis/Valkey integration service.
-        - operations is positive and below the temporary configured limit.
+    Args:
+        redis_url: Redis-compatible connection URL.
+        operations: Number of contention operations.
 
-    Modifies:
-        - One temporary shared Redis rate-limit bucket.
+    Returns:
+        Operation count, operations/sec, and elapsed seconds.
 
-    Effects:
-        - Measures direct distributed limiter contention across four independent
-        - clients.
+    Notes:
+        - Precondition: redis_url identifies the local Redis/Valkey integration
+          service.
+        - Precondition: operations is positive and below the temporary
+          configured limit.
+        - Side effect: One temporary shared Redis rate-limit bucket.
         - Verifies all operations remain allowed under the deliberately high
-        - benchmark limit.
-
-    Inputs:
-        - redis_url: Redis-compatible connection URL.
-        - operations: Number of contention operations.
-
-    Outputs:
-        - Operation count, operations/sec, and elapsed seconds.
+          benchmark limit.
     """
     if operations < 1:
         raise ValueError("invalid_rate_limiter_operations")
@@ -493,23 +432,15 @@ async def _rate_limiter_contention_benchmark(
 
 
 def _parse_args() -> argparse.Namespace:
-    """
-    RME
+    """Validate benchmark dimensions and local service URLs.
 
-    Requires:
-        - Command-line values use the documented M10 verifier options.
+    Returns:
+        Parsed argparse namespace.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Validates benchmark dimensions and local service URLs.
-
-    Inputs:
-        - Process command line.
-
-    Outputs:
-        - Parsed argparse namespace.
+    Notes:
+        - Input: Process command line.
+        - Precondition: Command-line values use the documented M10 verifier
+          options.
     """
     parser = argparse.ArgumentParser(
         description=(
@@ -542,40 +473,34 @@ def _parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
-    """
-    RME
+    """Benchmark one and two mock-provider replicas.
 
-    Requires:
-        - Local PostgreSQL and Redis/Valkey services are reachable.
-        - The repository's Python environment contains runtime dependencies and
-        - Uvicorn.
-        - Ports 18101 and 18102 are available on loopback.
+    Returns:
+        JSON benchmark/report on stdout and optionally at --output.
+        Process exit code 0 only when all reliability assertions succeed.
 
-    Modifies:
-        - Applies idempotent database migrations.
-        - Creates and later revokes one temporary PostgreSQL-backed client
-        - credential.
-        - Creates temporary Redis rate/usage/replay state through two local
-        - gateway replicas.
-        - Starts and terminates two local Uvicorn subprocesses.
-        - Writes an output JSON file when --output is supplied.
-
-    Effects:
-        - Benchmarks one and two mock-provider replicas.
-        - Reports p50/p95/p99 latency, requests/sec, RSS memory, inspection-path
-        - delta, and Redis limiter contention.
+    Notes:
+        - Input: Command-line service URLs, request/concurrency counts, and
+          optional output path.
+        - Precondition: Local PostgreSQL and Redis/Valkey services are
+          reachable.
+        - Precondition: The repository's Python environment contains runtime
+          dependencies and
+        - Precondition: Uvicorn.
+        - Precondition: Ports 18101 and 18102 are available on loopback.
+        - Side effect: Applies idempotent database migrations.
+        - Side effect: Creates and later revokes one temporary
+          PostgreSQL-backed client credential.
+        - Side effect: Creates temporary Redis rate/usage/replay state through
+          two local gateway replicas.
+        - Side effect: Starts and terminates two local Uvicorn subprocesses.
+        - Side effect: Writes an output JSON file when --output is supplied.
+        - Reports p50/p95/p99 latency, requests/sec, RSS memory,
+          inspection-path delta, and Redis limiter contention.
         - Terminates one replica during a concurrent load batch and verifies
-        - client-side failover to the surviving replica.
+          client-side failover to the surviving replica.
         - Makes no paid provider or cloud calls and applies no production
-        - capacity threshold.
-
-    Inputs:
-        - Command-line service URLs, request/concurrency counts, and optional
-        - output path.
-
-    Outputs:
-        - JSON benchmark/report on stdout and optionally at --output.
-        - Process exit code 0 only when all reliability assertions succeed.
+          capacity threshold.
     """
     args = _parse_args()
     client_id = f"m10-perf-{uuid4().hex[:12]}"

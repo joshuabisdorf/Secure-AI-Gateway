@@ -21,16 +21,14 @@ class LockVerificationError(RuntimeError):
 def normalize_name(name: str) -> str:
     """Normalize a Python distribution name for requirement comparisons.
 
-    Requires:
-        name is a non-empty distribution name.
-    Modifies:
-        Nothing.
-    Effects:
-        Performs no I/O.
-    Inputs:
+    Args:
         name: Python distribution name.
-    Outputs:
+
+    Returns:
         PEP 503-style lowercase name with separator runs converted to hyphens.
+
+    Notes:
+        - Precondition: name is a non-empty distribution name.
     """
     return re.sub(r"[-_.]+", "-", name).lower()
 
@@ -38,16 +36,14 @@ def normalize_name(name: str) -> str:
 def dependency_name(requirement: str) -> str:
     """Extract the normalized distribution name from a project requirement.
 
-    Requires:
-        requirement begins with a valid distribution name.
-    Modifies:
-        Nothing.
-    Effects:
-        Raises LockVerificationError for an unsupported requirement form.
-    Inputs:
+    Args:
         requirement: Requirement string from pyproject.toml.
-    Outputs:
+
+    Returns:
         Normalized distribution name without extras or version constraints.
+
+    Notes:
+        - Precondition: requirement begins with a valid distribution name.
     """
     match = NAME_RE.match(requirement.strip())
     if match is None:
@@ -60,17 +56,11 @@ def dependency_name(requirement: str) -> str:
 def read_lock_entries() -> dict[str, str]:
     """Read and validate release-lock entry syntax.
 
-    Requires:
-        LOCK_PATH exists and is UTF-8 text.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads the release lock and raises LockVerificationError on invalid,
-        duplicate, unpinned, or unhashed direct-URL entries.
-    Inputs:
-        None.
-    Outputs:
+    Returns:
         Mapping of normalized distribution name to its validated lock line.
+
+    Notes:
+        - Precondition: LOCK_PATH exists and is UTF-8 text.
     """
     entries: dict[str, str] = {}
     for line_number, raw_line in enumerate(
@@ -107,17 +97,13 @@ def read_lock_entries() -> dict[str, str]:
 def read_project_dependencies() -> tuple[set[str], list[str]]:
     """Read production dependencies and build requirements from pyproject.toml.
 
-    Requires:
-        PYPROJECT_PATH exists and contains project/build-system tables.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads and parses pyproject.toml.
-    Inputs:
-        None.
-    Outputs:
+    Returns:
         A pair containing normalized production dependency names and raw build
         requirement strings.
+
+    Notes:
+        - Precondition: PYPROJECT_PATH exists and contains project/build-system
+          tables.
     """
     document = tomllib.loads(PYPROJECT_PATH.read_text(encoding="utf-8"))
     project_dependencies = {
@@ -131,17 +117,12 @@ def read_project_dependencies() -> tuple[set[str], list[str]]:
 def verify_release_lock() -> None:
     """Verify the committed release lock covers the declared runtime surface.
 
-    Requires:
-        The release lock and pyproject.toml are present and readable.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads project metadata and raises LockVerificationError if runtime roots
-        are missing or the build backend is not exactly pinned.
-    Inputs:
-        None.
-    Outputs:
+    Returns:
         None on success.
+
+    Notes:
+        - Precondition: The release lock and pyproject.toml are present and
+          readable.
     """
     lock_entries = read_lock_entries()
     project_dependencies, build_requirements = read_project_dependencies()
@@ -174,17 +155,13 @@ def verify_release_lock() -> None:
 def main() -> int:
     """Run release-lock verification and print a compact success signal.
 
-    Requires:
-        Repository metadata and release lock are available under ROOT.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads release metadata and writes the verification result to stdout.
-    Inputs:
-        None.
-    Outputs:
+    Returns:
         Process exit code 0 on success; exceptions make verification fail
         closed.
+
+    Notes:
+        - Precondition: Repository metadata and release lock are available
+          under ROOT.
     """
     verify_release_lock()
     entries = read_lock_entries()
