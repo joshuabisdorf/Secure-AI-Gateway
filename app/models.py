@@ -20,26 +20,20 @@ MAX_RESPONSE_CHOICES = 16
 
 
 def _measure_json_shape(value: Any, *, depth: int = 0) -> tuple[int, int]:
-    """
-    RME
+    """Reject tool-schema structures deeper than MAX_TOOL_SCHEMA_DEPTH.
 
-    Requires:
-        - value is JSON-like data supplied by a validated request model.
+    Args:
+        value: JSON-like value to measure.
+        depth: Current recursive depth.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Tuple of node count and textual character count.
 
-    Effects:
-        - Rejects tool-schema structures deeper than MAX_TOOL_SCHEMA_DEPTH.
+    Notes:
+        - Precondition: value is JSON-like data supplied by a validated request
+          model.
         - Counts container/scalar nodes and textual characters without
-        - serializing secrets.
-
-    Inputs:
-        - value: JSON-like value to measure.
-        - depth: Current recursive depth.
-
-    Outputs:
-        - Tuple of node count and textual character count.
+          serializing secrets.
     """
     if depth > MAX_TOOL_SCHEMA_DEPTH:
         raise ValueError("tool schema exceeds maximum nesting depth")
@@ -80,23 +74,16 @@ class ToolFunction(BaseModel):
 
     @model_validator(mode="after")
     def validate_schema_complexity(self) -> "ToolFunction":
-        """
-        RME
+        """Reject excessively deep, large, or text-heavy tool schemas.
 
-        Requires:
-            - parameters contains JSON-schema-like data.
+        Args:
+            self: Validated tool function candidate.
 
-        Modifies:
-            - Nothing.
+        Returns:
+            The same ToolFunction when complexity is within bounds.
 
-        Effects:
-            - Rejects excessively deep, large, or text-heavy tool schemas.
-
-        Inputs:
-            - self: Validated tool function candidate.
-
-        Outputs:
-            - The same ToolFunction when complexity is within bounds.
+        Notes:
+            - Precondition: parameters contains JSON-schema-like data.
         """
         nodes, text_chars = _measure_json_shape(self.parameters)
         if nodes > MAX_TOOL_SCHEMA_NODES:
@@ -160,25 +147,18 @@ class ChatCompletionRequest(BaseModel):
 
     @model_validator(mode="after")
     def validate_aggregate_complexity(self) -> "ChatCompletionRequest":
-        """
-        RME
+        """Reject requests whose combined text/schema content exceeds the gateway budget.
 
-        Requires:
-            - Nested request fields have passed their individual bounds.
+        Args:
+            self: Validated chat-completion request candidate.
 
-        Modifies:
-            - Nothing.
+        Returns:
+            The same ChatCompletionRequest when aggregate complexity is within
+            bounds.
 
-        Effects:
-            - Rejects requests whose combined text/schema content exceeds the
-            - gateway budget.
-
-        Inputs:
-            - self: Validated chat-completion request candidate.
-
-        Outputs:
-            - The same ChatCompletionRequest when aggregate complexity is within
-            - bounds.
+        Notes:
+            - Precondition: Nested request fields have passed their individual
+              bounds.
         """
         text_chars = len(self.model)
 

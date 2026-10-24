@@ -23,22 +23,16 @@ class Provider(ABC):
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        """
-        RME
+        """Execute a chat-completion request through the provider.
 
-        Requires:
-            - request is a validated chat-completion request.
+        Args:
+            request: The normalized gateway chat request.
 
-        Modifies:
-            - Provider-specific state, if any.
+        Returns:
+            A normalized chat-completion response.
 
-        Effects:
-            - Executes a chat-completion request through the provider.
-
-        Inputs:
-            - request: The normalized gateway chat request.
-
-        Outputs:
-            - A normalized chat-completion response.
+        Notes:
+            - Precondition: request is a validated chat-completion request.
+            - Side effect: Provider-specific state, if any.
         """
         raise NotImplementedError

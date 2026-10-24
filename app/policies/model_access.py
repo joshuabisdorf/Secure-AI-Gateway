@@ -8,24 +8,14 @@ _model_name_pattern = re.compile(r"^[^\s,]{1,256}$")
 
 
 def get_allowed_models() -> frozenset[str]:
-    """
-    RME
+    """Reject policy evaluation when no usable global model allowlist is configured.
 
-    Requires:
-        - SAG_ALLOWED_MODELS may be configured as a comma-separated list.
+    Returns:
+        A frozen set containing globally allowed model names.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Rejects policy evaluation when no usable global model allowlist is
-        - configured.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A frozen set containing globally allowed model names.
+    Notes:
+        - Precondition: SAG_ALLOWED_MODELS may be configured as a
+          comma-separated list.
     """
     configured_models = os.getenv("SAG_ALLOWED_MODELS")
 
@@ -51,28 +41,23 @@ def get_allowed_models() -> frozenset[str]:
 def parse_client_allowed_models(
     configured_policies: str,
 ) -> dict[str, frozenset[str]]:
-    """
-    RME
+    """Validate per-client model policy configuration.
 
-    Requires:
-        - configured_policies uses client_id:model records separated by commas.
-        - A client ID may appear more than once to allow multiple models.
+    Args:
+        configured_policies: Serialized per-client model allowlist records.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Validates per-client model policy configuration.
-        - Groups allowed models by client identity.
-
-    Inputs:
-        - configured_policies: Serialized per-client model allowlist records.
-
-    Outputs:
-        - Mapping from client ID to its frozen set of allowed model names.
+    Returns:
+        Mapping from client ID to its frozen set of allowed model names.
 
     Raises:
-        - ValueError: The configuration is empty or contains an invalid record.
+        ValueError: The configuration is empty or contains an invalid record.
+
+    Notes:
+        - Precondition: configured_policies uses client_id:model records
+          separated by commas.
+        - Precondition: A client ID may appear more than once to allow multiple
+          models.
+        - Groups allowed models by client identity.
     """
     policies: dict[str, set[str]] = {}
 
@@ -102,25 +87,19 @@ def parse_client_allowed_models(
 
 
 def get_client_allowed_models(client_id: str) -> frozenset[str]:
-    """
-    RME
+    """Fail closed when the client-policy registry is absent or malformed.
 
-    Requires:
-        - client_id identifies an authenticated gateway client.
-        - SAG_CLIENT_ALLOWED_MODELS may contain per-client model records.
+    Args:
+        client_id: Authenticated gateway client identity.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Frozen set of models granted to the client.
 
-    Effects:
-        - Fails closed when the client-policy registry is absent or malformed.
+    Notes:
+        - Precondition: client_id identifies an authenticated gateway client.
+        - Precondition: SAG_CLIENT_ALLOWED_MODELS may contain per-client model
+          records.
         - Denies authenticated clients that have no configured model grants.
-
-    Inputs:
-        - client_id: Authenticated gateway client identity.
-
-    Outputs:
-        - Frozen set of models granted to the client.
     """
     configured_policies = os.getenv("SAG_CLIENT_ALLOWED_MODELS")
     if not configured_policies:
@@ -148,29 +127,23 @@ def get_client_allowed_models(client_id: str) -> frozenset[str]:
 
 
 def enforce_model_allowed(model: str, client_id: str) -> None:
-    """
-    RME
+    """Enforce the global model allowlist as a deployment-wide ceiling.
 
-    Requires:
-        - model is the normalized model name requested by the caller.
-        - client_id identifies the authenticated gateway client.
-        - Global and per-client model policies are configured.
+    Args:
+        model: Requested model name.
+        client_id: Authenticated gateway client identity.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        None. Successful return means both policy layers allow the model.
 
-    Effects:
-        - Enforces the global model allowlist as a deployment-wide ceiling.
+    Notes:
+        - Precondition: model is the normalized model name requested by the
+          caller.
+        - Precondition: client_id identifies the authenticated gateway client.
+        - Precondition: Global and per-client model policies are configured.
         - Enforces the authenticated client's model grants as a second
-        - restriction.
+          restriction.
         - Rejects requests unless both policy layers allow the requested model.
-
-    Inputs:
-        - model: Requested model name.
-        - client_id: Authenticated gateway client identity.
-
-    Outputs:
-        - None. Successful return means both policy layers allow the model.
     """
     if model not in get_allowed_models():
         raise HTTPException(

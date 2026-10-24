@@ -153,17 +153,16 @@ _owned_tracer_provider: TracerProvider | None = None
 def _env_enabled(name: str, default: bool = False) -> bool:
     """Parse a bounded environment toggle.
 
-    Requires:
-        Environment value, when present, is intended as a boolean toggle.
-    Modifies:
-        Nothing.
-    Effects:
-        Interprets only the project's accepted true values.
-    Inputs:
-        name: Environment variable name.
-        default: Value used when the variable is absent.
-    Outputs:
+    Args:
+        name: Environment variable name. default: Value used when the variable
+            is absent.
+
+    Returns:
         Parsed boolean toggle.
+
+    Notes:
+        - Precondition: Environment value, when present, is intended as a
+          boolean toggle.
     """
     raw = os.getenv(name)
     if raw is None:
@@ -174,16 +173,11 @@ def _env_enabled(name: str, default: bool = False) -> bool:
 def configure_tracing() -> None:
     """Configure optional process-wide OpenTelemetry export.
 
-    Requires:
-        OTLP environment may identify a collector when tracing is enabled.
-    Modifies:
-        Global OpenTelemetry tracer provider once per process when enabled.
-    Effects:
-        Leaves tracing no-op by default and enables batched OTLP/HTTP on opt-in.
-    Inputs:
-        None.
-    Outputs:
-        None.
+    Notes:
+        - Precondition: OTLP environment may identify a collector when tracing
+          is enabled.
+        - Side effect: Global OpenTelemetry tracer provider once per process
+          when enabled.
     """
     global _owned_tracer_provider
     if (
@@ -212,16 +206,9 @@ def configure_tracing() -> None:
 def shutdown_tracing() -> None:
     """Shut down the process-owned tracing provider.
 
-    Requires:
-        configure_tracing may have created a tracer provider.
-    Modifies:
-        OpenTelemetry exporter worker state during shutdown.
-    Effects:
-        Flushes and shuts down the owned provider when present.
-    Inputs:
-        None.
-    Outputs:
-        None.
+    Notes:
+        - Precondition: configure_tracing may have created a tracer provider.
+        - Side effect: OpenTelemetry exporter worker state during shutdown.
     """
     if _owned_tracer_provider is not None:
         _owned_tracer_provider.shutdown()
@@ -234,16 +221,14 @@ tracer = trace.get_tracer(_service_name)
 def bounded_route(path: str) -> str:
     """Reduce arbitrary request paths to a bounded label set.
 
-    Requires:
-        path is an HTTP request path.
-    Modifies:
-        Nothing.
-    Effects:
-        Prevents arbitrary paths from creating unbounded metric cardinality.
-    Inputs:
+    Args:
         path: Incoming request path.
-    Outputs:
+
+    Returns:
         Known route path or the fixed label "unmatched".
+
+    Notes:
+        - Precondition: path is an HTTP request path.
     """
     return path if path in _known_routes else "unmatched"
 
@@ -251,17 +236,15 @@ def bounded_route(path: str) -> str:
 def _safe_label(value: str | None, fallback: str = "unknown") -> str:
     """Return a syntactically safe bounded metric label.
 
-    Requires:
-        fallback is a fixed non-secret label.
-    Modifies:
-        Nothing.
-    Effects:
-        Replaces absent or unsafe values with the fixed fallback.
-    Inputs:
-        value: Candidate metric label.
-        fallback: Value returned for an unsafe candidate.
-    Outputs:
+    Args:
+        value: Candidate metric label. fallback: Value returned for an unsafe
+            candidate.
+
+    Returns:
         Safe candidate value or fallback.
+
+    Notes:
+        - Precondition: fallback is a fixed non-secret label.
     """
     if value is None or not _safe_label_pattern.fullmatch(value):
         return fallback
@@ -276,19 +259,13 @@ def observe_http_request(
 ) -> None:
     """Record bounded HTTP request metrics.
 
-    Requires:
-        elapsed is non-negative request time in seconds.
-    Modifies:
-        Process-local Prometheus counters and histograms.
-    Effects:
-        Records HTTP volume and latency with bounded labels only.
-    Inputs:
-        method: HTTP method.
-        route: Bounded route label.
-        status_code: HTTP response status.
-        elapsed: Request duration in seconds.
-    Outputs:
-        None.
+    Args:
+        method: HTTP method. route: Bounded route label. status_code: HTTP
+            response status. elapsed: Request duration in seconds.
+
+    Notes:
+        - Precondition: elapsed is non-negative request time in seconds.
+        - Side effect: Process-local Prometheus counters and histograms.
     """
     method_upper = method.upper()
     method_label = (
@@ -315,18 +292,13 @@ def observe_provider_request(
 ) -> None:
     """Record bounded provider metrics.
 
-    Requires:
-        provider and outcome contain no secrets.
-    Modifies:
-        Process-local Prometheus provider metrics.
-    Effects:
-        Records provider request volume and latency with bounded labels.
-    Inputs:
-        provider: Provider identifier.
-        outcome: success or error.
-        elapsed: Provider latency in seconds.
-    Outputs:
-        None.
+    Args:
+        provider: Provider identifier. outcome: success or error. elapsed:
+            Provider latency in seconds.
+
+    Notes:
+        - Precondition: provider and outcome contain no secrets.
+        - Side effect: Process-local Prometheus provider metrics.
     """
     provider_label = _safe_label(provider)
     outcome_label = (
@@ -346,16 +318,12 @@ def observe_provider_request(
 def observe_audit_event(payload: Mapping[str, Any]) -> None:
     """Derive bounded metrics from sanitized audit metadata.
 
-    Requires:
-        payload is the already-sanitized audit payload.
-    Modifies:
-        Process-local Prometheus security and usage metrics.
-    Effects:
-        Derives bounded counters from sanitized metadata.
-    Inputs:
+    Args:
         payload: Sanitized audit event mapping.
-    Outputs:
-        None.
+
+    Notes:
+        - Precondition: payload is the already-sanitized audit payload.
+        - Side effect: Process-local Prometheus security and usage metrics.
     """
     event = _safe_label(str(payload.get("event", "unknown")))
     outcome = _safe_label(str(payload.get("outcome", "unknown")))
@@ -437,16 +405,11 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
 def metrics_payload() -> bytes:
     """Serialize the dedicated Prometheus registry.
 
-    Requires:
-        Process-local metrics may have been recorded.
-    Modifies:
-        Nothing.
-    Effects:
-        Serializes only the Secure AI Gateway registry.
-    Inputs:
-        None.
-    Outputs:
+    Returns:
         Prometheus text exposition bytes.
+
+    Notes:
+        - Precondition: Process-local metrics may have been recorded.
     """
     return generate_latest(metrics_registry)
 
@@ -461,19 +424,19 @@ def request_trace(
 ) -> Iterator[Span]:
     """Create a bounded request trace span.
 
-    Requires:
-        route is bounded and request_id passed gateway validation.
-    Modifies:
-        Current OpenTelemetry span context for the request scope.
-    Effects:
-        Extracts standard trace context and starts a metadata-only server span.
-    Inputs:
-        method: HTTP method.
-        route: Bounded route label.
-        request_id: Gateway request correlation ID.
-        headers: Headers used only for standard trace-context extraction.
-    Outputs:
+    Args:
+        method: HTTP method. route: Bounded route label. request_id: Gateway
+            request correlation ID. headers: Headers used only for standard
+            trace-context extraction.
+
+    Returns:
         Active request span context-manager value.
+
+    Notes:
+        - Precondition: route is bounded and request_id passed gateway
+          validation.
+        - Side effect: Current OpenTelemetry span context for the request
+          scope.
     """
     parent = propagate.extract(headers)
     with tracer.start_as_current_span(
@@ -492,17 +455,16 @@ def request_trace(
 def finish_request_span(span: Span, status_code: int) -> str | None:
     """Finalize request span status and return a printable trace ID.
 
-    Requires:
-        span is the active request span.
-    Modifies:
-        Span status and response-status attributes.
-    Effects:
-        Marks 5xx responses as errors.
-    Inputs:
-        span: Active OpenTelemetry span.
-        status_code: HTTP response status code.
-    Outputs:
+    Args:
+        span: Active OpenTelemetry span. status_code: HTTP response status
+            code.
+
+    Returns:
         Lowercase 32-character trace ID or None for an invalid context.
+
+    Notes:
+        - Precondition: span is the active request span.
+        - Side effect: Span status and response-status attributes.
     """
     span.set_attribute("http.response.status_code", status_code)
     if status_code >= 500:
@@ -517,16 +479,17 @@ def finish_request_span(span: Span, status_code: int) -> str | None:
 def provider_trace(provider: str) -> Iterator[Span]:
     """Create a metadata-only provider child span.
 
-    Requires:
-        provider is a non-secret configured provider identifier.
-    Modifies:
-        Current OpenTelemetry span context during the provider request.
-    Effects:
-        Records provider identity but no prompts, responses, or credentials.
-    Inputs:
+    Args:
         provider: Provider identifier.
-    Outputs:
+
+    Returns:
         Active provider span.
+
+    Notes:
+        - Precondition: provider is a non-secret configured provider
+          identifier.
+        - Side effect: Current OpenTelemetry span context during the provider
+          request.
     """
     with tracer.start_as_current_span(
         "llm.provider.request",
@@ -541,15 +504,15 @@ def provider_trace(provider: str) -> Iterator[Span]:
 def observe_provider_operation(provider: str):
     """Return timing and tracing state for a provider operation.
 
-    Requires:
-        provider is a configured provider identifier.
-    Modifies:
-        Provider tracing state when the returned context manager is entered.
-    Effects:
-        Captures the monotonic start time and prepares a provider trace.
-    Inputs:
+    Args:
         provider: Provider identifier.
-    Outputs:
+
+    Returns:
         Tuple of monotonic start time and provider trace context manager.
+
+    Notes:
+        - Precondition: provider is a configured provider identifier.
+        - Side effect: Provider tracing state when the returned context manager
+          is entered.
     """
     return perf_counter(), provider_trace(provider)

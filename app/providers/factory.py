@@ -7,28 +7,21 @@ from app.providers.openrouter import OpenRouterProvider
 
 
 def build_provider() -> Provider:
-    """
-    RME
+    """Select the gateway upstream provider.
 
-    Requires:
-        - SAG_PROVIDER may identify a supported upstream provider.
-        - Provider-specific environment variables are configured when required.
+    Returns:
+        A configured concrete provider implementation.
 
-    Modifies:
-        - Nothing outside the returned provider instance.
-
-    Effects:
-        - Selects the gateway upstream provider.
-        - Returns the concrete provider type; provider methods own observability
-        - instrumentation.
+    Notes:
+        - Precondition: SAG_PROVIDER may identify a supported upstream
+          provider.
+        - Precondition: Provider-specific environment variables are configured
+          when required.
+        - Side effect: Nothing outside the returned provider instance.
+        - Returns the concrete provider type; provider methods own
+          observability instrumentation.
         - Fails closed for unsupported provider names or invalid provider
-        - configuration.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A configured concrete provider implementation.
+          configuration.
     """
     provider_name = os.getenv("SAG_PROVIDER", "mock").strip().lower()
 

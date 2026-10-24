@@ -41,29 +41,24 @@ class PIIInspectionResult:
 
 
 def parse_client_pii_policies(configured_policies: str) -> dict[str, PIIPolicy]:
-    """
-    RME
+    """Validate per-client PII handling policy.
 
-    Requires:
-        - configured_policies uses client_id:action records separated by commas.
-        - action is redact or deny.
+    Args:
+        configured_policies: Serialized per-client PII policies.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Validates per-client PII handling policy.
-        - Rejects malformed records, unsupported actions, and duplicate clients.
-
-    Inputs:
-        - configured_policies: Serialized per-client PII policies.
-
-    Outputs:
-        - Mapping from client ID to PIIPolicy.
+    Returns:
+        Mapping from client ID to PIIPolicy.
 
     Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or
-        - unsupported.
+        ValueError: Configuration is empty, malformed, duplicated, or
+            unsupported.
+
+    Notes:
+        - Precondition: configured_policies uses client_id:action records
+          separated by commas.
+        - Precondition: action is redact or deny.
+        - Rejects malformed records, unsupported actions, and duplicate
+          clients.
     """
     policies: dict[str, PIIPolicy] = {}
 
@@ -93,25 +88,18 @@ def parse_client_pii_policies(configured_policies: str) -> dict[str, PIIPolicy]:
 
 
 def get_client_pii_policy(client_id: str) -> PIIPolicy:
-    """
-    RME
+    """Fail closed when PII policy is absent, malformed, or missing the client.
 
-    Requires:
-        - client_id identifies an authenticated gateway client.
-        - SAG_CLIENT_PII_POLICIES may define per-client PII handling actions.
+    Args:
+        client_id: Authenticated gateway client identity.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Configured PIIPolicy for the client.
 
-    Effects:
-        - Fails closed when PII policy is absent, malformed, or missing the
-        - client.
-
-    Inputs:
-        - client_id: Authenticated gateway client identity.
-
-    Outputs:
-        - Configured PIIPolicy for the client.
+    Notes:
+        - Precondition: client_id identifies an authenticated gateway client.
+        - Precondition: SAG_CLIENT_PII_POLICIES may define per-client PII
+          handling actions.
     """
     configured_policies = os.getenv("SAG_CLIENT_PII_POLICIES")
     if not configured_policies:
@@ -139,24 +127,17 @@ def get_client_pii_policy(client_id: str) -> PIIPolicy:
 
 
 def _luhn_valid(candidate: str) -> bool:
-    """
-    RME
+    """Applie the Luhn checksum only to 13-19 digit candidates.
 
-    Requires:
-        - candidate may contain a payment-card-like digit sequence with
-        - separators.
+    Args:
+        candidate: Potential payment-card number.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        True when the candidate has a valid supported-length Luhn checksum.
 
-    Effects:
-        - Applies the Luhn checksum only to 13-19 digit candidates.
-
-    Inputs:
-        - candidate: Potential payment-card number.
-
-    Outputs:
-        - True when the candidate has a valid supported-length Luhn checksum.
+    Notes:
+        - Precondition: candidate may contain a payment-card-like digit
+          sequence with separators.
     """
     digits = [int(character) for character in candidate if character.isdigit()]
     if len(digits) < 13 or len(digits) > 19:
@@ -176,25 +157,17 @@ def _luhn_valid(candidate: str) -> bool:
 
 
 def _redact_structured_text(text: str) -> tuple[str, list[str]]:
-    """
-    RME
+    """Detect and redacts deterministic email, SSN, phone, and payment-card values.
 
-    Requires:
-        - text is user/model message content.
+    Args:
+        text: Message text to inspect.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Redacted text and one safe type label per finding.
 
-    Effects:
-        - Detects and redacts deterministic email, SSN, phone, and payment-card
-        - values.
+    Notes:
+        - Precondition: text is user/model message content.
         - Does not retain raw detected values separately.
-
-    Inputs:
-        - text: Message text to inspect.
-
-    Outputs:
-        - Redacted text and one safe type label per finding.
     """
     detected_types: list[str] = []
 
@@ -204,47 +177,33 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
         pii_type: str,
         replacement: str,
     ) -> str:
-        """
-        RME
+        """Perform the redact pattern operation.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        Args:
+            current_text: Function input.
+            pattern: Function input.
+            pii_type: Function input.
+            replacement: Function input.
 
-        Modifies:
-            - No state beyond delegated dependency behavior.
+        Returns:
+            A value matching the declared str return contract.
 
-        Effects:
-            - Performs the redact pattern operation.
-
-        Inputs:
-            - current_text: Function input.
-            - pattern: Function input.
-            - pii_type: Function input.
-            - replacement: Function input.
-
-        Outputs:
-            - A value matching the declared str return contract.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
         """
         def replace(_: re.Match[str]) -> str:
-            """
-            RME
+            """Perform the replace operation.
 
-            Requires:
-                - Arguments satisfy their declared contracts and required
-                  configured dependencies are available.
+            Args:
+                _: Function input.
 
-            Modifies:
-                - No state beyond delegated dependency behavior.
+            Returns:
+                A value matching the declared str return contract.
 
-            Effects:
-                - Performs the replace operation.
-
-            Inputs:
-                - _: Function input.
-
-            Outputs:
-                - A value matching the declared str return contract.
+            Notes:
+                - Precondition: Arguments satisfy their declared contracts and
+                  required configured dependencies are available.
             """
             detected_types.append(pii_type)
             return replacement
@@ -258,24 +217,17 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
     )
 
     def replace_card(match: re.Match[str]) -> str:
-        """
-        RME
+        """Perform the replace card operation.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        Args:
+            match: Function input.
 
-        Modifies:
-            - No state beyond delegated dependency behavior.
+        Returns:
+            A value matching the declared str return contract.
 
-        Effects:
-            - Performs the replace card operation.
-
-        Inputs:
-            - match: Function input.
-
-        Outputs:
-            - A value matching the declared str return contract.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
         """
         candidate = match.group(0)
         if not _luhn_valid(candidate):
@@ -291,33 +243,28 @@ def inspect_and_redact_request(
     request: ChatCompletionRequest,
     semantic_analyzer: SemanticPIIAnalyzer = semantic_pii_analyzer,
 ) -> PIIInspectionResult:
-    """
-    RME
+    """Detect deterministic structured PII first.
 
-    Requires:
-        - request is a validated chat-completion request.
-        - semantic_analyzer is a configured local semantic PII analyzer.
+    Args:
+        request: Validated gateway chat-completion request.
+        semantic_analyzer: Semantic analyzer implementation, injectable for
+            tests.
 
-    Modifies:
-        - Lazy semantic model state on first semantic inspection.
-        - Nothing in the original request object.
+    Returns:
+        PIIInspectionResult with a redacted request, total finding count, and
+        safe type names.
 
-    Effects:
-        - Detects deterministic structured PII first.
+    Notes:
+        - Precondition: request is a validated chat-completion request.
+        - Precondition: semantic_analyzer is a configured local semantic PII
+          analyzer.
+        - Side effect: Lazy semantic model state on first semantic inspection.
+        - Side effect: Nothing in the original request object.
         - Runs local semantic/contextual PII detection on the
-        - structured-redacted text.
+          structured-redacted text.
         - Redacts all selected values in a copied provider request.
         - Leaves non-text/tool-call message fields unchanged.
         - Does not retain or return raw detected values separately.
-
-    Inputs:
-        - request: Validated gateway chat-completion request.
-        - semantic_analyzer: Semantic analyzer implementation, injectable for
-        - tests.
-
-    Outputs:
-        - PIIInspectionResult with a redacted request, total finding count, and
-        - safe type names.
     """
     detected_types: list[str] = []
     redacted_messages: list[ChatMessage] = []

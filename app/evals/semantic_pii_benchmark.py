@@ -96,24 +96,17 @@ class BenchmarkReport:
 def _object_without_duplicate_keys(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
-    """
-    RME
+    """Reject duplicate JSON keys while constructing benchmark objects.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        pairs: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared dict[str, Any] return contract.
 
-    Effects:
-        - Reject duplicate JSON keys while constructing benchmark objects.
-
-    Inputs:
-        - pairs: Function input.
-
-    Outputs:
-        - A value matching the declared dict[str, Any] return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     parsed: dict[str, Any] = {}
     for key, value in pairs:
@@ -132,25 +125,18 @@ def _require_exact_keys(
 
 
 def _parse_unit_interval(value: Any, reason: str) -> float:
-    """
-    RME
+    """Parse a numeric threshold in the inclusive interval [0, 1].
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        value: Function input.
+        reason: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared float return contract.
 
-    Effects:
-        - Parse a numeric threshold in the inclusive interval [0, 1].
-
-    Inputs:
-        - value: Function input.
-        - reason: Function input.
-
-    Outputs:
-        - A value matching the declared float return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(reason)
@@ -163,27 +149,21 @@ def _parse_unit_interval(value: Any, reason: str) -> float:
 def parse_dataset(
     document: str, *, sha256: str = "unknown"
 ) -> SemanticPIIDataset:
-    """
-    RME
+    """Strictly validates benchmark schema, IDs, labels, expected types, and
+    thresholds.
 
-    Requires:
-        - document is intended to be a version-1 semantic PII benchmark.
+    Args:
+        document: UTF-8 JSON benchmark document.
+        sha256: Digest of the raw document when available.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Validated SemanticPIIDataset.
 
-    Effects:
-        - Strictly validates benchmark schema, IDs, labels, expected types, and
-        - thresholds.
+    Notes:
+        - Precondition: document is intended to be a version-1 semantic PII
+          benchmark.
         - Requires categories to contain only one label so category detection
-        - rates are interpretable.
-
-    Inputs:
-        - document: UTF-8 JSON benchmark document.
-        - sha256: Digest of the raw document when available.
-
-    Outputs:
-        - Validated SemanticPIIDataset.
+          rates are interpretable.
     """
     try:
         root = json.loads(
@@ -292,23 +272,17 @@ def parse_dataset(
 
 
 def load_dataset(path: Path = _DEFAULT_DATASET) -> SemanticPIIDataset:
-    """
-    RME
+    """Read the dataset, computes SHA-256, and validates its full schema.
 
-    Requires:
-        - path identifies a UTF-8 JSON dataset no larger than 2 MiB.
+    Args:
+        path: Dataset path.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Validated semantic PII dataset.
 
-    Effects:
-        - Reads the dataset, computes SHA-256, and validates its full schema.
-
-    Inputs:
-        - path: Dataset path.
-
-    Outputs:
-        - Validated semantic PII dataset.
+    Notes:
+        - Precondition: path identifies a UTF-8 JSON dataset no larger than 2
+          MiB.
     """
     try:
         raw = path.read_bytes()
@@ -331,29 +305,23 @@ def _ratio(numerator: int, denominator: int) -> float:
 
 
 def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
-    """
-    RME
+    """Evaluate every case without sending text to a network service.
 
-    Requires:
-        - dataset has passed schema validation.
-        - The configured local semantic PII model is available.
+    Args:
+        dataset: Validated semantic PII benchmark.
 
-    Modifies:
-        - Lazy process-local NLP model state on first use.
+    Returns:
+        BenchmarkReport with metrics, category results, safe error IDs, and
+        baseline status.
 
-    Effects:
-        - Evaluates every case without sending text to a network service.
+    Notes:
+        - Precondition: dataset has passed schema validation.
+        - Precondition: The configured local semantic PII model is available.
+        - Side effect: Lazy process-local NLP model state on first use.
         - Computes case-level confusion metrics and per-category detection
-        - rates.
+          rates.
         - Records only case IDs for failures and never includes benchmark text
-        - in the report.
-
-    Inputs:
-        - dataset: Validated semantic PII benchmark.
-
-    Outputs:
-        - BenchmarkReport with metrics, category results, safe error IDs, and
-        - baseline status.
+          in the report.
     """
     tp = fp = tn = fn = 0
     false_positive_ids: list[str] = []
@@ -425,25 +393,15 @@ def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
 
 
 def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
-    """
-    RME
+    """Print metadata-only benchmark results without source text.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        report: Function input.
+        show_errors: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
-
-    Effects:
-        - Print metadata-only benchmark results without source text.
-
-    Inputs:
-        - report: Function input.
-        - show_errors: Function input.
-
-    Outputs:
-        - None.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     metrics = report.metrics
     print(
@@ -483,25 +441,18 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 def _report_dict(
     report: BenchmarkReport, *, show_errors: bool
 ) -> dict[str, Any]:
-    """
-    RME
+    """Convert a report to machine-readable metadata without benchmark text.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        report: Function input.
+        show_errors: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared dict[str, Any] return contract.
 
-    Effects:
-        - Convert a report to machine-readable metadata without benchmark text.
-
-    Inputs:
-        - report: Function input.
-        - show_errors: Function input.
-
-    Outputs:
-        - A value matching the declared dict[str, Any] return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     payload: dict[str, Any] = {
         "dataset": {
@@ -526,25 +477,19 @@ def _report_dict(
 
 
 def main() -> None:
-    """
-    RME
+    """Run the semantic PII benchmark offline.
 
-    Requires:
-        - The local semantic PII model and selected dataset are available.
+    Returns:
+        Text or JSON metrics containing no benchmark prompt bodies.
 
-    Modifies:
-        - Terminal output and lazy process-local NLP state.
-
-    Effects:
-        - Runs the semantic PII benchmark offline.
-        - Exits 1 when --enforce-baseline is supplied and thresholds are missed.
+    Notes:
+        - Input: Command-line options.
+        - Precondition: The local semantic PII model and selected dataset are
+          available.
+        - Side effect: Terminal output and lazy process-local NLP state.
+        - Exits 1 when --enforce-baseline is supplied and thresholds are
+          missed.
         - Exits 2 when the benchmark/model cannot be evaluated safely.
-
-    Inputs:
-        - Command-line options.
-
-    Outputs:
-        - Text or JSON metrics containing no benchmark prompt bodies.
     """
     parser = argparse.ArgumentParser(
         description="Evaluate semantic PII detection offline."

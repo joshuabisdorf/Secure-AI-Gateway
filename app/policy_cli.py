@@ -22,27 +22,18 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """
-    RME
+    """Validate the complete policy registry without printing policy contents.
 
-    Requires:
-        - SAG_SECURITY_POLICY_FILE identifies the unified JSON security-policy
-        - registry.
+    Returns:
+        Concise validation metadata containing only version/profile/client
+        counts.
 
-    Modifies:
-        - Terminal output.
-
-    Effects:
-        - Validates the complete policy registry without printing policy
-        - contents.
+    Notes:
+        - Input: Command-line arguments and SAG_SECURITY_POLICY_FILE.
+        - Precondition: SAG_SECURITY_POLICY_FILE identifies the unified JSON
+          security-policy registry.
+        - Side effect: Terminal output.
         - Exits nonzero when configuration cannot be used safely.
-
-    Inputs:
-        - Command-line arguments and SAG_SECURITY_POLICY_FILE.
-
-    Outputs:
-        - Concise validation metadata containing only version/profile/client
-        - counts.
     """
     args = _build_parser().parse_args()
     if args.command != "validate":
