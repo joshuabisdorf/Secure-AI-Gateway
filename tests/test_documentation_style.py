@@ -1,9 +1,21 @@
 """Regression tests for Sphinx docstring style enforcement."""
 
 import ast
+import sys
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
-from scripts.style_check import _check_docstring, _docstring_fields
+_STYLE_CHECK_PATH = (
+    Path(__file__).resolve().parents[1] / "scripts" / "style_check.py"
+)
+_SPEC = spec_from_file_location("gateway_style_check", _STYLE_CHECK_PATH)
+assert _SPEC is not None and _SPEC.loader is not None
+_STYLE_CHECK = module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = _STYLE_CHECK
+_SPEC.loader.exec_module(_STYLE_CHECK)
+
+_check_docstring = _STYLE_CHECK._check_docstring
+_docstring_fields = _STYLE_CHECK._docstring_fields
 
 
 def _function_node(source: str) -> ast.FunctionDef:
