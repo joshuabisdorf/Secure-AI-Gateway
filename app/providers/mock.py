@@ -22,30 +22,24 @@ class MockProvider(Provider):
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        """
-        RME
+        """Produce a deterministic non-network model response for testing.
 
-        Requires:
-            - request is a validated chat-completion request.
+        Args:
+            request: The requested model, messages, and optional named tool
+                choice.
 
-        Modifies:
-            - Process-local provider metrics and trace state through
-            - instrumentation.
+        Returns:
+            A synthetic OpenAI-style chat-completion response.
 
-        Effects:
-            - Produces a deterministic non-network model response for testing.
+        Notes:
+            - Precondition: request is a validated chat-completion request.
+            - Side effect: Process-local provider metrics and trace state
+              through instrumentation.
             - Emits an empty-object function call when a named tool_choice is
-            - requested.
+              requested.
             - Includes deterministic token and zero-cost usage accounting.
             - Records provider latency/success metadata without prompt or
-            - response content.
-
-        Inputs:
-            - request: The requested model, messages, and optional named tool
-            - choice.
-
-        Outputs:
-            - A synthetic OpenAI-style chat-completion response.
+              response content.
         """
         message = ChoiceMessage(
             role="assistant",

@@ -75,27 +75,20 @@ class SecurityPolicyRegistry:
     clients: dict[str, str]
 
     def resolve(self, client_id: str) -> ResolvedSecurityPolicy:
-        """
-        RME
+        """Resolve a client assignment to its named reusable security profile.
 
-        Requires:
-            - client_id identifies an authenticated gateway client.
-            - The registry has already passed schema validation.
+        Args:
+            client_id: Authenticated gateway client identity.
 
-        Modifies:
-            - Nothing.
+        Returns:
+            ResolvedSecurityPolicy containing the assigned profile and its
+            name.
 
-        Effects:
-            - Resolves a client assignment to its named reusable security
-            - profile.
+        Notes:
+            - Precondition: client_id identifies an authenticated gateway
+              client.
+            - Precondition: The registry has already passed schema validation.
             - Fails closed when the client has no assignment.
-
-        Inputs:
-            - client_id: Authenticated gateway client identity.
-
-        Outputs:
-            - ResolvedSecurityPolicy containing the assigned profile and its
-            - name.
         """
         profile_name = self.clients.get(client_id)
         if profile_name is None:
@@ -136,27 +129,20 @@ def _parse_string_list(
     allow_empty: bool,
     invalid_reason: str,
 ) -> frozenset[str]:
-    """
-    RME
+    """Perform the parse string list operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        value: Function input.
+        pattern: Function input.
+        allow_empty: Function input.
+        invalid_reason: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared frozenset[str] return contract.
 
-    Effects:
-        - Performs the parse string list operation.
-
-    Inputs:
-        - value: Function input.
-        - pattern: Function input.
-        - allow_empty: Function input.
-        - invalid_reason: Function input.
-
-    Outputs:
-        - A value matching the declared frozenset[str] return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if not isinstance(value, list):
         raise ValueError(invalid_reason)
@@ -174,24 +160,17 @@ def _parse_string_list(
 
 
 def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
-    """
-    RME
+    """Perform the parse daily budget operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        value: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared DailyBudgetPolicy return contract.
 
-    Effects:
-        - Performs the parse daily budget operation.
-
-    Inputs:
-        - value: Function input.
-
-    Outputs:
-        - A value matching the declared DailyBudgetPolicy return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if not isinstance(value, dict):
         raise ValueError("invalid_daily_budget")
@@ -238,24 +217,17 @@ def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
 
 
 def _parse_profile(value: Any) -> SecurityPolicyProfile:
-    """
-    RME
+    """Perform the parse profile operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        value: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared SecurityPolicyProfile return contract.
 
-    Effects:
-        - Performs the parse profile operation.
-
-    Inputs:
-        - value: Function input.
-
-    Outputs:
-        - A value matching the declared SecurityPolicyProfile return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if not isinstance(value, dict):
         raise ValueError("invalid_security_profile")
@@ -308,29 +280,22 @@ def _parse_profile(value: Any) -> SecurityPolicyProfile:
 
 
 def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
-    """
-    RME
+    """Strictly validates JSON structure, duplicate keys, profile fields, and
+    assignments.
 
-    Requires:
-        - document is intended to be a version-1 Secure AI Gateway policy
-        - registry.
+    Args:
+        document: UTF-8 JSON policy document text.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Strictly validates JSON structure, duplicate keys, profile fields, and
-        - assignments.
-        - Rejects unknown fields rather than silently ignoring policy mistakes.
-
-    Inputs:
-        - document: UTF-8 JSON policy document text.
-
-    Outputs:
-        - Validated SecurityPolicyRegistry.
+    Returns:
+        Validated SecurityPolicyRegistry.
 
     Raises:
-        - ValueError: The policy document is malformed or violates the schema.
+        ValueError: The policy document is malformed or violates the schema.
+
+    Notes:
+        - Precondition: document is intended to be a version-1 Secure AI
+          Gateway policy registry.
+        - Rejects unknown fields rather than silently ignoring policy mistakes.
     """
     try:
         root = json.loads(
@@ -385,25 +350,11 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
 
 def clear_security_policy_cache() -> None:
-    """
-    RME
+    """Clear the process-local parsed policy cache used by tests and file reloads.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
-
-    Modifies:
-        - No state beyond delegated dependency behavior.
-
-    Effects:
-        - Clear the process-local parsed policy cache used by tests and file
-          reloads.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - None.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     global _cache_signature, _cache_registry
     with _cache_lock:
@@ -414,29 +365,23 @@ def clear_security_policy_cache() -> None:
 def load_security_policy_registry(
     configured_path: str | None = None,
 ) -> SecurityPolicyRegistry:
-    """
-    RME
+    """Read and validates the configured non-secret policy registry.
 
-    Requires:
-        - configured_path or SAG_SECURITY_POLICY_FILE identifies a local JSON
-        - policy file.
+    Args:
+        configured_path: Optional explicit file path, primarily for
+            validation/tests.
 
-    Modifies:
-        - Process-local validated-policy cache.
+    Returns:
+        Validated SecurityPolicyRegistry.
 
-    Effects:
-        - Reads and validates the configured non-secret policy registry.
+    Notes:
+        - Precondition: configured_path or SAG_SECURITY_POLICY_FILE identifies
+          a local JSON policy file.
+        - Side effect: Process-local validated-policy cache.
         - Reloads automatically when file path, size, or nanosecond mtime
-        - changes.
+          changes.
         - Fails closed for absent, unreadable, oversized, or invalid policy
-        - files.
-
-    Inputs:
-        - configured_path: Optional explicit file path, primarily for
-        - validation/tests.
-
-    Outputs:
-        - Validated SecurityPolicyRegistry.
+          files.
     """
     global _cache_signature, _cache_registry
 
@@ -476,31 +421,23 @@ def load_security_policy_registry(
 def resolve_client_security_policy(
     client_id: str,
 ) -> ResolvedSecurityPolicy | None:
-    """
-    RME
+    """Return None only when unified policy configuration is not enabled, allowing
+    temporary migration compatibility with legacy per-control environment
+    variables.
 
-    Requires:
-        - client_id identifies an authenticated gateway client.
-        - SAG_SECURITY_POLICY_FILE may enable the unified policy registry.
+    Args:
+        client_id: Authenticated gateway client identity.
 
-    Modifies:
-        - Validated-policy cache when the configured file changes.
+    Returns:
+        Resolved unified policy, or None when unified policy is not configured.
 
-    Effects:
-        - Returns None only when unified policy configuration is not enabled,
-        - allowing
-          temporary migration compatibility with legacy per-control environment
-          variables.
+    Notes:
+        - Precondition: client_id identifies an authenticated gateway client.
+        - Precondition: SAG_SECURITY_POLICY_FILE may enable the unified policy
+          registry.
+        - Side effect: Validated-policy cache when the configured file changes.
         - Once SAG_SECURITY_POLICY_FILE is set, any file/client error fails
-        - closed and
-          never falls back to legacy environment policy.
-
-    Inputs:
-        - client_id: Authenticated gateway client identity.
-
-    Outputs:
-        - Resolved unified policy, or None when unified policy is not
-        - configured.
+          closed and never falls back to legacy environment policy.
     """
     configured_path = os.getenv("SAG_SECURITY_POLICY_FILE")
     if not configured_path or not configured_path.strip():

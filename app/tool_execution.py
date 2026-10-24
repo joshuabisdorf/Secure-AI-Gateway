@@ -121,69 +121,44 @@ class PreparedToolExecutionResponse:
 
 class ToolExecutionReplayStore(Protocol):
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """
-        RME
+        """Atomically claim one execution authorization ID for one-time use.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        Args:
+            execution_id: Function input.
+            ttl_seconds: Function input.
 
-        Modifies:
-            - No state beyond delegated dependency behavior.
+        Returns:
+            A value matching the declared bool return contract.
 
-        Effects:
-            - Atomically claim one execution authorization ID for one-time use.
-
-        Inputs:
-            - execution_id: Function input.
-            - ttl_seconds: Function input.
-
-        Outputs:
-            - A value matching the declared bool return contract.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
         """
         ...
 
     async def close(self) -> None:
-        """
-        RME
+        """Release resources owned by the replay store.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
-
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - Release resources owned by the replay store.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - None.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         ...
 
 
 def _canonical_json(value: Any) -> bytes:
-    """
-    RME
+    """Produce deterministic UTF-8 JSON for hashing/signing.
 
-    Requires:
-        - value is JSON-serializable.
+    Args:
+        value: JSON-compatible value.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Canonical JSON bytes.
 
-    Effects:
-        - Produces deterministic UTF-8 JSON for hashing/signing.
-
-    Inputs:
-        - value: JSON-compatible value.
-
-    Outputs:
-        - Canonical JSON bytes.
+    Notes:
+        - Precondition: value is JSON-serializable.
     """
     return json.dumps(
         value,
@@ -194,45 +169,32 @@ def _canonical_json(value: Any) -> bytes:
 
 
 def _sha256_json(value: Any) -> str:
-    """
-    RME
+    """Hashe canonical JSON without retaining it in authorization metadata.
 
-    Requires:
-        - value is JSON-serializable.
+    Args:
+        value: JSON-compatible value.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Lowercase SHA-256 hexadecimal digest.
 
-    Effects:
-        - Hashes canonical JSON without retaining it in authorization metadata.
-
-    Inputs:
-        - value: JSON-compatible value.
-
-    Outputs:
-        - Lowercase SHA-256 hexadecimal digest.
+    Notes:
+        - Precondition: value is JSON-serializable.
     """
     return hashlib.sha256(_canonical_json(value)).hexdigest()
 
 
 def _sha256_text(value: str) -> str:
-    """
-    RME
+    """Hashe UTF-8 text without copying it into ticket payload metadata.
 
-    Requires:
-        - value is text whose exact bytes must be bound to an execution ticket.
+    Args:
+        value: Source text.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Lowercase SHA-256 hexadecimal digest.
 
-    Effects:
-        - Hashes UTF-8 text without copying it into ticket payload metadata.
-
-    Inputs:
-        - value: Source text.
-
-    Outputs:
-        - Lowercase SHA-256 hexadecimal digest.
+    Notes:
+        - Precondition: value is text whose exact bytes must be bound to an
+          execution ticket.
     """
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
@@ -240,24 +202,17 @@ def _sha256_text(value: str) -> str:
 def _object_without_duplicate_keys(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
-    """
-    RME
+    """Reject duplicate JSON keys while parsing a trusted tool registry.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        pairs: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared dict[str, Any] return contract.
 
-    Effects:
-        - Reject duplicate JSON keys while parsing a trusted tool registry.
-
-    Inputs:
-        - pairs: Function input.
-
-    Outputs:
-        - A value matching the declared dict[str, Any] return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     parsed: dict[str, Any] = {}
     for key, value in pairs:
@@ -268,25 +223,19 @@ def _object_without_duplicate_keys(
 
 
 def parse_tool_execution_registry(document: str) -> ToolExecutionRegistry:
-    """
-    RME
+    """Strictly validates tool names, risk classes, and authoritative JSON.
 
-    Requires:
-        - document is intended to be a version-1 execution-time tool registry.
+    Args:
+        document: UTF-8 JSON registry document.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Validated ToolExecutionRegistry.
 
-    Effects:
-        - Strictly validates tool names, risk classes, and authoritative JSON
+    Notes:
+        - Precondition: document is intended to be a version-1 execution-time
+          tool registry.
         - Schemas.
         - Rejects unknown fields and malformed schemas.
-
-    Inputs:
-        - document: UTF-8 JSON registry document.
-
-    Outputs:
-        - Validated ToolExecutionRegistry.
     """
     try:
         root = json.loads(
@@ -336,26 +285,21 @@ def parse_tool_execution_registry(document: str) -> ToolExecutionRegistry:
 def load_tool_execution_registry(
     configured_path: str | None = None,
 ) -> ToolExecutionRegistry:
-    """
-    RME
+    """Load and validates the authoritative tool execution registry.
 
-    Requires:
-        - configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may identify a local
-        - JSON registry.
+    Args:
+        configured_path: Optional explicit registry path.
 
-    Modifies:
-        - Process-local registry cache when the file changes.
+    Returns:
+        Validated ToolExecutionRegistry.
 
-    Effects:
-        - Loads and validates the authoritative tool execution registry.
+    Notes:
+        - Precondition: configured_path or SAG_TOOL_EXECUTION_POLICY_FILE may
+          identify a local
+        - Precondition: JSON registry.
+        - Side effect: Process-local registry cache when the file changes.
         - Fails closed when the registry is absent, unreadable, oversized, or
-        - invalid.
-
-    Inputs:
-        - configured_path: Optional explicit registry path.
-
-    Outputs:
-        - Validated ToolExecutionRegistry.
+          invalid.
     """
     path_value = configured_path or os.getenv("SAG_TOOL_EXECUTION_POLICY_FILE")
     if not path_value or not path_value.strip():
@@ -394,24 +338,14 @@ def load_tool_execution_registry(
 
 
 def _get_ticket_ttl_seconds() -> int:
-    """
-    RME
+    """Applie a short maximum lifetime to execution authorization tickets.
 
-    Requires:
-        - SAG_TOOL_EXECUTION_TTL_SECONDS may contain an integer from 1 through
-        - 900.
+    Returns:
+        Ticket lifetime in seconds.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Applies a short maximum lifetime to execution authorization tickets.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Ticket lifetime in seconds.
+    Notes:
+        - Precondition: SAG_TOOL_EXECUTION_TTL_SECONDS may contain an integer
+          from 1 through 900.
     """
     raw = os.getenv(
         "SAG_TOOL_EXECUTION_TTL_SECONDS", str(_default_ticket_seconds)
@@ -426,24 +360,14 @@ def _get_ticket_ttl_seconds() -> int:
 
 
 def _get_signing_key() -> bytes:
-    """
-    RME
+    """Fail closed rather than issuing unsigned or weak execution tickets.
 
-    Requires:
-        - SAG_TOOL_EXECUTION_SIGNING_KEY contains at least 32 bytes of secret
-        - material.
+    Returns:
+        UTF-8 signing-key bytes.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Fails closed rather than issuing unsigned or weak execution tickets.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - UTF-8 signing-key bytes.
+    Notes:
+        - Precondition: SAG_TOOL_EXECUTION_SIGNING_KEY contains at least 32
+          bytes of secret material.
     """
     configured = os.getenv("SAG_TOOL_EXECUTION_SIGNING_KEY")
     if configured is None:
@@ -478,29 +402,22 @@ def _issue_execution_ticket(
     tool_call: ToolCall,
     spec: ToolExecutionSpec,
 ) -> tuple[str, ExecutionTicketMetadata]:
-    """
-    RME
+    """Issue a short-lived HMAC-SHA256 ticket without embedding raw tool arguments.
 
-    Requires:
-        - tool_call arguments have already passed the authoritative tool schema.
-        - spec comes from the trusted execution registry.
+    Args:
+        client_id: Authenticated client identity.
+        key_id: Authenticated API-key identifier.
+        source_request_id: Chat request that produced the tool call.
+        tool_call: Validated model-generated function call.
+        spec: Authoritative execution specification.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Signed token and safe metadata used for audit/verification.
 
-    Effects:
-        - Issues a short-lived HMAC-SHA256 ticket without embedding raw tool
-        - arguments.
-
-    Inputs:
-        - client_id: Authenticated client identity.
-        - key_id: Authenticated API-key identifier.
-        - source_request_id: Chat request that produced the tool call.
-        - tool_call: Validated model-generated function call.
-        - spec: Authoritative execution specification.
-
-    Outputs:
-        - Signed token and safe metadata used for audit/verification.
+    Notes:
+        - Precondition: tool_call arguments have already passed the
+          authoritative tool schema.
+        - Precondition: spec comes from the trusted execution registry.
     """
     now = int(time.time())
     metadata = ExecutionTicketMetadata(
@@ -541,25 +458,18 @@ def _issue_execution_ticket(
 def _validate_tool_arguments(
     tool_call: ToolCall, spec: ToolExecutionSpec
 ) -> None:
-    """
-    RME
+    """Parse untrusted model arguments as JSON and validates them against the
+    authoritative schema.
 
-    Requires:
-        - spec contains a validated Draft 2020-12 JSON Schema.
+    Args:
+        tool_call: Model-generated function call.
+        spec: Trusted tool execution specification.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        None when arguments are valid; raises ToolExecutionRejected otherwise.
 
-    Effects:
-        - Parses untrusted model arguments as JSON and validates them against
-        - the authoritative schema.
-
-    Inputs:
-        - tool_call: Model-generated function call.
-        - spec: Trusted tool execution specification.
-
-    Outputs:
-        - None when arguments are valid; raises ToolExecutionRejected otherwise.
+    Notes:
+        - Precondition: spec contains a validated Draft 2020-12 JSON Schema.
     """
     try:
         arguments = json.loads(tool_call.function.arguments)
@@ -588,37 +498,31 @@ def prepare_tool_execution_response(
     source_request_id: str,
     allowed_tools: frozenset[str],
 ) -> PreparedToolExecutionResponse:
-    """
-    RME
+    """Treat every model-generated tool call as untrusted output.
 
-    Requires:
-        - response is a validated provider response for request.
-        - allowed_tools is the authenticated client's current function
-        - allowlist.
+    Args:
+        response: Upstream chat completion.
+        request: Sanitized request forwarded to the provider.
+        client_id: Authenticated client identity.
+        key_id: Authenticated API-key identifier.
+        source_request_id: Gateway request correlation ID.
+        allowed_tools: Current client tool allowlist.
 
-    Modifies:
-        - Nothing in the provider response or request.
+    Returns:
+        Copied response plus safe metadata for issued execution tickets.
 
-    Effects:
-        - Treats every model-generated tool call as untrusted output.
+    Notes:
+        - Precondition: response is a validated provider response for request.
+        - Precondition: allowed_tools is the authenticated client's current
+          function allowlist.
+        - Side effect: Nothing in the provider response or request.
         - Requires each call to be declared in the source request and still
-        - allowed by policy.
+          allowed by policy.
         - Requires the request-declared parameter schema to match the
-        - authoritative execution registry.
+          authoritative execution registry.
         - Validates exact model arguments against the authoritative schema.
         - Attaches short-lived execution tickets and risk labels to safe copied
-        - tool calls.
-
-    Inputs:
-        - response: Upstream chat completion.
-        - request: Sanitized request forwarded to the provider.
-        - client_id: Authenticated client identity.
-        - key_id: Authenticated API-key identifier.
-        - source_request_id: Gateway request correlation ID.
-        - allowed_tools: Current client tool allowlist.
-
-    Outputs:
-        - Copied response plus safe metadata for issued execution tickets.
+          tool calls.
     """
     total_calls = sum(
         len(choice.message.tool_calls or []) for choice in response.choices
@@ -707,30 +611,25 @@ def verify_execution_ticket(
     client_id: str,
     key_id: str,
 ) -> ExecutionTicketMetadata:
-    """
-    RME
+    """Verifie ticket signature, expiry, identity, call ID/name, argument digest,
+    schema fingerprint, and risk.
 
-    Requires:
-        - token purports to authorize the exact supplied tool_call.
-        - client_id/key_id identify the currently authenticated caller.
+    Args:
+        token: Gateway-issued execution authorization ticket.
+        tool_call: Exact tool call proposed for execution.
+        client_id: Current authenticated client.
+        key_id: Current authenticated gateway key identifier.
 
-    Modifies:
-        - Nothing.
+    Returns:
+        Verified safe ticket metadata.
 
-    Effects:
-        - Verifies ticket signature, expiry, identity, call ID/name, argument
-        - digest, schema fingerprint, and risk.
+    Notes:
+        - Precondition: token purports to authorize the exact supplied
+          tool_call.
+        - Precondition: client_id/key_id identify the currently authenticated
+          caller.
         - Re-resolves the current authoritative tool registry so stale policies
-        - fail closed.
-
-    Inputs:
-        - token: Gateway-issued execution authorization ticket.
-        - tool_call: Exact tool call proposed for execution.
-        - client_id: Current authenticated client.
-        - key_id: Current authenticated gateway key identifier.
-
-    Outputs:
-        - Verified safe ticket metadata.
+          fail closed.
     """
     if len(token) > 4096 or token.count(".") != 1:
         raise ToolExecutionRejected("invalid_execution_ticket")
@@ -815,47 +714,33 @@ def verify_execution_ticket(
 
 class InMemoryToolExecutionReplayStore:
     def __init__(self) -> None:
-        """
-        RME
+        """Provide one-time ticket claiming without network services.
 
-        Requires:
-            - Used only in deterministic single-process tests/development.
+        Returns:
+            Replay-store instance.
 
-        Modifies:
-            - Initializes process-local replay state.
-
-        Effects:
-            - Provides one-time ticket claiming without network services.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - Replay-store instance.
+        Notes:
+            - Precondition: Used only in deterministic single-process
+              tests/development.
+            - Side effect: Initializes process-local replay state.
         """
         self._claimed: dict[str, float] = {}
         self._lock = asyncio.Lock()
 
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """
-        RME
+        """Atomically rejects an execution ID that is still claimed.
 
-        Requires:
-            - execution_id is a validated ticket ID.
-            - ttl_seconds is positive.
+        Args:
+            execution_id: Ticket execution identifier.
+            ttl_seconds: Remaining ticket lifetime.
 
-        Modifies:
-            - Process-local claimed-ID state.
+        Returns:
+            True only for the first valid claim within the TTL.
 
-        Effects:
-            - Atomically rejects an execution ID that is still claimed.
-
-        Inputs:
-            - execution_id: Ticket execution identifier.
-            - ttl_seconds: Remaining ticket lifetime.
-
-        Outputs:
-            - True only for the first valid claim within the TTL.
+        Notes:
+            - Precondition: execution_id is a validated ticket ID.
+            - Precondition: ttl_seconds is positive.
+            - Side effect: Process-local claimed-ID state.
         """
         now = time.monotonic()
         async with self._lock:
@@ -870,94 +755,60 @@ class InMemoryToolExecutionReplayStore:
             return True
 
     def reset(self) -> None:
-        """
-        RME
+        """Clear process-local replay state for deterministic tests.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
-
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - Clear process-local replay state for deterministic tests.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - None.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         self._claimed.clear()
 
     async def close(self) -> None:
-        """
-        RME
+        """No-op close for the process-local replay store.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
-
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - No-op close for the process-local replay store.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - None.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         return None
 
 
 class RedisToolExecutionReplayStore:
     def __init__(self, redis_url: str) -> None:
-        """
-        RME
+        """Prepare distributed one-time execution-ticket replay protection.
 
-        Requires:
-            - redis_url identifies the shared Redis service.
+        Args:
+            redis_url: Redis connection URL.
 
-        Modifies:
-            - Initializes a lazy Redis client.
+        Returns:
+            Redis-backed replay-store instance.
 
-        Effects:
-            - Prepares distributed one-time execution-ticket replay protection.
-
-        Inputs:
-            - redis_url: Redis connection URL.
-
-        Outputs:
-            - Redis-backed replay-store instance.
+        Notes:
+            - Precondition: redis_url identifies the shared Redis service.
+            - Side effect: Initializes a lazy Redis client.
         """
         self._client = Redis.from_url(redis_url, decode_responses=True)
 
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """
-        RME
+        """Use SET NX with expiry so only one gateway replica can authorize the ticket.
 
-        Requires:
-            - Redis is available.
-            - execution_id is a validated ticket ID.
+        Args:
+            execution_id: Ticket execution identifier.
+            ttl_seconds: Remaining ticket lifetime.
 
-        Modifies:
-            - Shared Redis replay state under sag:tool_execution:*.
+        Returns:
+            True only when the execution ID was newly claimed.
 
-        Effects:
-            - Uses SET NX with expiry so only one gateway replica can authorize
-            - the ticket.
+        Notes:
+            - Precondition: Redis is available.
+            - Precondition: execution_id is a validated ticket ID.
+            - Side effect: Shared Redis replay state under
+              sag:tool_execution:*.
             - Fails closed when Redis is unavailable.
-
-        Inputs:
-            - execution_id: Ticket execution identifier.
-            - ttl_seconds: Remaining ticket lifetime.
-
-        Outputs:
-            - True only when the execution ID was newly claimed.
         """
         try:
             result = await self._client.set(
@@ -973,48 +824,29 @@ class RedisToolExecutionReplayStore:
         return bool(result)
 
     async def close(self) -> None:
-        """
-        RME
+        """Close the Redis connection pool owned by this replay store.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
-
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - Close the Redis connection pool owned by this replay store.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - None.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         await self._client.aclose()
 
 
 def build_tool_execution_replay_store() -> ToolExecutionReplayStore:
-    """
-    RME
+    """Select distributed replay protection for runtime and memory for deterministic
+    tests.
 
-    Requires:
-        - SAG_TOOL_EXECUTION_REPLAY_BACKEND is redis or memory when configured.
-        - REDIS_URL is configured for the redis backend.
+    Returns:
+        Configured ToolExecutionReplayStore.
 
-    Modifies:
-        - Nothing outside the returned backend object.
-
-    Effects:
-        - Selects distributed replay protection for runtime and memory for
-        - deterministic tests.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Configured ToolExecutionReplayStore.
+    Notes:
+        - Precondition: SAG_TOOL_EXECUTION_REPLAY_BACKEND is redis or memory
+          when configured.
+        - Precondition: REDIS_URL is configured for the redis backend.
+        - Side effect: Nothing outside the returned backend object.
     """
     backend = (
         os.getenv("SAG_TOOL_EXECUTION_REPLAY_BACKEND", "redis").strip().lower()

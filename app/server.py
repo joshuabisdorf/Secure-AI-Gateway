@@ -20,24 +20,15 @@ _SECURITY_HEADERS = (
 
 
 def get_max_request_body_bytes() -> int:
-    """
-    RME
+    """Fail application startup when the configured limit is invalid or outside the
+    safe range.
 
-    Requires:
-        - SAG_MAX_REQUEST_BODY_BYTES, when set, contains an integer byte count.
+    Returns:
+        Maximum accepted HTTP request-body size in bytes.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Fails application startup when the configured limit is invalid or
-        - outside the safe range.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Maximum accepted HTTP request-body size in bytes.
+    Notes:
+        - Precondition: SAG_MAX_REQUEST_BODY_BYTES, when set, contains an
+          integer byte count.
     """
     raw_value = os.getenv(
         "SAG_MAX_REQUEST_BODY_BYTES",
@@ -54,24 +45,14 @@ def get_max_request_body_bytes() -> int:
 
 
 def get_api_docs_enabled() -> bool:
-    """
-    RME
+    """Fail application startup for ambiguous boolean configuration.
 
-    Requires:
-        - SAG_ENABLE_API_DOCS, when set, is a supported boolean value.
+    Returns:
+        Whether production HTTP routing should expose interactive/OpenAPI docs.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Fails application startup for ambiguous boolean configuration.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Whether production HTTP routing should expose interactive/OpenAPI
-        - docs.
+    Notes:
+        - Precondition: SAG_ENABLE_API_DOCS, when set, is a supported boolean
+          value.
     """
     value = os.getenv("SAG_ENABLE_API_DOCS", "false").strip().lower()
     if value in {"true", "1", "yes", "on"}:
@@ -94,28 +75,21 @@ class RequestBodyLimitMiddleware:
         max_body_bytes: int,
         block_api_docs: bool = False,
     ) -> None:
-        """
-        RME
+        """Configure an upper bound for HTTP request bodies.
 
-        Requires:
-            - app is an ASGI application.
-            - max_body_bytes is positive.
+        Args:
+            app: Wrapped ASGI application.
+            max_body_bytes: Maximum accepted body size in bytes.
+            block_api_docs: Whether production documentation routes are hidden.
 
-        Modifies:
-            - Middleware instance state.
+        Returns:
+            Configured middleware instance.
 
-        Effects:
-            - Configures an upper bound for HTTP request bodies.
+        Notes:
+            - Precondition: app is an ASGI application.
+            - Precondition: max_body_bytes is positive.
+            - Side effect: Middleware instance state.
             - Optionally blocks interactive/OpenAPI documentation routes.
-
-        Inputs:
-            - app: Wrapped ASGI application.
-            - max_body_bytes: Maximum accepted body size in bytes.
-            - block_api_docs: Whether production documentation routes are
-            - hidden.
-
-        Outputs:
-            - Configured middleware instance.
         """
         if max_body_bytes <= 0:
             raise ValueError("max_body_bytes_must_be_positive")
@@ -130,25 +104,16 @@ class RequestBodyLimitMiddleware:
         status: int,
         detail: str,
     ) -> None:
-        """
-        RME
+        """Emit a bounded JSON error without echoing request content.
 
-        Requires:
-            - send is the ASGI send callable for an HTTP request.
+        Args:
+            send: ASGI response sender.
+            status: HTTP error status.
+            detail: Fixed safe error detail.
 
-        Modifies:
-            - HTTP response stream.
-
-        Effects:
-            - Emits a bounded JSON error without echoing request content.
-
-        Inputs:
-            - send: ASGI response sender.
-            - status: HTTP error status.
-            - detail: Fixed safe error detail.
-
-        Outputs:
-            - None.
+        Notes:
+            - Precondition: send is the ASGI send callable for an HTTP request.
+            - Side effect: HTTP response stream.
         """
         body = ('{"detail":"' + detail + '"}').encode("utf-8")
         headers = [
@@ -171,33 +136,23 @@ class RequestBodyLimitMiddleware:
         receive: Callable[[], Awaitable[dict[str, Any]]],
         send: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
-        """
-        RME
+        """Reject declared or streamed request bodies above max_body_bytes with HTTP 413.
 
-        Requires:
-            - scope, receive, and send follow the ASGI protocol.
+        Args:
+            scope: ASGI connection scope.
+            receive: ASGI request receiver.
+            send: ASGI response sender.
 
-        Modifies:
-            - HTTP request receive stream and response headers.
-
-        Effects:
-            - Rejects declared or streamed request bodies above max_body_bytes
-            - with HTTP 413.
+        Notes:
+            - Precondition: scope, receive, and send follow the ASGI protocol.
+            - Side effect: HTTP request receive stream and response headers.
             - Buffers only a bounded request body before entering FastAPI,
-            - preventing parser amplification.
+              preventing parser amplification.
             - Optionally hides interactive/OpenAPI documentation routes with
             - HTTP 404.
             - Adds cache, framing, MIME-sniffing, referrer, and CSP response
-            - protections.
+              protections.
             - Passes non-HTTP traffic through unchanged.
-
-        Inputs:
-            - scope: ASGI connection scope.
-            - receive: ASGI request receiver.
-            - send: ASGI response sender.
-
-        Outputs:
-            - None.
         """
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
@@ -263,24 +218,14 @@ class RequestBodyLimitMiddleware:
         replayed = False
 
         async def replay_receive() -> dict[str, Any]:
-            """
-            RME
+            """Perform the replay receive operation.
 
-            Requires:
-                - Arguments satisfy their declared contracts and required
-                  configured dependencies are available.
+            Returns:
+                A value matching the declared dict[str, Any] return contract.
 
-            Modifies:
-                - No state beyond delegated dependency behavior.
-
-            Effects:
-                - Performs the replay receive operation.
-
-            Inputs:
-                - None.
-
-            Outputs:
-                - A value matching the declared dict[str, Any] return contract.
+            Notes:
+                - Precondition: Arguments satisfy their declared contracts and
+                  required configured dependencies are available.
             """
             nonlocal replayed
             if disconnected:
@@ -295,24 +240,14 @@ class RequestBodyLimitMiddleware:
             return {"type": "http.disconnect"}
 
         async def hardened_send(message: dict[str, Any]) -> None:
-            """
-            RME
+            """Perform the hardened send operation.
 
-            Requires:
-                - Arguments satisfy their declared contracts and required
-                  configured dependencies are available.
+            Args:
+                message: Function input.
 
-            Modifies:
-                - No state beyond delegated dependency behavior.
-
-            Effects:
-                - Performs the hardened send operation.
-
-            Inputs:
-                - message: Function input.
-
-            Outputs:
-                - None.
+            Notes:
+                - Precondition: Arguments satisfy their declared contracts and
+                  required configured dependencies are available.
             """
             if message.get("type") == "http.response.start":
                 existing = {

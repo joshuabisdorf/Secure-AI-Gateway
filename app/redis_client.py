@@ -33,34 +33,29 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         session: boto3.Session | None = None,
         clock=time.monotonic,
     ) -> None:
-        """
-        RME
+        """Use the AWS default credential chain to create SigV4 ElastiCache connect
+        tokens.
 
-        Requires:
-            - user_id identifies an IAM-authenticated ElastiCache user whose
-            - name equals its ID.
-            - cache_name identifies a node-based ElastiCache replication group.
-            - region identifies the AWS region containing the cache.
+        Args:
+            user_id: ElastiCache IAM user ID/name.
+            cache_name: ElastiCache replication-group name.
+            region: AWS region.
+            session: Optional injectable boto3 session for deterministic tests.
+            clock: Monotonic time source used for token-cache expiry.
 
-        Modifies:
-            - Process-local short-lived IAM token cache.
+        Returns:
+            redis-py credential provider returning username/token pairs.
 
-        Effects:
-            - Uses the AWS default credential chain to create SigV4 ElastiCache
-            - connect tokens.
+        Notes:
+            - Precondition: user_id identifies an IAM-authenticated ElastiCache
+              user whose name equals its ID.
+            - Precondition: cache_name identifies a node-based ElastiCache
+              replication group.
+            - Precondition: region identifies the AWS region containing the
+              cache.
+            - Side effect: Process-local short-lived IAM token cache.
             - Caches each token for less than its 15-minute maximum lifetime.
             - Never persists or logs AWS credentials or generated cache tokens.
-
-        Inputs:
-            - user_id: ElastiCache IAM user ID/name.
-            - cache_name: ElastiCache replication-group name.
-            - region: AWS region.
-            - session: Optional injectable boto3 session for deterministic
-            - tests.
-            - clock: Monotonic time source used for token-cache expiry.
-
-        Outputs:
-            - redis-py credential provider returning username/token pairs.
         """
         for label, value in (
             ("user_id", user_id),
@@ -82,24 +77,14 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         self._refresh_at = 0.0
 
     def _generate_token(self) -> str:
-        """
-        RME
+        """Perform the generate token operation.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        Returns:
+            A value matching the declared str return contract.
 
-        Modifies:
-            - No state beyond delegated dependency behavior.
-
-        Effects:
-            - Performs the generate token operation.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - A value matching the declared str return contract.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
         """
         credentials = self._session.get_credentials()
         if credentials is None:
@@ -126,24 +111,16 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
         return request.url[len("http://") :]
 
     def get_credentials(self) -> tuple[str, str]:
-        """
-        RME
+        """Return a cached or newly generated IAM username/token pair.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        Returns:
+            A value matching the declared tuple[str, str] return contract.
 
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - Return a cached or newly generated IAM username/token pair.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - A value matching the declared tuple[str, str] return contract.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         now = self._clock()
         if self._cached_token is not None and now < self._refresh_at:
@@ -157,49 +134,30 @@ class ElastiCacheIamCredentialProvider(CredentialProvider):
             return (self._user_id, self._cached_token)
 
     async def get_credentials_async(self) -> tuple[str, str]:
-        """
-        RME
+        """Generate credentials without blocking the async Redis connection path.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        Returns:
+            A value matching the declared tuple[str, str] return contract.
 
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - Generate credentials without blocking the async Redis connection
-              path.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - A value matching the declared tuple[str, str] return contract.
+        Notes:
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         return await asyncio.to_thread(self.get_credentials)
 
 
 def _elasticache_iam_provider() -> ElastiCacheIamCredentialProvider:
-    """
-    RME
+    """Perform the elasticache iam provider operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Returns:
+        A value matching the declared ElastiCacheIamCredentialProvider return
+        contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
-
-    Effects:
-        - Performs the elasticache iam provider operation.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A value matching the declared ElastiCacheIamCredentialProvider return
-          contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     user_id = os.getenv("SAG_ELASTICACHE_USER_ID", "")
     cache_name = os.getenv("SAG_ELASTICACHE_CACHE_NAME", "")
@@ -212,29 +170,23 @@ def _elasticache_iam_provider() -> ElastiCacheIamCredentialProvider:
 
 
 def build_redis_client(redis_url: str, **kwargs: Any) -> Redis:
-    """
-    RME
+    """Centralize local Redis and AWS ElastiCache IAM/TLS client construction.
 
-    Requires:
-        - redis_url identifies the configured shared Redis/Valkey endpoint.
-        - SAG_REDIS_AUTH_MODE is either none or elasticache_iam.
-        - elasticache_iam mode uses rediss:// and complete AWS/cache identity
-        - configuration.
+    Args:
+        redis_url: Redis-compatible URL.
+        kwargs: Additional redis-py connection options.
 
-    Modifies:
-        - Initializes process-local Redis connection-pool state.
+    Returns:
+        Configured asynchronous redis-py client.
 
-    Effects:
-        - Centralizes local Redis and AWS ElastiCache IAM/TLS client
-        - construction.
+    Notes:
+        - Precondition: redis_url identifies the configured shared Redis/Valkey
+          endpoint.
+        - Precondition: SAG_REDIS_AUTH_MODE is either none or elasticache_iam.
+        - Precondition: elasticache_iam mode uses rediss:// and complete
+          AWS/cache identity configuration.
+        - Side effect: Initializes process-local Redis connection-pool state.
         - Rejects password/username URLs when IAM authentication is selected.
-
-    Inputs:
-        - redis_url: Redis-compatible URL.
-        - kwargs: Additional redis-py connection options.
-
-    Outputs:
-        - Configured asynchronous redis-py client.
     """
     if not redis_url or not redis_url.strip():
         raise RedisClientConfigurationError("redis_url_not_configured")

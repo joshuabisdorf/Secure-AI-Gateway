@@ -17,32 +17,26 @@ class OpenRouterProvider(OpenAIProvider):
         timeout_seconds: float = 30.0,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
-        """
-        RME
+        """Configure the shared OpenAI-compatible chat transport for.
 
-        Requires:
-            - api_key or OPENROUTER_API_KEY provides an OpenRouter API key.
-            - base_url, when provided, identifies an OpenRouter-compatible API
-            - root.
+        Args:
+            api_key: Optional explicit OpenRouter API key.
+            base_url: Optional OpenRouter API root override.
+            timeout_seconds: Maximum duration of an upstream request.
+            transport: Optional httpx transport used for deterministic testing.
 
-        Modifies:
-            - Provider instance configuration.
+        Returns:
+            A configured OpenRouter provider instance.
 
-        Effects:
-            - Configures the shared OpenAI-compatible chat transport for
+        Notes:
+            - Precondition: api_key or OPENROUTER_API_KEY provides an
+              OpenRouter API key.
+            - Precondition: base_url, when provided, identifies an
+              OpenRouter-compatible API root.
+            - Side effect: Provider instance configuration.
             - OpenRouter.
             - Requests OpenRouter token and cost usage accounting.
             - Fails closed when no OpenRouter API key is configured.
-
-        Inputs:
-            - api_key: Optional explicit OpenRouter API key.
-            - base_url: Optional OpenRouter API root override.
-            - timeout_seconds: Maximum duration of an upstream request.
-            - transport: Optional httpx transport used for deterministic
-            - testing.
-
-        Outputs:
-            - A configured OpenRouter provider instance.
         """
         resolved_api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         if not resolved_api_key:
