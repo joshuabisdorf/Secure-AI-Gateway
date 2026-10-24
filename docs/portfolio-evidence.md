@@ -119,7 +119,7 @@ The project uses a self-contained repository-owned style standard. No external
 style guide or linter policy is vendored or adopted as the governing standard.
 
 The hard rule is an 80-character line limit except for genuinely indivisible
-content. Python project functions use ordered RMEIO contracts. The checker also
+content. Python project functions use Google-style docstrings with ordered sections. The checker also
 covers text hygiene, Python syntax/naming and structural hazards, and Bash
 entrypoint/strict-mode requirements.
 

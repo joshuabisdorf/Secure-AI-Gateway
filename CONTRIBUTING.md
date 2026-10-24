@@ -61,9 +61,9 @@ values, such as URLs, immutable hashes, or other atomic values that cannot be
 sensibly split, may exceed it. Do not add broad exclusions to avoid wrapping
 ordinary source or prose.
 
-RMEIO remains the project's documentation contract for non-trivial runtime
-functions. Security boundaries, persistence operations, credential operations,
-policy checks, network operations, and CLI actions require the full contract.
+Non-trivial runtime functions and security boundaries use Google-style Python
+docstrings. Document parameters, return values, significant exceptions, and
+security invariants or side effects when relevant.
 
 ## Tests
 
@@ -91,19 +91,13 @@ targets and, when practical, pass local kind verification.
 Terraform changes must remain format-clean and validate with the remote backend
 disabled. Do not add CI `apply` steps or long-lived AWS credentials.
 
-## RMEIO docstrings
+## Python docstrings
 
-Project functions use RMEIO documentation:
-
-- **Requires** -- preconditions;
-- **Modifies** -- state/resources changed;
-- **Effects** -- externally visible effects;
-- **Inputs** -- inputs;
-- **Outputs** -- returned or produced values.
-
-When a function creates a file, record that as an effect. When it changes an
-existing file or resource, record it under Modifies. A returned path belongs
-under Outputs.
+Use Google-style sections (`Args`, `Returns`, `Raises`, and `Notes`) as
+appropriate. Keep the summary concise. Explain fail-closed behavior, external
+state changes, and credential-handling constraints under `Notes` when they
+matter. Omit inapplicable sections; see
+[`docs/style-standard.md`](docs/style-standard.md) for an example.
 
 ## Dependencies and CI
 

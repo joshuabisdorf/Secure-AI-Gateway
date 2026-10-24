@@ -51,28 +51,41 @@ begin with one leading underscore when they are intentionally non-public.
 The project-owned style checker enforces module, function, method, and class
 naming where the rule can be validated safely from Python syntax.
 
-## RMEIO documentation contract
+## Python documentation: Google-style docstrings
 
-RMEIO remains a project requirement and is not replaced by another docstring
-format. Project functions in `app/` and Python utilities in `scripts/` document
-these sections when the function has behavior beyond a trivial wrapper:
+Python modules start with a concise module-level docstring describing their
+responsibility. Public classes and non-trivial functions use conventional
+Google-style docstrings with a one-sentence summary and the applicable sections:
 
-- `Requires` -- preconditions and required external state.
-- `Modifies` -- state, files, services, or objects changed.
-- `Effects` -- externally visible behavior and important failure behavior.
-- `Inputs` -- parameters and relevant environmental inputs.
-- `Outputs` -- returned values or produced artifacts.
+- `Args:` describes parameters without restating obvious type annotations.
+- `Returns:` describes meaningful results; omit it for functions returning
+  `None` unless clarification is useful.
+- `Raises:` identifies significant exceptions and fail-closed conditions.
+- `Notes:` records security invariants, preconditions, external state changes,
+  and other non-obvious behavior.
 
-The headings appear in exactly that order. The checker validates both presence
-and order for functions that require a full RMEIO contract.
+Use the above order, omit sections that do not apply, and prefer clear prose
+rather than mechanically listing implementation details. Trivial helpers may
+use a short descriptive docstring. Preserve explicit descriptions of security
+boundaries, side effects, secret handling, and failure modes.
 
-Security-sensitive functions should state fail-open/fail-closed behavior and
-secret-handling effects explicitly where relevant.
+Example:
 
-Small pure helpers may use a concise one-line docstring when their contract is
-fully obvious from the name, type signature, and implementation. Public
-security boundaries, persistence operations, credential operations, policy
-checks, network operations, and CLI actions must use full RMEIO documentation.
+```python
+def hash_api_key(api_key: str) -> str:
+    """Compute a digest for a high-entropy gateway API key.
+
+    Args:
+        api_key: Complete bearer credential to hash.
+
+    Returns:
+        Lowercase hexadecimal SHA-256 digest.
+
+    Notes:
+        - Intended for randomly generated gateway keys, not passwords.
+        - The raw credential is not persisted.
+    """
+```
 
 ## Tests
 
@@ -134,7 +147,7 @@ make style
 
 CI runs the same whole-repository command. Machine-enforced checks include
 text hygiene, the 80-character limit, Python syntax and structural
-hazards, Python naming, RMEIO presence and order, and Bash shebang and
+hazards, Python naming, Google-style docstring presence and section order, and Bash shebang and
 strict-mode requirements.
 
 The checker is intentionally conservative: it rejects clear violations

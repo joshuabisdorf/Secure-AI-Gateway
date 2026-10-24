@@ -295,13 +295,9 @@ or vendoring an external guide or linter policy.
 
 The hard line-length rule is 80 characters except for genuinely indivisible
 content such as URLs or immutable machine identifiers. Python project functions
-use the RMEIO contract:
-
-- **Requires** -- preconditions;
-- **Modifies** -- state/resources changed;
-- **Effects** -- externally visible behavior;
-- **Inputs** -- function inputs;
-- **Outputs** -- returned or produced outputs.
+use Google-style docstrings with applicable `Args`, `Returns`, `Raises`, and
+`Notes` sections. Security-critical preconditions, side effects, and
+fail-closed guarantees remain documented.
 
 `make style` checks the entire tracked project tree, and CI runs the same gate.
 There is no legacy baseline, moving exemption, or grandfathered file set.

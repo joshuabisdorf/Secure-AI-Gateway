@@ -81,39 +81,41 @@ connection strings.
 Boolean conditions should favor named intermediate values when a compound
 expression would otherwise obscure policy or failure semantics.
 
-### RMEIO function contracts
+### Google-style Python docstrings
 
-RMEIO remains a required project convention. It is not replaced by a generic
-argument/return docstring format.
+Python modules start with a concise module-level docstring describing their
+responsibility. Public classes and non-trivial functions use conventional
+Google-style docstrings with a one-sentence summary and the applicable sections:
 
-Project functions under `app/` and Python utilities under `scripts/` document
-these sections in this order:
+- `Args:` describes parameters without restating obvious type annotations.
+- `Returns:` describes meaningful results; omit it for functions returning
+  `None` unless clarification is useful.
+- `Raises:` identifies significant exceptions and fail-closed conditions.
+- `Notes:` records security invariants, preconditions, external state changes,
+  and other non-obvious behavior.
 
-1. `Requires`
-1. `Modifies`
-1. `Effects`
-1. `Inputs`
-1. `Outputs`
+Use the above order, omit sections that do not apply, and prefer clear prose
+rather than mechanically listing implementation details. Trivial helpers may
+use a short descriptive docstring. Preserve explicit descriptions of security
+boundaries, side effects, secret handling, and failure modes.
 
-The sections describe the contract, not a line-by-line implementation trace. Use
-`Nothing.` or `None.` when a section has no meaningful entry.
+Example:
 
-`Requires` states preconditions and environmental assumptions.
+```python
+def hash_api_key(api_key: str) -> str:
+    """Compute a digest for a high-entropy gateway API key.
 
-`Modifies` identifies persistent, process, filesystem, network, or external
-state that may change.
+    Args:
+        api_key: Complete bearer credential to hash.
 
-`Effects` states externally observable behavior, including failure behavior.
+    Returns:
+        Lowercase hexadecimal SHA-256 digest.
 
-`Inputs` describes parameters and implicit inputs such as environment values
-when those inputs materially affect behavior.
-
-`Outputs` describes return values or produced artifacts.
-
-Very small language-protocol methods such as `__str__` may use a concise
-ordinary docstring when a full RMEIO contract would add no information. Tests
-are not required to carry RMEIO sections, but reusable test utilities should
-still document non-obvious state changes.
+    Notes:
+        - Intended for randomly generated gateway keys, not passwords.
+        - The raw credential is not persisted.
+    """
+```
 
 ### Python layout
 
@@ -227,7 +229,7 @@ The checker enforces objective repository invariants, including:
 - whitespace, newline, and tab rules;
 - Python syntax and naming rules;
 - wildcard-import and bare-except rejection;
-- RMEIO contracts for project Python functions;
+- Google-style docstrings for project Python functions;
 - Bash shebang and strict-mode requirements.
 
 Some rules remain review rules because a machine cannot reliably determine
