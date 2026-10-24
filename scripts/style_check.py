@@ -1,3 +1,5 @@
+"""Enforce repository text, Python, and shell style invariants."""
+
 from __future__ import annotations
 
 import ast

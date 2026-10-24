@@ -1,3 +1,5 @@
+"""Render restricted cloud network policies from deployed CIDRs."""
+
 from __future__ import annotations
 
 import argparse

@@ -1,3 +1,5 @@
+"""Verify local runtime resilience, throughput, and failover behavior."""
+
 #!/usr/bin/env python3
 
 import argparse

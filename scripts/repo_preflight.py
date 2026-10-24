@@ -1,3 +1,5 @@
+"""Audit tracked files, repository history, and release prerequisites."""
+
 from __future__ import annotations
 
 import argparse
