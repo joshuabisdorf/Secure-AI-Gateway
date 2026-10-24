@@ -24,10 +24,10 @@ def get_max_request_body_bytes() -> int:
         the
     safe range.
 
-    Returns:
-        Maximum accepted HTTP request-body size in bytes.
+    :returns: Maximum accepted HTTP request-body size in bytes.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_MAX_REQUEST_BODY_BYTES, when set, contains an
           integer byte count.
     """
@@ -48,10 +48,11 @@ def get_max_request_body_bytes() -> int:
 def get_api_docs_enabled() -> bool:
     """Fail application startup for ambiguous boolean configuration.
 
-    Returns:
-        Whether production HTTP routing should expose interactive/OpenAPI docs.
+    :returns: Whether production HTTP routing should expose interactive/OpenAPI
+        docs.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_ENABLE_API_DOCS, when set, is a supported boolean
           value.
     """
@@ -78,15 +79,14 @@ class RequestBodyLimitMiddleware:
     ) -> None:
         """Configure an upper bound for HTTP request bodies.
 
-        Args:
-            app: Wrapped ASGI application.
-            max_body_bytes: Maximum accepted body size in bytes.
-            block_api_docs: Whether production documentation routes are hidden.
+        :param app: Wrapped ASGI application.
+        :param max_body_bytes: Maximum accepted body size in bytes.
+        :param block_api_docs: Whether production documentation routes are
+            hidden.
+        :returns: Configured middleware instance.
 
-        Returns:
-            Configured middleware instance.
+        .. note::
 
-        Notes:
             - Precondition: app is an ASGI application.
             - Precondition: max_body_bytes is positive.
             - Side effect: Middleware instance state.
@@ -107,12 +107,12 @@ class RequestBodyLimitMiddleware:
     ) -> None:
         """Emit a bounded JSON error without echoing request content.
 
-        Args:
-            send: ASGI response sender.
-            status: HTTP error status.
-            detail: Fixed safe error detail.
+        :param send: ASGI response sender.
+        :param status: HTTP error status.
+        :param detail: Fixed safe error detail.
 
-        Notes:
+        .. note::
+
             - Precondition: send is the ASGI send callable for an HTTP request.
             - Side effect: HTTP response stream.
         """
@@ -140,12 +140,12 @@ class RequestBodyLimitMiddleware:
         """Reject declared or streamed request bodies above max_body_bytes with
             HTTP 413.
 
-        Args:
-            scope: ASGI connection scope.
-            receive: ASGI request receiver.
-            send: ASGI response sender.
+        :param scope: ASGI connection scope.
+        :param receive: ASGI request receiver.
+        :param send: ASGI response sender.
 
-        Notes:
+        .. note::
+
             - Precondition: scope, receive, and send follow the ASGI protocol.
             - Side effect: HTTP request receive stream and response headers.
             - Buffers only a bounded request body before entering FastAPI,
@@ -222,10 +222,11 @@ class RequestBodyLimitMiddleware:
         async def replay_receive() -> dict[str, Any]:
             """Perform the replay receive operation.
 
-            Returns:
-                A value matching the declared dict[str, Any] return contract.
+            :returns: A value matching the declared dict[str, Any] return
+                contract.
 
-            Notes:
+            .. note::
+
                 - Precondition: Arguments satisfy their declared contracts and
                   required configured dependencies are available.
             """
@@ -244,10 +245,10 @@ class RequestBodyLimitMiddleware:
         async def hardened_send(message: dict[str, Any]) -> None:
             """Perform the hardened send operation.
 
-            Args:
-                message: Function input.
+            :param message: Function input.
 
-            Notes:
+            .. note::
+
                 - Precondition: Arguments satisfy their declared contracts and
                   required configured dependencies are available.
             """

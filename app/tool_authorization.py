@@ -23,17 +23,14 @@ def parse_client_allowed_tools(
 ) -> dict[str, frozenset[str]]:
     """Validate per-client function-tool allowlists.
 
-    Args:
-        configured_tools: Serialized per-client tool authorization records.
+    :param configured_tools: Serialized per-client tool authorization records.
+    :returns: Mapping from client ID to an immutable set of allowed function
+        names.
+    :raises ValueError: Configuration is empty, malformed, duplicated, or
+        contradictory.
 
-    Returns:
-        Mapping from client ID to an immutable set of allowed function names.
+    .. note::
 
-    Raises:
-        ValueError: Configuration is empty, malformed, duplicated, or
-            contradictory.
-
-    Notes:
         - Precondition: configured_tools uses client_id:tool_name records
           separated by commas.
         - Precondition: A single hyphen explicitly grants no tools to a client.
@@ -85,14 +82,12 @@ def get_client_allowed_tools(client_id: str) -> frozenset[str]:
     """Fail closed when tool authorization is absent, malformed, or missing the
     client.
 
-    Args:
-        client_id: Authenticated gateway client identity.
-
-    Returns:
-        Immutable set of function-tool names the client may expose to the
+    :param client_id: Authenticated gateway client identity.
+    :returns: Immutable set of function-tool names the client may expose to the
         model.
 
-    Notes:
+    .. note::
+
         - Precondition: client_id identifies an authenticated gateway client.
         - Precondition: SAG_CLIENT_ALLOWED_TOOLS may define per-client
           function-tool grants.
@@ -128,18 +123,17 @@ def authorize_request_tools(
     request: ChatCompletionRequest,
     allowed_tools: frozenset[str],
 ) -> ToolAuthorizationDecision:
-    """Verifie every tool exposed to the model is explicitly allowed.
+    """Verify every tool exposed to the model is explicitly allowed.
 
-    Args:
-        request: Validated request containing optional function tools/tool
-            choice.
-        allowed_tools: Function names authorized for the authenticated client.
+    :param request: Validated request containing optional function tools/tool
+        choice.
+    :param allowed_tools: Function names authorized for the authenticated
+        client.
+    :returns: ToolAuthorizationDecision with safe requested/denied tool names
+        and reason.
 
-    Returns:
-        ToolAuthorizationDecision with safe requested/denied tool names and
-        reason.
+    .. note::
 
-    Notes:
         - Precondition: request is a validated chat-completion request.
         - Precondition: allowed_tools is the authenticated client's
           function-tool allowlist.

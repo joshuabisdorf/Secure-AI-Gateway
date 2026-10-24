@@ -19,13 +19,11 @@ from app.providers.observed import observe_provider_chat
 def _serialize_message(message: ChatMessage) -> dict[str, object]:
     """Serialize OpenAI-compatible message fields for upstream transport.
 
-    Args:
-        message: Gateway chat message.
+    :param message: Gateway chat message.
+    :returns: Provider-safe message payload.
 
-    Returns:
-        Provider-safe message payload.
+    .. note::
 
-    Notes:
         - Precondition: message is a validated gateway chat message.
         - Removes gateway-only execution authorization tickets/risk labels from
           tool-call history.
@@ -54,18 +52,17 @@ class OpenAIProvider(Provider):
     ) -> None:
         """Fail closed when no upstream API key is configured.
 
-        Args:
-            api_key: Optional explicit upstream OpenAI API key.
-            base_url: Optional upstream API root.
-            timeout_seconds: Maximum duration of an upstream request.
-            transport: Optional httpx transport used for deterministic testing.
-            include_usage: Whether to request provider-specific extended usage
-                data.
+        :param api_key: Optional explicit upstream OpenAI API key.
+        :param base_url: Optional upstream API root.
+        :param timeout_seconds: Maximum duration of an upstream request.
+        :param transport: Optional httpx transport used for deterministic
+            testing.
+        :param include_usage: Whether to request provider-specific extended
+            usage data.
+        :returns: A configured OpenAI provider instance.
 
-        Returns:
-            A configured OpenAI provider instance.
+        .. note::
 
-        Notes:
             - Precondition: api_key or OPENAI_API_KEY provides an upstream
               OpenAI API key.
             - Precondition: base_url, when provided, identifies an
@@ -96,14 +93,12 @@ class OpenAIProvider(Provider):
         """Send messages and optional authorized function tools/tool choice
             upstream.
 
-        Args:
-            request: Requested upstream model, messages, and optional
-                authorized tools.
+        :param request: Requested upstream model, messages, and optional
+            authorized tools.
+        :returns: A normalized chat-completion response.
 
-        Returns:
-            A normalized chat-completion response.
+        .. note::
 
-        Notes:
             - Precondition: request is a validated gateway chat-completion
               request.
             - Precondition: Any function tools in request were authorized by

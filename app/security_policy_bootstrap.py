@@ -23,13 +23,12 @@ def _compile_policy_environment(
         policy
     formats.
 
-    Args:
-        registry: Validated unified policy registry.
+    :param registry: Validated unified policy registry.
+    :returns: Environment-variable values consumed by existing enforcement
+        modules.
 
-    Returns:
-        Environment-variable values consumed by existing enforcement modules.
+    .. note::
 
-    Notes:
         - Precondition: registry has passed unified security-policy validation.
         - Preserves an empty tool allowlist as the explicit client:- no-tool
           record.
@@ -88,7 +87,8 @@ def apply_unified_security_policy_environment() -> None:
         temporary
     legacy compatibility.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_SECURITY_POLICY_FILE may identify a unified JSON
           security-policy registry.
         - Side effect: Process environment values used by per-client

@@ -16,13 +16,11 @@ class SharedRedisToolExecutionReplayStore:
             local Redis
         behave consistently.
 
-        Args:
-            redis_url: Redis-compatible connection URL.
+        :param redis_url: Redis-compatible connection URL.
+        :returns: Distributed replay-store instance.
 
-        Returns:
-            Distributed replay-store instance.
+        .. note::
 
-        Notes:
             - Precondition: redis_url identifies the configured shared
               Redis/Valkey service.
             - Side effect: Initializes a lazy shared Redis/Valkey client.
@@ -32,14 +30,12 @@ class SharedRedisToolExecutionReplayStore:
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
         """Atomically claims an execution ID with SET NX and expiry.
 
-        Args:
-            execution_id: Execution-ticket identifier.
-            ttl_seconds: Remaining ticket lifetime.
+        :param execution_id: Execution-ticket identifier.
+        :param ttl_seconds: Remaining ticket lifetime.
+        :returns: True only for the first successful distributed claim.
 
-        Returns:
-            True only for the first successful distributed claim.
+        .. note::
 
-        Notes:
             - Precondition: execution_id is a validated execution-ticket
               identifier.
             - Precondition: ttl_seconds is positive.
@@ -62,7 +58,8 @@ class SharedRedisToolExecutionReplayStore:
     async def close(self) -> None:
         """Close the shared Redis/Valkey client pool.
 
-        Notes:
+        .. note::
+
             - Precondition: Arguments satisfy their declared contracts and
               required configured dependencies are available.
             - Side effect: Owned runtime or dependency state, as described by
@@ -74,10 +71,10 @@ class SharedRedisToolExecutionReplayStore:
 def build_runtime_tool_execution_replay_store() -> ToolExecutionReplayStore:
     """Use distributed shared replay protection in runtime environments.
 
-    Returns:
-        Configured ToolExecutionReplayStore.
+    :returns: Configured ToolExecutionReplayStore.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_TOOL_EXECUTION_REPLAY_BACKEND selects redis or
           memory.
         - Precondition: REDIS_URL and Redis authentication settings are valid

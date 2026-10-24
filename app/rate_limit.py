@@ -77,17 +77,13 @@ class _RedisClient(Protocol):
 def parse_client_rate_limits(configured_limits: str) -> dict[str, int]:
     """Validate per-client rate-limit configuration.
 
-    Args:
-        configured_limits: Serialized per-client requests-per-minute limits.
+    :param configured_limits: Serialized per-client requests-per-minute limits.
+    :returns: Mapping from client ID to requests-per-minute limit.
+    :raises ValueError: Configuration is empty, malformed, duplicated, or out
+        of range.
 
-    Returns:
-        Mapping from client ID to requests-per-minute limit.
+    .. note::
 
-    Raises:
-        ValueError: Configuration is empty, malformed, duplicated, or out of
-            range.
-
-    Notes:
         - Precondition: configured_limits uses client_id:requests_per_minute
           records separated by commas.
         - Rejects malformed records, duplicate clients, and unusable limits.
@@ -127,13 +123,11 @@ def get_client_rate_limit(client_id: str) -> int:
     """Fail closed when rate-limit policy is absent, malformed, or missing the
         client.
 
-    Args:
-        client_id: Authenticated gateway client identity.
+    :param client_id: Authenticated gateway client identity.
+    :returns: Requests-per-minute limit configured for the client.
 
-    Returns:
-        Requests-per-minute limit configured for the client.
+    .. note::
 
-    Notes:
         - Precondition: client_id identifies an authenticated gateway client.
         - Precondition: SAG_CLIENT_RATE_LIMITS may define per-client
           requests-per-minute limits.
@@ -172,14 +166,13 @@ class InMemoryRateLimiter:
     ) -> None:
         """Create a fixed-window limiter used by deterministic tests.
 
-        Args:
-            window_seconds: Duration of one rate-limit window.
-            clock: Monotonic time source, injectable for deterministic tests.
+        :param window_seconds: Duration of one rate-limit window.
+        :param clock: Monotonic time source, injectable for deterministic
+            tests.
+        :returns: A configured InMemoryRateLimiter instance.
 
-        Returns:
-            A configured InMemoryRateLimiter instance.
+        .. note::
 
-        Notes:
             - Precondition: window_seconds is greater than zero.
             - Precondition: clock returns a monotonic timestamp in seconds.
             - Side effect: Initializes process-local rate-limit state.
@@ -195,15 +188,13 @@ class InMemoryRateLimiter:
     async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
         """Applie a fixed-window rate limit atomically for the current process.
 
-        Args:
-            client_id: Authenticated gateway client identity.
-            limit_rpm: Maximum requests allowed during the current window.
+        :param client_id: Authenticated gateway client identity.
+        :param limit_rpm: Maximum requests allowed during the current window.
+        :returns: RateLimitDecision describing allow/deny, remaining capacity,
+            and retry delay.
 
-        Returns:
-            RateLimitDecision describing allow/deny, remaining capacity, and
-            retry delay.
+        .. note::
 
-        Notes:
             - Precondition: client_id identifies an authenticated gateway
               client.
             - Precondition: limit_rpm is a positive requests-per-minute limit.
@@ -251,7 +242,8 @@ class InMemoryRateLimiter:
     def reset(self) -> None:
         """Clear rate-limit state under the limiter lock.
 
-        Notes:
+        .. note::
+
             - Precondition: The in-memory limiter may contain process-local
               test state.
             - Side effect: All process-local rate-limit buckets owned by this
@@ -271,15 +263,13 @@ class RedisRateLimiter:
     ) -> None:
         """Create a lazily connected distributed fixed-window rate limiter.
 
-        Args:
-            redis_url: Redis-compatible connection URL.
-            window_seconds: Fixed rate-limit window duration.
-            client: Optional compatible client for deterministic tests.
+        :param redis_url: Redis-compatible connection URL.
+        :param window_seconds: Fixed rate-limit window duration.
+        :param client: Optional compatible client for deterministic tests.
+        :returns: A configured RedisRateLimiter instance.
 
-        Returns:
-            A configured RedisRateLimiter instance.
+        .. note::
 
-        Notes:
             - Precondition: redis_url identifies a compatible Redis or Valkey
               server when client is not injected.
             - Precondition: window_seconds is a positive integer.
@@ -300,14 +290,13 @@ class RedisRateLimiter:
     async def check(self, client_id: str, limit_rpm: int) -> RateLimitDecision:
         """Atomically increments and caps the shared counter with a portable.
 
-        Args:
-            client_id: Authenticated gateway client identity.
-            limit_rpm: Maximum requests allowed during the current window.
+        :param client_id: Authenticated gateway client identity.
+        :param limit_rpm: Maximum requests allowed during the current window.
+        :returns: RateLimitDecision shared across gateway processes and
+            replicas.
 
-        Returns:
-            RateLimitDecision shared across gateway processes and replicas.
+        .. note::
 
-        Notes:
             - Precondition: The configured Redis/Valkey backend supports EVAL,
               GET, SET, TTL, and INCR.
             - Precondition: client_id identifies an authenticated gateway
@@ -368,7 +357,8 @@ class RedisRateLimiter:
     async def close(self) -> None:
         """Close the Redis-compatible client cleanly.
 
-        Notes:
+        .. note::
+
             - Precondition: The Redis-compatible client may own open
               connections.
             - Side effect: Shared-backend client connection-pool state.
@@ -384,14 +374,12 @@ class UnavailableRateLimiter:
     ) -> RateLimitDecision:
         """Fail closed instead of allowing an unthrottled request.
 
-        Args:
-            client_id: Authenticated client identity.
-            limit_rpm: Requested rate-limit ceiling.
+        :param client_id: Authenticated client identity.
+        :param limit_rpm: Requested rate-limit ceiling.
+        :returns: No decision; always raises RateLimiterUnavailable.
 
-        Returns:
-            No decision; always raises RateLimiterUnavailable.
+        .. note::
 
-        Notes:
             - Precondition: No usable rate-limit backend is configured.
         """
         raise RateLimiterUnavailable("rate_limiter_not_configured")
@@ -400,10 +388,10 @@ class UnavailableRateLimiter:
 def build_rate_limiter():
     """Select shared Redis/Valkey enforcement by default for runtime.
 
-    Returns:
-        Configured rate-limiter backend.
+    :returns: Configured rate-limiter backend.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_RATE_LIMIT_BACKEND may select redis or memory.
         - Precondition: REDIS_URL is configured when the Redis backend is
           selected.

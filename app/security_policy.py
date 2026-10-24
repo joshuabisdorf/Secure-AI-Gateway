@@ -77,14 +77,12 @@ class SecurityPolicyRegistry:
     def resolve(self, client_id: str) -> ResolvedSecurityPolicy:
         """Resolve a client assignment to its named reusable security profile.
 
-        Args:
-            client_id: Authenticated gateway client identity.
+        :param client_id: Authenticated gateway client identity.
+        :returns: ResolvedSecurityPolicy containing the assigned profile and
+            its name.
 
-        Returns:
-            ResolvedSecurityPolicy containing the assigned profile and its
-            name.
+        .. note::
 
-        Notes:
             - Precondition: client_id identifies an authenticated gateway
               client.
             - Precondition: The registry has already passed schema validation.
@@ -131,16 +129,14 @@ def _parse_string_list(
 ) -> frozenset[str]:
     """Perform the parse string list operation.
 
-    Args:
-        value: Function input.
-        pattern: Function input.
-        allow_empty: Function input.
-        invalid_reason: Function input.
+    :param value: Function input.
+    :param pattern: Function input.
+    :param allow_empty: Function input.
+    :param invalid_reason: Function input.
+    :returns: A value matching the declared frozenset[str] return contract.
 
-    Returns:
-        A value matching the declared frozenset[str] return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -162,13 +158,11 @@ def _parse_string_list(
 def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
     """Perform the parse daily budget operation.
 
-    Args:
-        value: Function input.
+    :param value: Function input.
+    :returns: A value matching the declared DailyBudgetPolicy return contract.
 
-    Returns:
-        A value matching the declared DailyBudgetPolicy return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -219,13 +213,12 @@ def _parse_daily_budget(value: Any) -> DailyBudgetPolicy:
 def _parse_profile(value: Any) -> SecurityPolicyProfile:
     """Perform the parse profile operation.
 
-    Args:
-        value: Function input.
+    :param value: Function input.
+    :returns: A value matching the declared SecurityPolicyProfile return
+        contract.
 
-    Returns:
-        A value matching the declared SecurityPolicyProfile return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -283,16 +276,13 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
     """Strictly validates JSON structure, duplicate keys, profile fields, and
     assignments.
 
-    Args:
-        document: UTF-8 JSON policy document text.
+    :param document: UTF-8 JSON policy document text.
+    :returns: Validated SecurityPolicyRegistry.
+    :raises ValueError: The policy document is malformed or violates the
+        schema.
 
-    Returns:
-        Validated SecurityPolicyRegistry.
+    .. note::
 
-    Raises:
-        ValueError: The policy document is malformed or violates the schema.
-
-    Notes:
         - Precondition: document is intended to be a version-1 Secure AI
           Gateway policy registry.
         - Rejects unknown fields rather than silently ignoring policy mistakes.
@@ -353,7 +343,8 @@ def clear_security_policy_cache() -> None:
     """Clear the process-local parsed policy cache used by tests and file
         reloads.
 
-    Notes:
+    .. note::
+
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -368,14 +359,12 @@ def load_security_policy_registry(
 ) -> SecurityPolicyRegistry:
     """Read and validates the configured non-secret policy registry.
 
-    Args:
-        configured_path: Optional explicit file path, primarily for
-            validation/tests.
+    :param configured_path: Optional explicit file path, primarily for
+        validation/tests.
+    :returns: Validated SecurityPolicyRegistry.
 
-    Returns:
-        Validated SecurityPolicyRegistry.
+    .. note::
 
-    Notes:
         - Precondition: configured_path or SAG_SECURITY_POLICY_FILE identifies
           a local JSON policy file.
         - Side effect: Process-local validated-policy cache.
@@ -427,13 +416,12 @@ def resolve_client_security_policy(
     temporary migration compatibility with legacy per-control environment
     variables.
 
-    Args:
-        client_id: Authenticated gateway client identity.
+    :param client_id: Authenticated gateway client identity.
+    :returns: Resolved unified policy, or None when unified policy is not
+        configured.
 
-    Returns:
-        Resolved unified policy, or None when unified policy is not configured.
+    .. note::
 
-    Notes:
         - Precondition: client_id identifies an authenticated gateway client.
         - Precondition: SAG_SECURITY_POLICY_FILE may enable the unified policy
           registry.

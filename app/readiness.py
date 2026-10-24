@@ -8,16 +8,14 @@ from app.redis_client import RedisClientConfigurationError, build_redis_client
 
 
 async def _postgres_ready(database_url: str) -> bool:
-    """Verifie PostgreSQL connectivity and the required migrated gateway tables.
+    """Verify PostgreSQL connectivity and the required migrated gateway tables.
 
-    Args:
-        database_url: PostgreSQL connection string.
+    :param database_url: PostgreSQL connection string.
+    :returns: True only when PostgreSQL is reachable and required schema
+        objects exist.
 
-    Returns:
-        True only when PostgreSQL is reachable and required schema objects
-        exist.
+    .. note::
 
-    Notes:
         - Precondition: database_url identifies the configured PostgreSQL
           database.
         - Side effect: A short-lived PostgreSQL connection/session.
@@ -47,13 +45,12 @@ async def _postgres_ready(database_url: str) -> bool:
 async def _redis_ready(redis_url: str) -> bool:
     """Ping Redis/Valkey using bounded connect/read timeouts.
 
-    Args:
-        redis_url: Redis-compatible connection URL.
+    :param redis_url: Redis-compatible connection URL.
+    :returns: True only when the configured shared backend responds
+        successfully.
 
-    Returns:
-        True only when the configured shared backend responds successfully.
+    .. note::
 
-    Notes:
         - Precondition: redis_url identifies the configured shared Redis/Valkey
           backend.
         - Side effect: A short-lived shared-backend client connection.
@@ -103,10 +100,10 @@ def _redis_required() -> bool:
 async def runtime_ready() -> tuple[bool, tuple[str, ...]]:
     """Check only backends required by the current runtime configuration.
 
-    Returns:
-        Tuple of overall readiness and safe unavailable-component names.
+    :returns: Tuple of overall readiness and safe unavailable-component names.
 
-    Notes:
+    .. note::
+
         - Precondition: Runtime backend-selection environment variables
           describe the active deployment.
         - Side effect: Short-lived backend connection state for required shared
@@ -134,10 +131,10 @@ async def runtime_ready() -> tuple[bool, tuple[str, ...]]:
 def main() -> None:
     """Run the backend readiness checks for Kubernetes exec probes.
 
-    Returns:
-        Process exit status and a metadata-only readiness message.
+    :returns: Process exit status and a metadata-only readiness message.
 
-    Notes:
+    .. note::
+
         - Precondition: Runtime backend environment variables describe the
           current deployment.
         - Side effect: Short-lived backend connection state and terminal

@@ -76,13 +76,11 @@ class SemanticPIIUnavailable(HTTPException):
         """Represent semantic PII unavailability as a sanitized HTTP 503
             response.
 
-        Args:
-            reason: Safe diagnostic reason label.
+        :param reason: Safe diagnostic reason label.
+        :returns: Configured SemanticPIIUnavailable exception instance.
 
-        Returns:
-            Configured SemanticPIIUnavailable exception instance.
+        .. note::
 
-        Notes:
             - Precondition: reason is a safe internal reason label and contains
               no prompt data.
             - Side effect: Initializes exception state.
@@ -106,14 +104,12 @@ class SemanticPIIAnalyzer(Protocol):
         """Return non-overlapping semantic PII spans without retaining raw
             values.
 
-        Args:
-            text: Function input.
+        :param text: Function input.
+        :returns: A value matching the declared tuple[SemanticPIIFinding, ...]
+            return contract.
 
-        Returns:
-            A value matching the declared tuple[SemanticPIIFinding, ...] return
-            contract.
+        .. note::
 
-        Notes:
             - Precondition: Arguments satisfy their declared contracts and
               required configured dependencies are available.
         """
@@ -124,15 +120,13 @@ def _context_window(text: str, start: int, end: int) -> str:
     """Limit context inspection around an entity/span to a bounded local
         window.
 
-    Args:
-        text: Source message text.
-        start: Entity start offset.
-        end: Entity end offset.
+    :param text: Source message text.
+    :param start: Entity start offset.
+    :param end: Entity end offset.
+    :returns: Bounded text surrounding the entity.
 
-    Returns:
-        Bounded text surrounding the entity.
+    .. note::
 
-    Notes:
         - Precondition: start/end identify a span within text.
     """
     return text[
@@ -143,14 +137,12 @@ def _context_window(text: str, start: int, end: int) -> str:
 def _has_context(text: str, patterns: tuple[re.Pattern[str], ...]) -> bool:
     """Test whether any contextual indicator occurs in bounded text.
 
-    Args:
-        text: Context window.
-        patterns: Allowed contextual patterns.
+    :param text: Context window.
+    :param patterns: Allowed contextual patterns.
+    :returns: True when at least one context pattern matches.
 
-    Returns:
-        True when at least one context pattern matches.
+    .. note::
 
-    Notes:
         - Precondition: patterns contains compiled contextual indicators.
     """
     return any(pattern.search(text) for pattern in patterns)
@@ -161,13 +153,11 @@ def _select_non_overlapping(
 ) -> tuple[SemanticPIIFinding, ...]:
     """Resolve overlapping recognizer results deterministically.
 
-    Args:
-        findings: Candidate semantic/hybrid PII spans.
+    :param findings: Candidate semantic/hybrid PII spans.
+    :returns: Sorted non-overlapping findings safe for right-to-left redaction.
 
-    Returns:
-        Sorted non-overlapping findings safe for right-to-left redaction.
+    .. note::
 
-    Notes:
         - Precondition: findings contains offsets relative to one source
           string.
         - Prefers longer spans and higher-priority privacy types.
@@ -196,13 +186,11 @@ class SpacySemanticPIIAnalyzer:
         """Defer expensive NLP model loading until semantic inspection is
             needed.
 
-        Args:
-            model_name: Installed spaCy model package name.
+        :param model_name: Installed spaCy model package name.
+        :returns: Configured analyzer instance.
 
-        Returns:
-            Configured analyzer instance.
+        .. note::
 
-        Notes:
             - Precondition: model_name identifies an installed spaCy English
               NER pipeline.
             - Side effect: Initializes lazy model state and synchronization
@@ -215,10 +203,10 @@ class SpacySemanticPIIAnalyzer:
     def _get_nlp(self) -> Language:
         """Load only the components required for NER.
 
-        Returns:
-            Loaded spaCy Language pipeline.
+        :returns: Loaded spaCy Language pipeline.
 
-        Notes:
+        .. note::
+
             - Precondition: The configured spaCy model is installed and
               loadable.
             - Side effect: Lazy process-local NLP model state on first use.
@@ -251,13 +239,11 @@ class SpacySemanticPIIAnalyzer:
             personal
         locations, and dates of birth.
 
-        Args:
-            text: Sanitized message text to inspect.
+        :param text: Sanitized message text to inspect.
+        :returns: Non-overlapping semantic PII findings.
 
-        Returns:
-            Non-overlapping semantic PII findings.
+        .. note::
 
-        Notes:
             - Precondition: text is one message after deterministic structured
               PII redaction.
             - Side effect: Lazy spaCy model state on first call.
@@ -312,14 +298,12 @@ def redact_semantic_text(
 ) -> tuple[str, tuple[str, ...]]:
     """Replace semantic PII spans from right to left so offsets remain valid.
 
-    Args:
-        text: Message text after structured PII redaction.
-        analyzer: Semantic analyzer implementation.
+    :param text: Message text after structured PII redaction.
+    :param analyzer: Semantic analyzer implementation.
+    :returns: Redacted text and one safe PII type label per detected span.
 
-    Returns:
-        Redacted text and one safe PII type label per detected span.
+    .. note::
 
-    Notes:
         - Precondition: analyzer returns valid, non-overlapping offsets into
           text.
         - Does not return or retain raw detected values separately.
@@ -338,10 +322,10 @@ def build_semantic_pii_analyzer() -> SemanticPIIAnalyzer:
     """Construct the configured semantic PII analyzer without loading its model
         yet.
 
-    Returns:
-        Configured SemanticPIIAnalyzer.
+    :returns: Configured SemanticPIIAnalyzer.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_SEMANTIC_PII_BACKEND may select a supported local
           analyzer backend.
         - Rejects unsupported backends instead of silently disabling semantic

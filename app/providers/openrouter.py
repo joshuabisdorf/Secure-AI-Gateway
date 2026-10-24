@@ -19,16 +19,15 @@ class OpenRouterProvider(OpenAIProvider):
     ) -> None:
         """Configure the shared OpenAI-compatible chat transport for.
 
-        Args:
-            api_key: Optional explicit OpenRouter API key.
-            base_url: Optional OpenRouter API root override.
-            timeout_seconds: Maximum duration of an upstream request.
-            transport: Optional httpx transport used for deterministic testing.
+        :param api_key: Optional explicit OpenRouter API key.
+        :param base_url: Optional OpenRouter API root override.
+        :param timeout_seconds: Maximum duration of an upstream request.
+        :param transport: Optional httpx transport used for deterministic
+            testing.
+        :returns: A configured OpenRouter provider instance.
 
-        Returns:
-            A configured OpenRouter provider instance.
+        .. note::
 
-        Notes:
             - Precondition: api_key or OPENROUTER_API_KEY provides an
               OpenRouter API key.
             - Precondition: base_url, when provided, identifies an
