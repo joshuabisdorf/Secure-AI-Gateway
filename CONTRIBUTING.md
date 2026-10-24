@@ -61,7 +61,7 @@ values, such as URLs, immutable hashes, or other atomic values that cannot be
 sensibly split, may exceed it. Do not add broad exclusions to avoid wrapping
 ordinary source or prose.
 
-Non-trivial runtime functions and security boundaries use Google-style Python
+Non-trivial runtime functions and security boundaries use Sphinx-style Python
 docstrings. Document parameters, return values, significant exceptions, and
 security invariants or side effects when relevant.
 
@@ -93,10 +93,10 @@ disabled. Do not add CI `apply` steps or long-lived AWS credentials.
 
 ## Python docstrings
 
-Use Google-style sections (`Args`, `Returns`, `Raises`, and `Notes`) as
-appropriate. Keep the summary concise. Explain fail-closed behavior, external
-state changes, and credential-handling constraints under `Notes` when they
-matter. Omit inapplicable sections; see
+Use native Sphinx fields such as `:param name:`, `:returns:`, and
+`:raises Error:`. Use `.. note::` for security invariants, preconditions,
+failure behavior, and externally visible side effects. Type annotations usually
+make `:type:` and `:rtype:` redundant. See
 [`docs/style-standard.md`](docs/style-standard.md) for an example.
 
 ## Dependencies and CI

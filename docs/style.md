@@ -1,8 +1,8 @@
 # Secure AI Gateway style standard
 
 This document defines the source and documentation style for Secure AI Gateway.
-It is a project-authored standard. It does not incorporate or require an
-external style guide, formatter, or style linter.
+It is a project-authored coding standard that adopts native Sphinx docstring
+syntax without requiring an external formatter or style linter.
 
 The standard does not change the project's Apache-2.0 license, copyright, NOTICE
 attribution, or authorship. Style conformance is a repository quality
@@ -81,23 +81,23 @@ connection strings.
 Boolean conditions should favor named intermediate values when a compound
 expression would otherwise obscure policy or failure semantics.
 
-### Google-style Python docstrings
+### Sphinx-style Python docstrings
 
-Python modules start with a concise module-level docstring describing their
-responsibility. Public classes and non-trivial functions use conventional
-Google-style docstrings with a one-sentence summary and the applicable sections:
+Python uses native Sphinx/reStructuredText docstrings. Start with a concise
+imperative summary, then add the applicable Sphinx Python-domain fields:
 
-- `Args:` describes parameters without restating obvious type annotations.
-- `Returns:` describes meaningful results; omit it for functions returning
-  `None` unless clarification is useful.
-- `Raises:` identifies significant exceptions and fail-closed conditions.
-- `Notes:` records security invariants, preconditions, external state changes,
-  and other non-obvious behavior.
+- `:param name:` describes a parameter.
+- `:type name:` documents a type when a Python annotation is unavailable.
+- `:returns:` describes a meaningful returned value.
+- `:rtype:` supplies the return type if it is not already annotated.
+- `:raises ExceptionType:` states why a significant exception is raised.
+- `.. note::` explains security invariants, preconditions, side effects,
+  credential handling, and fail-closed behavior when relevant.
 
-Use the above order, omit sections that do not apply, and prefer clear prose
-rather than mechanically listing implementation details. Trivial helpers may
-use a short descriptive docstring. Preserve explicit descriptions of security
-boundaries, side effects, secret handling, and failure modes.
+Write each field on its own line. Keep parameter fields before return and
+exception fields, followed by note directives. Omit inapplicable fields.
+Do not duplicate type hints or use Google-style `Args:`/`Returns:`/`Notes:`
+headings. Short pure helpers may use a single summary line.
 
 Example:
 
@@ -105,17 +105,18 @@ Example:
 def hash_api_key(api_key: str) -> str:
     """Compute a digest for a high-entropy gateway API key.
 
-    Args:
-        api_key: Complete bearer credential to hash.
+    :param api_key: Complete bearer credential to hash.
+    :returns: Lowercase hexadecimal SHA-256 digest.
 
-    Returns:
-        Lowercase hexadecimal SHA-256 digest.
+    .. note::
 
-    Notes:
-        - Intended for randomly generated gateway keys, not passwords.
-        - The raw credential is not persisted.
+        - Intended for randomly generated API keys, not human passwords.
+        - Raw credentials must not be persisted.
     """
 ```
+
+This is Sphinx's native Python-domain field-list syntax, suitable for
+`sphinx.ext.autodoc`; no Google/Napoleon docstring conversion is required.
 
 ### Python layout
 
@@ -229,7 +230,7 @@ The checker enforces objective repository invariants, including:
 - whitespace, newline, and tab rules;
 - Python syntax and naming rules;
 - wildcard-import and bare-except rejection;
-- Google-style docstrings for project Python functions;
+- Sphinx-style docstrings for project Python functions;
 - Bash shebang and strict-mode requirements.
 
 Some rules remain review rules because a machine cannot reliably determine

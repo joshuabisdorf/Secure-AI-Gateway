@@ -295,8 +295,8 @@ or vendoring an external guide or linter policy.
 
 The hard line-length rule is 80 characters except for genuinely indivisible
 content such as URLs or immutable machine identifiers. Python project functions
-use Google-style docstrings with applicable `Args`, `Returns`, `Raises`, and
-`Notes` sections. Security-critical preconditions, side effects, and
+use native Sphinx docstrings with `:param:`, `:returns:`, `:raises:`,
+and `.. note::` directives. Security-critical preconditions, side effects, and
 fail-closed guarantees remain documented.
 
 `make style` checks the entire tracked project tree, and CI runs the same gate.
