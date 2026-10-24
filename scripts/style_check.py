@@ -47,22 +47,30 @@ _TF_BLOCK_HEADER_RE = re.compile(
 _LONG_ATOM_RE = re.compile(r"\S{81,}")
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 _CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")
-_DOCSTRING_SECTIONS = ("Args:", "Returns:", "Raises:", "Notes:")
+_DOCSTRING_FIELD_ORDER = {
+    "param": 0,
+    "returns": 1,
+    "raises": 2,
+    "note": 3,
+}
+_LEGACY_DOCSTRING_HEADING_RE = re.compile(
+    r"^\s*(?:Args|Returns|Raises|Notes|Requires|Modifies|Effects|"
+    r"Inputs|Outputs):\s*$",
+    re.MULTILINE,
+)
 
 
 @dataclass(frozen=True)
 class Violation:
     """Represent one project style violation.
 
-    Args:
-        path: Repository-relative file path. line: One-based line number, or
-            zero for file-level errors. rule: Stable rule identifier. message:
-            Human-readable diagnostic text.
+    :param path: Repository-relative file path. line: One-based line number, or
+        zero for file-level errors. rule: Stable rule identifier. message:
+        Human-readable diagnostic text.
+    :returns: An immutable violation value.
 
-    Returns:
-        An immutable violation value.
+    .. note::
 
-    Notes:
         - Precondition: path identifies a repository-relative file.
     """
 
@@ -78,14 +86,12 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run a read-only Git command from the repository root.
 
-    Args:
-        args: Git arguments after the executable name. check: Whether non-zero
-            exit status raises an exception.
+    :param args: Git arguments after the executable name. check: Whether
+        non-zero exit status raises an exception.
+    :returns: Completed subprocess result with text output.
 
-    Returns:
-        Completed subprocess result with text output.
+    .. note::
 
-    Notes:
         - Precondition: Git is installed and ROOT is inside a Git working tree.
     """
     return subprocess.run(
@@ -102,10 +108,10 @@ def _run_git(
 def _tracked_files() -> list[Path]:
     """Return tracked text candidates in deterministic order.
 
-    Returns:
-        Sorted repository-relative paths eligible for style checks.
+    :returns: Sorted repository-relative paths eligible for style checks.
 
-    Notes:
+    .. note::
+
         - Precondition: The repository index is readable by Git.
     """
     output = _run_git("ls-files").stdout
@@ -127,14 +133,12 @@ def _tracked_files() -> list[Path]:
 def _line_length_exception(path: Path, line: str) -> bool:
     """Return whether an overlong line is indivisible by project policy.
 
-    Args:
-        path: Repository-relative path containing the line. line: Candidate
-            overlong line.
+    :param path: Repository-relative path containing the line. line: Candidate
+        overlong line.
+    :returns: True only for narrow atomic forms that should not be split.
 
-    Returns:
-        True only for narrow atomic forms that should not be split.
+    .. note::
 
-    Notes:
         - Precondition: line does not include its trailing newline.
     """
     stripped = line.strip()
@@ -159,13 +163,11 @@ def _line_length_exception(path: Path, line: str) -> bool:
 def _check_text_file(path: Path) -> list[Violation]:
     """Check universal text-file invariants.
 
-    Args:
-        path: Repository-relative file path.
+    :param path: Repository-relative file path.
+    :returns: Violations for universal text style rules.
 
-    Returns:
-        Violations for universal text style rules.
+    .. note::
 
-    Notes:
         - Precondition: path exists under ROOT and contains tracked text.
     """
     full_path = ROOT / path
@@ -226,13 +228,11 @@ def _check_text_file(path: Path) -> list[Violation]:
 def _is_runtime_python(path: Path) -> bool:
     """Return whether a Python file is maintained project code.
 
-    Args:
-        path: Repository-relative path.
+    :param path: Repository-relative path.
+    :returns: True for app modules and Python utilities under scripts.
 
-    Returns:
-        True for app modules and Python utilities under scripts.
+    .. note::
 
-    Notes:
         - Precondition: path is repository-relative.
     """
     return (
@@ -245,32 +245,28 @@ def _is_runtime_python(path: Path) -> bool:
 def _is_dunder(name: str) -> bool:
     """Return whether a Python name is a language-protocol dunder.
 
-    Args:
-        name: Identifier to inspect.
+    :param name: Identifier to inspect.
+    :returns: True when name starts and ends with two underscores.
 
-    Returns:
-        True when name starts and ends with two underscores.
+    .. note::
 
-    Notes:
         - Precondition: name is a Python identifier.
     """
     return name.startswith("__") and name.endswith("__")
 
 
-def _docstring_sections(node: ast.AST) -> list[str]:
-    """Collect recognized Google-style docstring section headings.
+def _docstring_fields(node: ast.AST) -> list[str]:
+    """Collect Sphinx field-list entries and note directives in source order.
 
-    Args:
-        node: Function or method AST node.
-
-    Returns:
-        Section headings in their order of appearance.
+    :param node: Function or method AST node.
+    :returns: Field names in their order of appearance.
     """
     docstring = ast.get_docstring(node, clean=False) or ""
     return [
-        match.group(1)
+        match.group(1) or "note"
         for match in re.finditer(
-            r"^\\s*(Args:|Returns:|Raises:|Notes:)$",
+            r"^\s*:(param|returns|raises)(?:\s+[^:]+)?:"
+            r"|^\s*\.\. note::\s*$",
             docstring,
             flags=re.MULTILINE,
         )
@@ -282,13 +278,11 @@ def _requires_docstring(
 ) -> bool:
     """Return whether a function needs a complete docstring.
 
-    Args:
-        node: Parsed function definition.
+    :param node: Parsed function definition.
+    :returns: True for non-trivial project functions.
 
-    Returns:
-        True for non-trivial project functions.
+    .. note::
 
-    Notes:
         - Precondition: node is a parsed function definition.
     """
     if _is_dunder(node.name):
@@ -309,14 +303,11 @@ def _check_docstring(
     path: Path,
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> list[Violation]:
-    """Check a function's Google-style documentation contract.
+    """Check a function's native Sphinx documentation contract.
 
-    Args:
-        path: Repository-relative Python path.
-        node: Function or method syntax node.
-
-    Returns:
-        Docstring presence or section-order violations.
+    :param path: Repository-relative Python path.
+    :param node: Function or method syntax node.
+    :returns: Docstring and field-order violations.
     """
     docstring = ast.get_docstring(node) or ""
     if not docstring.strip():
@@ -325,29 +316,38 @@ def _check_docstring(
                 str(path),
                 node.lineno,
                 "PY006",
-                f"{node.name} requires a Google-style docstring",
+                f"{node.name} requires a Sphinx-style docstring",
             )
         ]
-    headings = _docstring_sections(node)
-    positions = [_DOCSTRING_SECTIONS.index(name) for name in headings]
-    if positions != sorted(positions) or len(headings) != len(set(headings)):
-        return [
-            Violation(
-                str(path),
-                node.lineno,
-                "PY007",
-                f"{node.name} has invalid Google-style section order",
-            )
-        ]
-    if any(section in docstring for section in ("Requires:", "Modifies:",
-                                               "Effects:", "Inputs:",
-                                               "Outputs:")):
+
+    if _LEGACY_DOCSTRING_HEADING_RE.search(docstring):
         return [
             Violation(
                 str(path),
                 node.lineno,
                 "PY011",
-                f"{node.name} still contains RMEIO sections",
+                f"{node.name} uses a legacy docstring heading",
+            )
+        ]
+
+    fields = _docstring_fields(node)
+    positions = [_DOCSTRING_FIELD_ORDER[name] for name in fields]
+    if positions != sorted(positions):
+        return [
+            Violation(
+                str(path),
+                node.lineno,
+                "PY007",
+                f"{node.name} has Sphinx fields out of order",
+            )
+        ]
+    if fields.count("returns") > 1:
+        return [
+            Violation(
+                str(path),
+                node.lineno,
+                "PY007",
+                f"{node.name} has duplicate return fields",
             )
         ]
     return []
@@ -356,13 +356,11 @@ def _check_docstring(
 def _check_python(path: Path) -> list[Violation]:
     """Check Python-specific structural rules without external linters.
 
-    Args:
-        path: Repository-relative Python path.
+    :param path: Repository-relative Python path.
+    :returns: Python-specific style violations.
 
-    Returns:
-        Python-specific style violations.
+    .. note::
 
-    Notes:
         - Precondition: path identifies UTF-8 Python source under ROOT.
     """
     source = (ROOT / path).read_text(encoding="utf-8")
@@ -463,13 +461,11 @@ def _check_python(path: Path) -> list[Violation]:
 def _check_shell(path: Path) -> list[Violation]:
     """Check repository shell entrypoint conventions.
 
-    Args:
-        path: Repository-relative shell script path.
+    :param path: Repository-relative shell script path.
+    :returns: Shell shebang and strict-mode violations.
 
-    Returns:
-        Shell shebang and strict-mode violations.
+    .. note::
 
-    Notes:
         - Precondition: path identifies a UTF-8 shell script under ROOT.
     """
     text = (ROOT / path).read_text(encoding="utf-8")
@@ -500,10 +496,10 @@ def _check_shell(path: Path) -> list[Violation]:
 def collect_violations() -> tuple[list[Violation], int]:
     """Collect machine-checkable project style violations.
 
-    Returns:
-        Violations and the checked-file count.
+    :returns: Violations and the checked-file count.
 
-    Notes:
+    .. note::
+
         - Precondition: Repository files are readable and Git is available.
     """
     violations: list[Violation] = []
@@ -529,10 +525,10 @@ def collect_violations() -> tuple[list[Violation], int]:
 def main() -> int:
     """Run the whole-repository style gate and print diagnostics.
 
-    Returns:
-        Process status 0 when clean, otherwise 1.
+    :returns: Process status 0 when clean, otherwise 1.
 
-    Notes:
+    .. note::
+
         - Precondition: The command runs from a Git checkout of this project.
     """
     try:
