@@ -153,14 +153,12 @@ _owned_tracer_provider: TracerProvider | None = None
 def _env_enabled(name: str, default: bool = False) -> bool:
     """Parse a bounded environment toggle.
 
-    Args:
-        name: Environment variable name. default: Value used when the variable
-            is absent.
+    :param name: Environment variable name. default: Value used when the
+        variable is absent.
+    :returns: Parsed boolean toggle.
 
-    Returns:
-        Parsed boolean toggle.
+    .. note::
 
-    Notes:
         - Precondition: Environment value, when present, is intended as a
           boolean toggle.
     """
@@ -173,7 +171,8 @@ def _env_enabled(name: str, default: bool = False) -> bool:
 def configure_tracing() -> None:
     """Configure optional process-wide OpenTelemetry export.
 
-    Notes:
+    .. note::
+
         - Precondition: OTLP environment may identify a collector when tracing
           is enabled.
         - Side effect: Global OpenTelemetry tracer provider once per process
@@ -206,7 +205,8 @@ def configure_tracing() -> None:
 def shutdown_tracing() -> None:
     """Shut down the process-owned tracing provider.
 
-    Notes:
+    .. note::
+
         - Precondition: configure_tracing may have created a tracer provider.
         - Side effect: OpenTelemetry exporter worker state during shutdown.
     """
@@ -221,13 +221,11 @@ tracer = trace.get_tracer(_service_name)
 def bounded_route(path: str) -> str:
     """Reduce arbitrary request paths to a bounded label set.
 
-    Args:
-        path: Incoming request path.
+    :param path: Incoming request path.
+    :returns: Known route path or the fixed label "unmatched".
 
-    Returns:
-        Known route path or the fixed label "unmatched".
+    .. note::
 
-    Notes:
         - Precondition: path is an HTTP request path.
     """
     return path if path in _known_routes else "unmatched"
@@ -236,14 +234,12 @@ def bounded_route(path: str) -> str:
 def _safe_label(value: str | None, fallback: str = "unknown") -> str:
     """Return a syntactically safe bounded metric label.
 
-    Args:
-        value: Candidate metric label. fallback: Value returned for an unsafe
-            candidate.
+    :param value: Candidate metric label. fallback: Value returned for an
+        unsafe candidate.
+    :returns: Safe candidate value or fallback.
 
-    Returns:
-        Safe candidate value or fallback.
+    .. note::
 
-    Notes:
         - Precondition: fallback is a fixed non-secret label.
     """
     if value is None or not _safe_label_pattern.fullmatch(value):
@@ -259,11 +255,11 @@ def observe_http_request(
 ) -> None:
     """Record bounded HTTP request metrics.
 
-    Args:
-        method: HTTP method. route: Bounded route label. status_code: HTTP
-            response status. elapsed: Request duration in seconds.
+    :param method: HTTP method. route: Bounded route label. status_code: HTTP
+        response status. elapsed: Request duration in seconds.
 
-    Notes:
+    .. note::
+
         - Precondition: elapsed is non-negative request time in seconds.
         - Side effect: Process-local Prometheus counters and histograms.
     """
@@ -292,11 +288,11 @@ def observe_provider_request(
 ) -> None:
     """Record bounded provider metrics.
 
-    Args:
-        provider: Provider identifier. outcome: success or error. elapsed:
-            Provider latency in seconds.
+    :param provider: Provider identifier. outcome: success or error. elapsed:
+        Provider latency in seconds.
 
-    Notes:
+    .. note::
+
         - Precondition: provider and outcome contain no secrets.
         - Side effect: Process-local Prometheus provider metrics.
     """
@@ -318,10 +314,10 @@ def observe_provider_request(
 def observe_audit_event(payload: Mapping[str, Any]) -> None:
     """Derive bounded metrics from sanitized audit metadata.
 
-    Args:
-        payload: Sanitized audit event mapping.
+    :param payload: Sanitized audit event mapping.
 
-    Notes:
+    .. note::
+
         - Precondition: payload is the already-sanitized audit payload.
         - Side effect: Process-local Prometheus security and usage metrics.
     """
@@ -405,10 +401,10 @@ def observe_audit_event(payload: Mapping[str, Any]) -> None:
 def metrics_payload() -> bytes:
     """Serialize the dedicated Prometheus registry.
 
-    Returns:
-        Prometheus text exposition bytes.
+    :returns: Prometheus text exposition bytes.
 
-    Notes:
+    .. note::
+
         - Precondition: Process-local metrics may have been recorded.
     """
     return generate_latest(metrics_registry)
@@ -424,15 +420,13 @@ def request_trace(
 ) -> Iterator[Span]:
     """Create a bounded request trace span.
 
-    Args:
-        method: HTTP method. route: Bounded route label. request_id: Gateway
-            request correlation ID. headers: Headers used only for standard
-            trace-context extraction.
+    :param method: HTTP method. route: Bounded route label. request_id: Gateway
+        request correlation ID. headers: Headers used only for standard
+        trace-context extraction.
+    :returns: Active request span context-manager value.
 
-    Returns:
-        Active request span context-manager value.
+    .. note::
 
-    Notes:
         - Precondition: route is bounded and request_id passed gateway
           validation.
         - Side effect: Current OpenTelemetry span context for the request
@@ -455,14 +449,12 @@ def request_trace(
 def finish_request_span(span: Span, status_code: int) -> str | None:
     """Finalize request span status and return a printable trace ID.
 
-    Args:
-        span: Active OpenTelemetry span. status_code: HTTP response status
-            code.
+    :param span: Active OpenTelemetry span. status_code: HTTP response status
+        code.
+    :returns: Lowercase 32-character trace ID or None for an invalid context.
 
-    Returns:
-        Lowercase 32-character trace ID or None for an invalid context.
+    .. note::
 
-    Notes:
         - Precondition: span is the active request span.
         - Side effect: Span status and response-status attributes.
     """
@@ -479,13 +471,11 @@ def finish_request_span(span: Span, status_code: int) -> str | None:
 def provider_trace(provider: str) -> Iterator[Span]:
     """Create a metadata-only provider child span.
 
-    Args:
-        provider: Provider identifier.
+    :param provider: Provider identifier.
+    :returns: Active provider span.
 
-    Returns:
-        Active provider span.
+    .. note::
 
-    Notes:
         - Precondition: provider is a non-secret configured provider
           identifier.
         - Side effect: Current OpenTelemetry span context during the provider
@@ -504,13 +494,11 @@ def provider_trace(provider: str) -> Iterator[Span]:
 def observe_provider_operation(provider: str):
     """Return timing and tracing state for a provider operation.
 
-    Args:
-        provider: Provider identifier.
+    :param provider: Provider identifier.
+    :returns: Tuple of monotonic start time and provider trace context manager.
 
-    Returns:
-        Tuple of monotonic start time and provider trace context manager.
+    .. note::
 
-    Notes:
         - Precondition: provider is a configured provider identifier.
         - Side effect: Provider tracing state when the returned context manager
           is entered.

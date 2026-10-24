@@ -24,11 +24,11 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     """Validate the complete policy registry without printing policy contents.
 
-    Returns:
-        Concise validation metadata containing only version/profile/client
-        counts.
+    :returns: Concise validation metadata containing only
+        version/profile/client counts.
 
-    Notes:
+    .. note::
+
         - Input: Command-line arguments and SAG_SECURITY_POLICY_FILE.
         - Precondition: SAG_SECURITY_POLICY_FILE identifies the unified JSON
           security-policy registry.

@@ -15,13 +15,11 @@ def observe_provider_chat(
 ) -> Callable[[Any, Any], Awaitable[_Result]]:
     """Preserve the concrete provider object type and original method metadata.
 
-    Args:
-        method: Async provider chat-completion method to instrument.
+    :param method: Async provider chat-completion method to instrument.
+    :returns: Instrumented async provider method with the same call contract.
 
-    Returns:
-        Instrumented async provider method with the same call contract.
+    .. note::
 
-    Notes:
         - Precondition: method is an async provider instance method.
         - Precondition: The provider instance exposes a non-secret name
           attribute.
@@ -37,14 +35,12 @@ def observe_provider_chat(
     async def wrapped(self: Any, request: Any) -> _Result:
         """Measure one exact provider call.
 
-        Args:
-            self: Concrete provider instance.
-            request: Provider request passed through unchanged.
+        :param self: Concrete provider instance.
+        :param request: Provider request passed through unchanged.
+        :returns: Exact result returned by the decorated method.
 
-        Returns:
-            Exact result returned by the decorated method.
+        .. note::
 
-        Notes:
             - Precondition: self is a provider instance accepted by the
               decorated method.
             - Precondition: request is a value accepted by the decorated

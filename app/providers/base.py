@@ -25,13 +25,11 @@ class Provider(ABC):
     ) -> ChatCompletionResponse:
         """Execute a chat-completion request through the provider.
 
-        Args:
-            request: The normalized gateway chat request.
+        :param request: The normalized gateway chat request.
+        :returns: A normalized chat-completion response.
 
-        Returns:
-            A normalized chat-completion response.
+        .. note::
 
-        Notes:
             - Precondition: request is a validated chat-completion request.
             - Side effect: Provider-specific state, if any.
         """

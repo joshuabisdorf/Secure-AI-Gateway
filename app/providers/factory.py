@@ -9,10 +9,10 @@ from app.providers.openrouter import OpenRouterProvider
 def build_provider() -> Provider:
     """Select the gateway upstream provider.
 
-    Returns:
-        A configured concrete provider implementation.
+    :returns: A configured concrete provider implementation.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_PROVIDER may identify a supported upstream
           provider.
         - Precondition: Provider-specific environment variables are configured

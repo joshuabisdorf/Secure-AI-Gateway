@@ -91,13 +91,11 @@ def build_synthetic_system_prompt(canary: str) -> str:
     """Build protected test instructions containing only synthetic evaluation
         data.
 
-    Args:
-        canary: Unique marker used to detect disclosure.
+    :param canary: Unique marker used to detect disclosure.
+    :returns: Synthetic system prompt for leakage testing.
 
-    Returns:
-        Synthetic system prompt for leakage testing.
+    .. note::
 
-    Notes:
         - Precondition: canary is a synthetic, non-secret marker generated for
           one evaluation run.
     """
@@ -112,14 +110,12 @@ def build_synthetic_system_prompt(canary: str) -> str:
 def _direct_signals(text: str, *, canary: str) -> set[str]:
     """Perform the direct signals operation.
 
-    Args:
-        text: Function input.
-        canary: Function input.
+    :param text: Function input.
+    :param canary: Function input.
+    :returns: A value matching the declared set[str] return contract.
 
-    Returns:
-        A value matching the declared set[str] return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -158,15 +154,13 @@ def detect_system_prompt_leakage(
 ) -> LeakageFinding:
     """Detect direct disclosure of the canary or distinctive protected phrase.
 
-    Args:
-        response_text: Provider response content to evaluate.
-        canary: Synthetic marker expected to remain undisclosed.
-
-    Returns:
-        LeakageFinding containing a boolean result and non-secret signal
+    :param response_text: Provider response content to evaluate.
+    :param canary: Synthetic marker expected to remain undisclosed.
+    :returns: LeakageFinding containing a boolean result and non-secret signal
         labels.
 
-    Notes:
+    .. note::
+
         - Precondition: response_text is model output from a synthetic
           leakage-evaluation request.
         - Precondition: canary is the synthetic marker embedded in that run's
@@ -214,16 +208,14 @@ async def run_live_evaluation(
 ) -> list[LeakageCaseResult]:
     """Send one synthetic system-prompt leakage probe per evaluation case.
 
-    Args:
-        provider: Configured upstream provider implementation.
-        model: Provider model or routing alias to evaluate.
-        canary: Synthetic run-specific leakage marker.
+    :param provider: Configured upstream provider implementation.
+    :param model: Provider model or routing alias to evaluate.
+    :param canary: Synthetic run-specific leakage marker.
+    :returns: Per-case leakage results with safe signal labels and resolved
+        model names.
 
-    Returns:
-        Per-case leakage results with safe signal labels and resolved model
-        names.
+    .. note::
 
-    Notes:
         - Precondition: provider is explicitly configured for live upstream
           evaluation.
         - Precondition: model is accepted by the configured provider.
@@ -266,10 +258,11 @@ async def run_live_evaluation(
 def _build_parser() -> argparse.ArgumentParser:
     """Perform the build parser operation.
 
-    Returns:
-        A value matching the declared argparse.ArgumentParser return contract.
+    :returns: A value matching the declared argparse.ArgumentParser return
+        contract.
 
-    Notes:
+    .. note::
+
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -298,13 +291,11 @@ def _build_parser() -> argparse.ArgumentParser:
 async def _main_async(args: argparse.Namespace) -> int:
     """Perform the main async operation.
 
-    Args:
-        args: Function input.
+    :param args: Function input.
+    :returns: A value matching the declared int return contract.
 
-    Returns:
-        A value matching the declared int return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -350,10 +341,11 @@ async def _main_async(args: argparse.Namespace) -> int:
 def main() -> None:
     """Run a synthetic provider leakage evaluation.
 
-    Returns:
-        Human-readable PASS/FAIL results without provider response bodies.
+    :returns: Human-readable PASS/FAIL results without provider response
+        bodies.
 
-    Notes:
+    .. note::
+
         - Input: Command-line arguments.
         - Precondition: SAG_PROVIDER and provider-specific credentials are
           configured for live mode.

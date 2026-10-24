@@ -51,13 +51,11 @@ _request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 async def lifespan(_: FastAPI):
     """Manage application resource shutdown.
 
-    Args:
-        _: FastAPI application instance.
+    :param _: FastAPI application instance.
+    :returns: Async lifespan context for FastAPI.
 
-    Returns:
-        Async lifespan context for FastAPI.
+    .. note::
 
-    Notes:
         - Precondition: Configured persistent resources may own async
           connection pools.
         - Side effect: Client registry, rate limiter, usage ledger, and
@@ -87,13 +85,11 @@ app.include_router(tool_execution_router)
 def resolve_request_id(candidate: str | None) -> str:
     """Return a safe request correlation identifier.
 
-    Args:
-        candidate: Optional X-Request-ID header value.
+    :param candidate: Optional X-Request-ID header value.
+    :returns: A validated caller ID or a newly generated gateway request ID.
 
-    Returns:
-        A validated caller ID or a newly generated gateway request ID.
+    .. note::
 
-    Notes:
         - Precondition: candidate may contain a caller-supplied request
           identifier.
     """
@@ -109,14 +105,12 @@ def _budget_audit_fields(
 ) -> dict[str, int | float | str | None]:
     """Convert usage state into safe audit fields.
 
-    Args:
-        decision: Current daily usage-budget decision. include_cost: Whether
-            cost accounting should be exposed.
+    :param decision: Current daily usage-budget decision. include_cost: Whether
+        cost accounting should be exposed.
+    :returns: Keyword arguments suitable for emit_audit_event.
 
-    Returns:
-        Keyword arguments suitable for emit_audit_event.
+    .. note::
 
-    Notes:
         - Precondition: decision contains current daily usage state.
           include_cost is true only when cost accounting is known or enforced.
     """
@@ -153,14 +147,12 @@ async def add_request_context(
 ) -> Response:
     """Attach request correlation context.
 
-    Args:
-        request: Incoming HTTP request. call_next: Callable for the remaining
-            request pipeline.
+    :param request: Incoming HTTP request. call_next: Callable for the
+        remaining request pipeline.
+    :returns: HTTP response containing X-Request-ID.
 
-    Returns:
-        HTTP response containing X-Request-ID.
+    .. note::
 
-    Notes:
         - Precondition: request is an incoming HTTP request. call_next invokes
           the remaining FastAPI request pipeline.
         - Side effect: request.state and outgoing response headers.
@@ -178,10 +170,10 @@ async def add_request_context(
 def health() -> dict[str, str]:
     """Return process health without consulting security-state backends.
 
-    Returns:
-        Static health status mapping.
+    :returns: Static health status mapping.
 
-    Notes:
+    .. note::
+
         - Precondition: The process can execute the endpoint.
     """
     return {"status": "ok"}
@@ -196,16 +188,14 @@ async def chat_completion(
 ) -> ChatCompletionResponse:
     """Apply gateway policy and return a chat-completion response.
 
-    Args:
-        request: Requested model and chat messages. http_request: HTTP request
-            with request ID and timing context. outgoing_response: Response
-            used to expose safe policy headers. principal: Authenticated client
-            identity from dependency injection.
+    :param request: Requested model and chat messages. http_request: HTTP
+        request with request ID and timing context. outgoing_response: Response
+        used to expose safe policy headers. principal: Authenticated client
+        identity from dependency injection.
+    :returns: OpenAI-style response with optional tool-execution metadata.
 
-    Returns:
-        OpenAI-style response with optional tool-execution metadata.
+    .. note::
 
-    Notes:
         - Precondition: request satisfies the gateway chat-completion schema.
           The caller has a valid database-backed gateway API key. Rate, model,
           PII, injection, tool, and usage policy are configured. Redis rate

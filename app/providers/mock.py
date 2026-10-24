@@ -24,14 +24,12 @@ class MockProvider(Provider):
     ) -> ChatCompletionResponse:
         """Produce a deterministic non-network model response for testing.
 
-        Args:
-            request: The requested model, messages, and optional named tool
-                choice.
+        :param request: The requested model, messages, and optional named tool
+            choice.
+        :returns: A synthetic OpenAI-style chat-completion response.
 
-        Returns:
-            A synthetic OpenAI-style chat-completion response.
+        .. note::
 
-        Notes:
             - Precondition: request is a validated chat-completion request.
             - Side effect: Process-local provider metrics and trace state
               through instrumentation.

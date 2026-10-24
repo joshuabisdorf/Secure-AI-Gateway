@@ -133,17 +133,13 @@ def parse_client_prompt_injection_policies(
 ) -> dict[str, PromptInjectionPolicy]:
     """Validate per-client prompt-injection enforcement configuration.
 
-    Args:
-        configured_policies: Serialized prompt-injection policy records.
+    :param configured_policies: Serialized prompt-injection policy records.
+    :returns: Mapping from client ID to validated PromptInjectionPolicy.
+    :raises ValueError: Configuration is empty, malformed, duplicated, or
+        unsupported.
 
-    Returns:
-        Mapping from client ID to validated PromptInjectionPolicy.
+    .. note::
 
-    Raises:
-        ValueError: Configuration is empty, malformed, duplicated, or
-            unsupported.
-
-    Notes:
         - Precondition: configured_policies uses client_id:action records
           separated by commas.
         - Precondition: action is audit, deny, or off.
@@ -183,13 +179,11 @@ def get_client_prompt_injection_policy(client_id: str) -> PromptInjectionPolicy:
         missing the
     client.
 
-    Args:
-        client_id: Authenticated gateway client identity.
+    :param client_id: Authenticated gateway client identity.
+    :returns: Prompt-injection policy configured for the client.
 
-    Returns:
-        Prompt-injection policy configured for the client.
+    .. note::
 
-    Notes:
         - Precondition: client_id identifies an authenticated gateway client.
         - Precondition: SAG_CLIENT_PROMPT_INJECTION_POLICIES may define
           per-client actions.
@@ -252,13 +246,11 @@ def _decode_hex(candidate: str) -> str | None:
 def _match_encoded_indicators(text: str) -> set[str]:
     """Perform the match encoded indicators operation.
 
-    Args:
-        text: Function input.
+    :param text: Function input.
+    :returns: A value matching the declared set[str] return contract.
 
-    Returns:
-        A value matching the declared set[str] return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -293,14 +285,13 @@ def inspect_prompt_injection(
         prompt-injection
     indicators.
 
-    Args:
-        request: Chat-completion request to inspect before provider forwarding.
+    :param request: Chat-completion request to inspect before provider
+        forwarding.
+    :returns: PromptInjectionResult with unique indicator count, aggregate
+        score, and labels.
 
-    Returns:
-        PromptInjectionResult with unique indicator count, aggregate score, and
-        labels.
+    .. note::
 
-    Notes:
         - Precondition: request is a validated chat-completion request.
         - Decodes bounded Base64/hex candidates only to inspect them for the
           same indicators.

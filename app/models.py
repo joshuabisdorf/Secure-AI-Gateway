@@ -22,14 +22,12 @@ MAX_RESPONSE_CHOICES = 16
 def _measure_json_shape(value: Any, *, depth: int = 0) -> tuple[int, int]:
     """Reject tool-schema structures deeper than MAX_TOOL_SCHEMA_DEPTH.
 
-    Args:
-        value: JSON-like value to measure.
-        depth: Current recursive depth.
+    :param value: JSON-like value to measure.
+    :param depth: Current recursive depth.
+    :returns: Tuple of node count and textual character count.
 
-    Returns:
-        Tuple of node count and textual character count.
+    .. note::
 
-    Notes:
         - Precondition: value is JSON-like data supplied by a validated request
           model.
         - Counts container/scalar nodes and textual characters without
@@ -76,13 +74,11 @@ class ToolFunction(BaseModel):
     def validate_schema_complexity(self) -> "ToolFunction":
         """Reject excessively deep, large, or text-heavy tool schemas.
 
-        Args:
-            self: Validated tool function candidate.
+        :param self: Validated tool function candidate.
+        :returns: The same ToolFunction when complexity is within bounds.
 
-        Returns:
-            The same ToolFunction when complexity is within bounds.
+        .. note::
 
-        Notes:
             - Precondition: parameters contains JSON-schema-like data.
         """
         nodes, text_chars = _measure_json_shape(self.parameters)
@@ -150,14 +146,12 @@ class ChatCompletionRequest(BaseModel):
         """Reject requests whose combined text/schema content exceeds the
             gateway budget.
 
-        Args:
-            self: Validated chat-completion request candidate.
+        :param self: Validated chat-completion request candidate.
+        :returns: The same ChatCompletionRequest when aggregate complexity is
+            within bounds.
 
-        Returns:
-            The same ChatCompletionRequest when aggregate complexity is within
-            bounds.
+        .. note::
 
-        Notes:
             - Precondition: Nested request fields have passed their individual
               bounds.
         """

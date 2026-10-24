@@ -43,17 +43,13 @@ class PIIInspectionResult:
 def parse_client_pii_policies(configured_policies: str) -> dict[str, PIIPolicy]:
     """Validate per-client PII handling policy.
 
-    Args:
-        configured_policies: Serialized per-client PII policies.
+    :param configured_policies: Serialized per-client PII policies.
+    :returns: Mapping from client ID to PIIPolicy.
+    :raises ValueError: Configuration is empty, malformed, duplicated, or
+        unsupported.
 
-    Returns:
-        Mapping from client ID to PIIPolicy.
+    .. note::
 
-    Raises:
-        ValueError: Configuration is empty, malformed, duplicated, or
-            unsupported.
-
-    Notes:
         - Precondition: configured_policies uses client_id:action records
           separated by commas.
         - Precondition: action is redact or deny.
@@ -90,13 +86,11 @@ def parse_client_pii_policies(configured_policies: str) -> dict[str, PIIPolicy]:
 def get_client_pii_policy(client_id: str) -> PIIPolicy:
     """Fail closed when PII policy is absent, malformed, or missing the client.
 
-    Args:
-        client_id: Authenticated gateway client identity.
+    :param client_id: Authenticated gateway client identity.
+    :returns: Configured PIIPolicy for the client.
 
-    Returns:
-        Configured PIIPolicy for the client.
+    .. note::
 
-    Notes:
         - Precondition: client_id identifies an authenticated gateway client.
         - Precondition: SAG_CLIENT_PII_POLICIES may define per-client PII
           handling actions.
@@ -129,13 +123,12 @@ def get_client_pii_policy(client_id: str) -> PIIPolicy:
 def _luhn_valid(candidate: str) -> bool:
     """Applie the Luhn checksum only to 13-19 digit candidates.
 
-    Args:
-        candidate: Potential payment-card number.
+    :param candidate: Potential payment-card number.
+    :returns: True when the candidate has a valid supported-length Luhn
+        checksum.
 
-    Returns:
-        True when the candidate has a valid supported-length Luhn checksum.
+    .. note::
 
-    Notes:
         - Precondition: candidate may contain a payment-card-like digit
           sequence with separators.
     """
@@ -160,13 +153,11 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
     """Detect and redact deterministic email, SSN, phone, and payment-card
         values.
 
-    Args:
-        text: Message text to inspect.
+    :param text: Message text to inspect.
+    :returns: Redacted text and one safe type label per finding.
 
-    Returns:
-        Redacted text and one safe type label per finding.
+    .. note::
 
-    Notes:
         - Precondition: text is user/model message content.
         - Does not retain raw detected values separately.
     """
@@ -180,29 +171,25 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
     ) -> str:
         """Perform the redact pattern operation.
 
-        Args:
-            current_text: Function input.
-            pattern: Function input.
-            pii_type: Function input.
-            replacement: Function input.
+        :param current_text: Function input.
+        :param pattern: Function input.
+        :param pii_type: Function input.
+        :param replacement: Function input.
+        :returns: A value matching the declared str return contract.
 
-        Returns:
-            A value matching the declared str return contract.
+        .. note::
 
-        Notes:
             - Precondition: Arguments satisfy their declared contracts and
               required configured dependencies are available.
         """
         def replace(_: re.Match[str]) -> str:
             """Perform the replace operation.
 
-            Args:
-                _: Function input.
+            :param _: Function input.
+            :returns: A value matching the declared str return contract.
 
-            Returns:
-                A value matching the declared str return contract.
+            .. note::
 
-            Notes:
                 - Precondition: Arguments satisfy their declared contracts and
                   required configured dependencies are available.
             """
@@ -220,13 +207,11 @@ def _redact_structured_text(text: str) -> tuple[str, list[str]]:
     def replace_card(match: re.Match[str]) -> str:
         """Perform the replace card operation.
 
-        Args:
-            match: Function input.
+        :param match: Function input.
+        :returns: A value matching the declared str return contract.
 
-        Returns:
-            A value matching the declared str return contract.
+        .. note::
 
-        Notes:
             - Precondition: Arguments satisfy their declared contracts and
               required configured dependencies are available.
         """
@@ -246,16 +231,14 @@ def inspect_and_redact_request(
 ) -> PIIInspectionResult:
     """Detect deterministic structured PII first.
 
-    Args:
-        request: Validated gateway chat-completion request.
-        semantic_analyzer: Semantic analyzer implementation, injectable for
-            tests.
+    :param request: Validated gateway chat-completion request.
+    :param semantic_analyzer: Semantic analyzer implementation, injectable for
+        tests.
+    :returns: PIIInspectionResult with a redacted request, total finding count,
+        and safe type names.
 
-    Returns:
-        PIIInspectionResult with a redacted request, total finding count, and
-        safe type names.
+    .. note::
 
-    Notes:
         - Precondition: request is a validated chat-completion request.
         - Precondition: semantic_analyzer is a configured local semantic PII
           analyzer.
