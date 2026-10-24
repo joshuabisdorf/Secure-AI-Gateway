@@ -1,3 +1,5 @@
+"""Construct local and IAM-authenticated Redis connections."""
+
 import asyncio
 import os
 import threading

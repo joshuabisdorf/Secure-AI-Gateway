@@ -1,3 +1,5 @@
+"""Inspect text for PII with a lazily loaded NLP analyzer."""
+
 import os
 import re
 import threading

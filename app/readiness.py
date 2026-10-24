@@ -1,3 +1,5 @@
+"""Check required database, cache, and runtime dependencies."""
+
 import asyncio
 import os
 

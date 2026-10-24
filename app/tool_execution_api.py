@@ -1,3 +1,5 @@
+"""Authorize external tool execution with bound signed tickets."""
+
 import binascii
 import re
 import time

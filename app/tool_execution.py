@@ -1,3 +1,5 @@
+"""Validate tool calls and issue independently authorized tickets."""
+
 import asyncio
 import base64
 import hashlib

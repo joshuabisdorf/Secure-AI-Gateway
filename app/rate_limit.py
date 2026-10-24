@@ -1,3 +1,5 @@
+"""Enforce distributed and local gateway request rate limits."""
+
 import math
 import os
 import re

@@ -1,3 +1,5 @@
+"""Enforce one-time execution authorization using Redis."""
+
 import os
 
 from redis.exceptions import RedisError

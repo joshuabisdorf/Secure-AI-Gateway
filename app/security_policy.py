@@ -1,3 +1,5 @@
+"""Parse, validate, and cache the gateway security registry."""
+
 import json
 import os
 import re

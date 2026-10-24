@@ -1,3 +1,5 @@
+"""Apply ASGI request hardening and expose the gateway application."""
+
 import os
 from collections.abc import Awaitable, Callable
 from typing import Any

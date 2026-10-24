@@ -1,3 +1,5 @@
+"""Translate security profiles into runtime policy configuration."""
+
 import os
 
 from app.security_policy import (

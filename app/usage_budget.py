@@ -1,3 +1,5 @@
+"""Enforce token and spending budgets with persistent accounting."""
+
 import asyncio
 import os
 import re

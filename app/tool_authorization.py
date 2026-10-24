@@ -1,3 +1,5 @@
+"""Restrict model-visible tools to client-specific grants."""
+
 import os
 import re
 from dataclasses import dataclass
