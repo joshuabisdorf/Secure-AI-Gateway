@@ -1,8 +1,8 @@
 # Secure AI Gateway style standard
 
 This document defines the source and documentation style for Secure AI Gateway.
-It is a project-authored standard. It does not incorporate or require an
-external style guide, formatter, or style linter.
+It is a project-authored coding standard that adopts native Sphinx docstring
+syntax without requiring an external formatter or style linter.
 
 The standard does not change the project's Apache-2.0 license, copyright, NOTICE
 attribution, or authorship. Style conformance is a repository quality
@@ -81,39 +81,42 @@ connection strings.
 Boolean conditions should favor named intermediate values when a compound
 expression would otherwise obscure policy or failure semantics.
 
-### RMEIO function contracts
+### Sphinx-style Python docstrings
 
-RMEIO remains a required project convention. It is not replaced by a generic
-argument/return docstring format.
+Python uses native Sphinx/reStructuredText docstrings. Start with a concise
+imperative summary, then add the applicable Sphinx Python-domain fields:
 
-Project functions under `app/` and Python utilities under `scripts/` document
-these sections in this order:
+- `:param name:` describes a parameter.
+- `:type name:` documents a type when a Python annotation is unavailable.
+- `:returns:` describes a meaningful returned value.
+- `:rtype:` supplies the return type if it is not already annotated.
+- `:raises ExceptionType:` states why a significant exception is raised.
+- `.. note::` explains security invariants, preconditions, side effects,
+  credential handling, and fail-closed behavior when relevant.
 
-1. `Requires`
-1. `Modifies`
-1. `Effects`
-1. `Inputs`
-1. `Outputs`
+Write each field on its own line. Keep parameter fields before return and
+exception fields, followed by note directives. Omit inapplicable fields.
+Do not duplicate type hints or use Google-style `Args:`/`Returns:`/`Notes:`
+headings. Short pure helpers may use a single summary line.
 
-The sections describe the contract, not a line-by-line implementation trace. Use
-`Nothing.` or `None.` when a section has no meaningful entry.
+Example:
 
-`Requires` states preconditions and environmental assumptions.
+```python
+def hash_api_key(api_key: str) -> str:
+    """Compute a digest for a high-entropy gateway API key.
 
-`Modifies` identifies persistent, process, filesystem, network, or external
-state that may change.
+    :param api_key: Complete bearer credential to hash.
+    :returns: Lowercase hexadecimal SHA-256 digest.
 
-`Effects` states externally observable behavior, including failure behavior.
+    .. note::
 
-`Inputs` describes parameters and implicit inputs such as environment values
-when those inputs materially affect behavior.
+        - Intended for randomly generated API keys, not human passwords.
+        - Raw credentials must not be persisted.
+    """
+```
 
-`Outputs` describes return values or produced artifacts.
-
-Very small language-protocol methods such as `__str__` may use a concise
-ordinary docstring when a full RMEIO contract would add no information. Tests
-are not required to carry RMEIO sections, but reusable test utilities should
-still document non-obvious state changes.
+This is Sphinx's native Python-domain field-list syntax, suitable for
+`sphinx.ext.autodoc`; no Google/Napoleon docstring conversion is required.
 
 ### Python layout
 
@@ -227,7 +230,7 @@ The checker enforces objective repository invariants, including:
 - whitespace, newline, and tab rules;
 - Python syntax and naming rules;
 - wildcard-import and bare-except rejection;
-- RMEIO contracts for project Python functions;
+- Sphinx-style docstrings for project Python functions;
 - Bash shebang and strict-mode requirements.
 
 Some rules remain review rules because a machine cannot reliably determine

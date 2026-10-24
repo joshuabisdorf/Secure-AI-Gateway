@@ -1,3 +1,5 @@
+"""Restrict model-visible tools to client-specific grants."""
+
 import os
 import re
 from dataclasses import dataclass
@@ -21,30 +23,21 @@ class ToolAuthorizationDecision:
 def parse_client_allowed_tools(
     configured_tools: str,
 ) -> dict[str, frozenset[str]]:
-    """
-    RME
+    """Validate per-client function-tool allowlists.
 
-    Requires:
-        - configured_tools uses client_id:tool_name records separated by commas.
-        - A single hyphen explicitly grants no tools to a client.
+    :param configured_tools: Serialized per-client tool authorization records.
+    :returns: Mapping from client ID to an immutable set of allowed function
+        names.
+    :raises ValueError: Configuration is empty, malformed, duplicated, or
+        contradictory.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Validates per-client function-tool allowlists.
+        - Precondition: configured_tools uses client_id:tool_name records
+          separated by commas.
+        - Precondition: A single hyphen explicitly grants no tools to a client.
         - Rejects malformed records, duplicate grants, and mixed no-tool/tool
-        - grants.
-
-    Inputs:
-        - configured_tools: Serialized per-client tool authorization records.
-
-    Outputs:
-        - Mapping from client ID to an immutable set of allowed function names.
-
-    Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or
-        - contradictory.
+          grants.
     """
     mutable: dict[str, set[str]] = {}
     explicitly_none: set[str] = set()
@@ -88,26 +81,18 @@ def parse_client_allowed_tools(
 
 
 def get_client_allowed_tools(client_id: str) -> frozenset[str]:
-    """
-    RME
+    """Fail closed when tool authorization is absent, malformed, or missing the
+    client.
 
-    Requires:
-        - client_id identifies an authenticated gateway client.
-        - SAG_CLIENT_ALLOWED_TOOLS may define per-client function-tool grants.
+    :param client_id: Authenticated gateway client identity.
+    :returns: Immutable set of function-tool names the client may expose to the
+        model.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Fails closed when tool authorization is absent, malformed, or missing
-        - the client.
-
-    Inputs:
-        - client_id: Authenticated gateway client identity.
-
-    Outputs:
-        - Immutable set of function-tool names the client may expose to the
-        - model.
+        - Precondition: client_id identifies an authenticated gateway client.
+        - Precondition: SAG_CLIENT_ALLOWED_TOOLS may define per-client
+          function-tool grants.
     """
     configured_tools = os.getenv("SAG_CLIENT_ALLOWED_TOOLS")
     if not configured_tools:
@@ -140,30 +125,23 @@ def authorize_request_tools(
     request: ChatCompletionRequest,
     allowed_tools: frozenset[str],
 ) -> ToolAuthorizationDecision:
-    """
-    RME
+    """Verify every tool exposed to the model is explicitly allowed.
 
-    Requires:
-        - request is a validated chat-completion request.
-        - allowed_tools is the authenticated client's function-tool allowlist.
+    :param request: Validated request containing optional function tools/tool
+        choice.
+    :param allowed_tools: Function names authorized for the authenticated
+        client.
+    :returns: ToolAuthorizationDecision with safe requested/denied tool names
+        and reason.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Verifies every tool exposed to the model is explicitly allowed.
+        - Precondition: request is a validated chat-completion request.
+        - Precondition: allowed_tools is the authenticated client's
+          function-tool allowlist.
         - Verifies a named tool_choice refers to a declared and allowed
-        - function.
+          function.
         - Applies least privilege without executing any tool.
-
-    Inputs:
-        - request: Validated request containing optional function tools/tool
-        - choice.
-        - allowed_tools: Function names authorized for the authenticated client.
-
-    Outputs:
-        - ToolAuthorizationDecision with safe requested/denied tool names and
-        - reason.
     """
     requested = tuple(
         dict.fromkeys(tool.function.name for tool in (request.tools or []))

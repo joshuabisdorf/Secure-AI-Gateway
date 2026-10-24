@@ -1,3 +1,5 @@
+"""Inspect client content for prompt-injection indicators."""
+
 import base64
 import binascii
 import os
@@ -131,29 +133,20 @@ _indicator_weights["encoded_payload"] = 5
 def parse_client_prompt_injection_policies(
     configured_policies: str,
 ) -> dict[str, PromptInjectionPolicy]:
-    """
-    RME
+    """Validate per-client prompt-injection enforcement configuration.
 
-    Requires:
-        - configured_policies uses client_id:action records separated by commas.
-        - action is audit, deny, or off.
+    :param configured_policies: Serialized prompt-injection policy records.
+    :returns: Mapping from client ID to validated PromptInjectionPolicy.
+    :raises ValueError: Configuration is empty, malformed, duplicated, or
+        unsupported.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Validates per-client prompt-injection enforcement configuration.
-        - Rejects malformed records, duplicate clients, and unsupported actions.
-
-    Inputs:
-        - configured_policies: Serialized prompt-injection policy records.
-
-    Outputs:
-        - Mapping from client ID to validated PromptInjectionPolicy.
-
-    Raises:
-        - ValueError: Configuration is empty, malformed, duplicated, or
-        - unsupported.
+        - Precondition: configured_policies uses client_id:action records
+          separated by commas.
+        - Precondition: action is audit, deny, or off.
+        - Rejects malformed records, duplicate clients, and unsupported
+          actions.
     """
     policies: dict[str, PromptInjectionPolicy] = {}
 
@@ -184,25 +177,18 @@ def parse_client_prompt_injection_policies(
 
 
 def get_client_prompt_injection_policy(client_id: str) -> PromptInjectionPolicy:
-    """
-    RME
+    """Fail closed when prompt-injection policy is absent, malformed, or
+        missing the
+    client.
 
-    Requires:
-        - client_id identifies an authenticated gateway client.
-        - SAG_CLIENT_PROMPT_INJECTION_POLICIES may define per-client actions.
+    :param client_id: Authenticated gateway client identity.
+    :returns: Prompt-injection policy configured for the client.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Fails closed when prompt-injection policy is absent, malformed, or
-        - missing the client.
-
-    Inputs:
-        - client_id: Authenticated gateway client identity.
-
-    Outputs:
-        - Prompt-injection policy configured for the client.
+        - Precondition: client_id identifies an authenticated gateway client.
+        - Precondition: SAG_CLIENT_PROMPT_INJECTION_POLICIES may define
+          per-client actions.
     """
     configured_policies = os.getenv("SAG_CLIENT_PROMPT_INJECTION_POLICIES")
     if not configured_policies:
@@ -260,24 +246,15 @@ def _decode_hex(candidate: str) -> str | None:
 
 
 def _match_encoded_indicators(text: str) -> set[str]:
-    """
-    RME
+    """Detect encoded indicators of prompt injection in untrusted text.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    :param text: Function input.
+    :returns: A value matching the declared set[str] return contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    .. note::
 
-    Effects:
-        - Performs the match encoded indicators operation.
-
-    Inputs:
-        - text: Function input.
-
-    Outputs:
-        - A value matching the declared set[str] return contract.
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     matched: set[str] = set()
     processed = 0
@@ -306,31 +283,23 @@ def _match_encoded_indicators(text: str) -> set[str]:
 def inspect_prompt_injection(
     request: ChatCompletionRequest,
 ) -> PromptInjectionResult:
-    """
-    RME
+    """Inspect textual client-supplied message content for explicit
+        prompt-injection
+    indicators.
 
-    Requires:
-        - request is a validated chat-completion request.
+    :param request: Chat-completion request to inspect before provider
+        forwarding.
+    :returns: PromptInjectionResult with unique indicator count, aggregate
+        score, and labels.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Inspects textual client-supplied message content for explicit
-        - prompt-injection indicators.
+        - Precondition: request is a validated chat-completion request.
         - Decodes bounded Base64/hex candidates only to inspect them for the
-        - same indicators.
+          same indicators.
         - Ignores non-text assistant/tool-call fields.
         - Returns only indicator labels and scores; raw prompt fragments are
-        - never retained.
-
-    Inputs:
-        - request: Chat-completion request to inspect before provider
-        - forwarding.
-
-    Outputs:
-        - PromptInjectionResult with unique indicator count, aggregate score,
-        - and labels.
+          never retained.
     """
     matched: set[str] = set()
 

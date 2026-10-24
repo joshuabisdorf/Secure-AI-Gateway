@@ -1,3 +1,5 @@
+"""Instrument provider calls with safe latency and outcome metadata."""
+
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from time import perf_counter
@@ -13,56 +15,42 @@ _Result = TypeVar("_Result")
 def observe_provider_chat(
     method: Callable[[Any, Any], Awaitable[_Result]],
 ) -> Callable[[Any, Any], Awaitable[_Result]]:
-    """
-    RME
+    """Preserve the concrete provider object type and original method metadata.
 
-    Requires:
-        - method is an async provider instance method.
-        - The provider instance exposes a non-secret name attribute.
+    :param method: Async provider chat-completion method to instrument.
+    :returns: Instrumented async provider method with the same call contract.
 
-    Modifies:
-        - Process-local provider metrics and trace state when the wrapped method
-        - runs.
+    .. note::
 
-    Effects:
-        - Preserves the concrete provider object type and original method
-        - metadata.
+        - Precondition: method is an async provider instance method.
+        - Precondition: The provider instance exposes a non-secret name
+          attribute.
+        - Side effect: Process-local provider metrics and trace state when the
+          wrapped method runs.
         - Records provider request latency and success/error counts.
         - Creates a child client span without recording prompts, responses, or
-        - credentials.
+          credentials.
         - Preserves provider return values and exceptions unchanged.
-
-    Inputs:
-        - method: Async provider chat-completion method to instrument.
-
-    Outputs:
-        - Instrumented async provider method with the same call contract.
     """
 
     @wraps(method)
     async def wrapped(self: Any, request: Any) -> _Result:
-        """
-        RME
+        """Measure one exact provider call.
 
-        Requires:
-            - self is a provider instance accepted by the decorated method.
-            - request is a value accepted by the decorated method.
+        :param request: Provider request passed through unchanged.
+        :returns: Exact result returned by the decorated method.
 
-        Modifies:
-            - Provider-specific state through the decorated method.
-            - Process-local provider metrics and trace state.
+        .. note::
 
-        Effects:
-            - Measures one exact provider call.
+            - Precondition: self is a provider instance accepted by the
+              decorated method.
+            - Precondition: request is a value accepted by the decorated
+              method.
+            - Side effect: Provider-specific state through the decorated
+              method.
+            - Side effect: Process-local provider metrics and trace state.
             - Records exception metadata on the trace without changing the
-            - exception.
-
-        Inputs:
-            - self: Concrete provider instance.
-            - request: Provider request passed through unchanged.
-
-        Outputs:
-            - Exact result returned by the decorated method.
+              exception.
         """
         provider_name = getattr(self, "name", "unknown")
         started_at = perf_counter()

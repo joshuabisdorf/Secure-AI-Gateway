@@ -1,3 +1,5 @@
+"""Create, parse, and hash gateway API keys."""
+
 import argparse
 import hashlib
 import os
@@ -27,26 +29,17 @@ class Principal:
 
 
 def hash_api_key(api_key: str) -> str:
-    """
-    RME
+    """Compute a one-way SHA-256 digest for high-entropy API-key storage.
 
-    Requires:
-        - api_key is the complete gateway bearer credential.
-        - Gateway API keys are generated with at least 256 bits of CSPRNG
-        - entropy.
+    :param api_key: Raw gateway API key.
+    :returns: Lowercase hexadecimal SHA-256 digest.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Computes a one-way SHA-256 digest for high-entropy API-key storage.
+        - Precondition: api_key is the complete gateway bearer credential.
+        - Precondition: Gateway API keys are generated with at least 256 bits
+          of CSPRNG entropy.
         - Does not use SHA-256 as a human-password hashing function.
-
-    Inputs:
-        - api_key: Raw gateway API key.
-
-    Outputs:
-        - Lowercase hexadecimal SHA-256 digest.
     """
     # Gateway keys contain 256 bits of CSPRNG entropy. A password KDF is not
     # required for offline resistance to guessing this uniformly random secret.
@@ -55,23 +48,14 @@ def hash_api_key(api_key: str) -> str:
 
 
 def parse_key_id(api_key: str) -> str | None:
-    """
-    RME
+    """Validate the public key identifier embedded in the bearer credential.
 
-    Requires:
-        - api_key may contain a structured gateway API key.
+    :param api_key: Candidate gateway API key.
+    :returns: The key ID when the key format is valid; otherwise None.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Validates the public key identifier embedded in the bearer credential.
-
-    Inputs:
-        - api_key: Candidate gateway API key.
-
-    Outputs:
-        - The key ID when the key format is valid; otherwise None.
+        - Precondition: api_key may contain a structured gateway API key.
     """
     if not api_key.startswith("sag_"):
         return None
@@ -88,29 +72,18 @@ def parse_key_id(api_key: str) -> str | None:
 
 
 def parse_client_records(configured_clients: str) -> dict[str, ClientKeyRecord]:
-    """
-    RME
+    """Validate client identity and API-key hash configuration.
 
-    Requires:
-        - configured_clients uses client_id:key_id:sha256 records separated by
-        - commas.
+    :param configured_clients: Serialized client-key records.
+    :returns: Mapping from key ID to validated client-key record.
+    :raises ValueError: The configuration is empty, malformed, or contains
+        duplicates.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Validates client identity and API-key hash configuration.
+        - Precondition: configured_clients uses client_id:key_id:sha256 records
+          separated by commas.
         - Rejects malformed or duplicate key identifiers.
-
-    Inputs:
-        - configured_clients: Serialized client-key records.
-
-    Outputs:
-        - Mapping from key ID to validated client-key record.
-
-    Raises:
-        - ValueError: The configuration is empty, malformed, or contains
-        - duplicates.
     """
     records: dict[str, ClientKeyRecord] = {}
 
@@ -147,26 +120,19 @@ def parse_client_records(configured_clients: str) -> dict[str, ClientKeyRecord]:
 
 
 def generate_api_key(client_id: str) -> tuple[str, ClientKeyRecord]:
-    """
-    RME
+    """Generate a new high-entropy structured gateway API key.
 
-    Requires:
-        - client_id is 1-64 characters using letters, digits, dot, underscore,
-        - or hyphen.
+    :param client_id: Stable identity assigned to the gateway client.
+    :returns: Tuple containing the raw API key and its hashed client-key
+        record.
 
-    Modifies:
-        - Cryptographic random generator state maintained by the operating
-        - system.
+    .. note::
 
-    Effects:
-        - Generates a new high-entropy structured gateway API key.
+        - Precondition: client_id is 1-64 characters using letters, digits,
+          dot, underscore, or hyphen.
+        - Side effect: Cryptographic random generator state maintained by the
+          operating system.
         - Produces a server-side record containing only the key hash.
-
-    Inputs:
-        - client_id: Stable identity assigned to the gateway client.
-
-    Outputs:
-        - Tuple containing the raw API key and its hashed client-key record.
     """
     if not _client_id_pattern.fullmatch(client_id):
         raise ValueError("invalid_client_id")
@@ -182,53 +148,37 @@ def generate_api_key(client_id: str) -> tuple[str, ClientKeyRecord]:
 
 
 def format_client_record(record: ClientKeyRecord) -> str:
-    """
-    RME
+    """Serialize a client-key record for SAG_CLIENTS configuration.
 
-    Requires:
-        - record contains a validated client identity, key ID, and API-key
-        - digest.
+    :param record: Client-key record to serialize.
+    :returns: client_id:key_id:sha256 configuration record.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Serializes a client-key record for SAG_CLIENTS configuration.
-
-    Inputs:
-        - record: Client-key record to serialize.
-
-    Outputs:
-        - client_id:key_id:sha256 configuration record.
+        - Precondition: record contains a validated client identity, key ID,
+          and API-key digest.
     """
     return f"{record.client_id}:{record.key_id}:{record.api_key_sha256}"
 
 
 def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
-    """
-    RME
+    """Open a new API-key delivery file without following or overwriting an
+        existing
+    path.
 
-    Requires:
-        - path identifies a new file in an existing writable directory.
+    :param path: Destination path for one raw API key.
+    :returns: Writable UTF-8 text stream for the newly created secret file.
+    :raises FileExistsError: The destination already exists, including a
+        pre-existing symlink.
+    :raises OSError: The file cannot be created securely.
 
-    Modifies:
-        - Creates the requested filesystem path with owner-only permissions.
+    .. note::
 
-    Effects:
-        - Opens a new API-key delivery file without following or overwriting an
-        - existing path.
+        - Precondition: path identifies a new file in an existing writable
+          directory.
+        - Side effect: Creates the requested filesystem path with owner-only
+          permissions.
         - Uses mode 0600 so only the creating user can read or write the file.
-
-    Inputs:
-        - path: Destination path for one raw API key.
-
-    Outputs:
-        - Writable UTF-8 text stream for the newly created secret file.
-
-    Raises:
-        - FileExistsError: The destination already exists, including a
-        - pre-existing symlink.
-        - OSError: The file cannot be created securely.
     """
     secret_path = Path(path)
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
@@ -245,26 +195,19 @@ def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
 
 
 def write_api_key_secret(secret_file: TextIO, api_key: str) -> None:
-    """
-    RME
+    """Write exactly one API key plus a trailing newline.
 
-    Requires:
-        - secret_file is an open writable stream created for API-key delivery.
-        - api_key is the complete raw gateway bearer credential.
+    :param secret_file: Secure destination stream.
+    :param api_key: Raw API key to deliver.
 
-    Modifies:
-        - Replaces the contents of secret_file and synchronizes them to storage.
+    .. note::
 
-    Effects:
-        - Writes exactly one API key plus a trailing newline.
+        - Precondition: secret_file is an open writable stream created for
+          API-key delivery.
+        - Precondition: api_key is the complete raw gateway bearer credential.
+        - Side effect: Replaces the contents of secret_file and synchronizes
+          them to storage.
         - Truncates any previous candidate key before returning.
-
-    Inputs:
-        - secret_file: Secure destination stream.
-        - api_key: Raw API key to deliver.
-
-    Outputs:
-        - None.
     """
     secret_file.seek(0)
     secret_file.write(f"{api_key}\n")
@@ -277,26 +220,18 @@ def write_api_key_secret(secret_file: TextIO, api_key: str) -> None:
 def managed_api_key_secret_file(
     path: str | os.PathLike[str],
 ) -> Iterator[TextIO]:
-    """
-    RME
+    """Keeps a successfully written secret file after normal completion.
 
-    Requires:
-        - path satisfies open_api_key_secret_file requirements.
+    :param path: Destination path for API-key delivery.
+    :returns: Context-managed writable secret stream.
 
-    Modifies:
-        - Creates a 0600 secret file and removes it when the protected operation
-        - fails.
+    .. note::
 
-    Effects:
-        - Keeps a successfully written secret file after normal completion.
+        - Precondition: path satisfies open_api_key_secret_file requirements.
+        - Side effect: Creates a 0600 secret file and removes it when the
+          protected operation fails.
         - Removes partial or stale secret output when an exception escapes the
-        - context.
-
-    Inputs:
-        - path: Destination path for API-key delivery.
-
-    Outputs:
-        - Context-managed writable secret stream.
+          context.
     """
     secret_path = Path(path)
     secret_file = open_api_key_secret_file(secret_path)
@@ -311,29 +246,20 @@ def managed_api_key_secret_file(
 
 
 def main() -> None:
-    """
-    RME
+    """Generate a gateway API key without printing the raw credential.
 
-    Requires:
-        - A client ID and explicit API-key output path are supplied on the
-        - command line.
+    :returns: Raw client API key in the requested secret file. Client identity,
+        secret-file path, and server record on standard output.
 
-    Modifies:
-        - Creates the requested 0600 API-key output file.
-        - Writes non-secret metadata to standard output.
+    .. note::
 
-    Effects:
-        - Generates a gateway API key without printing the raw credential.
+        - Input: Command-line client ID and --api-key-file path.
+        - Precondition: A client ID and explicit API-key output path are
+          supplied on the command line.
+        - Side effect: Creates the requested 0600 API-key output file.
+        - Side effect: Writes non-secret metadata to standard output.
         - Writes the raw key once to an exclusive owner-only file.
         - Prints the hashed server configuration record separately.
-
-    Inputs:
-        - Command-line client ID and --api-key-file path.
-
-    Outputs:
-        - Raw client API key in the requested secret file.
-        - Client identity, secret-file path, and server record on standard
-        - output.
     """
     parser = argparse.ArgumentParser(
         description="Generate a Secure AI Gateway client API key."

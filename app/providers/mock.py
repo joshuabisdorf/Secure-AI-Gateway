@@ -1,3 +1,5 @@
+"""Provide deterministic local chat responses without provider calls."""
+
 from uuid import uuid4
 
 from app.models import (
@@ -22,30 +24,22 @@ class MockProvider(Provider):
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        """
-        RME
+        """Produce a deterministic non-network model response for testing.
 
-        Requires:
-            - request is a validated chat-completion request.
+        :param request: The requested model, messages, and optional named tool
+            choice.
+        :returns: A synthetic OpenAI-style chat-completion response.
 
-        Modifies:
-            - Process-local provider metrics and trace state through
-            - instrumentation.
+        .. note::
 
-        Effects:
-            - Produces a deterministic non-network model response for testing.
+            - Precondition: request is a validated chat-completion request.
+            - Side effect: Process-local provider metrics and trace state
+              through instrumentation.
             - Emits an empty-object function call when a named tool_choice is
-            - requested.
+              requested.
             - Includes deterministic token and zero-cost usage accounting.
             - Records provider latency/success metadata without prompt or
-            - response content.
-
-        Inputs:
-            - request: The requested model, messages, and optional named tool
-            - choice.
-
-        Outputs:
-            - A synthetic OpenAI-style chat-completion response.
+              response content.
         """
         message = ChoiceMessage(
             role="assistant",

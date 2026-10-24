@@ -1,3 +1,5 @@
+"""Enforce one-time execution authorization using Redis."""
+
 import os
 
 from redis.exceptions import RedisError
@@ -12,48 +14,34 @@ from app.tool_execution import (
 
 class SharedRedisToolExecutionReplayStore:
     def __init__(self, redis_url: str) -> None:
-        """
-        RME
+        """Use the central Redis factory so TLS/IAM cloud authentication and
+            local Redis
+        behave consistently.
 
-        Requires:
-            - redis_url identifies the configured shared Redis/Valkey service.
+        :param redis_url: Redis-compatible connection URL.
 
-        Modifies:
-            - Initializes a lazy shared Redis/Valkey client.
+        .. note::
 
-        Effects:
-            - Uses the central Redis factory so TLS/IAM cloud authentication and
-            - local Redis behave consistently.
-
-        Inputs:
-            - redis_url: Redis-compatible connection URL.
-
-        Outputs:
-            - Distributed replay-store instance.
+            - Precondition: redis_url identifies the configured shared
+              Redis/Valkey service.
+            - Side effect: Initializes a lazy shared Redis/Valkey client.
         """
         self._client = build_redis_client(redis_url, decode_responses=True)
 
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """
-        RME
+        """Atomically claims an execution ID with SET NX and expiry.
 
-        Requires:
-            - execution_id is a validated execution-ticket identifier.
-            - ttl_seconds is positive.
+        :param execution_id: Execution-ticket identifier.
+        :param ttl_seconds: Remaining ticket lifetime.
+        :returns: True only for the first successful distributed claim.
 
-        Modifies:
-            - Shared replay state under sag:tool_execution:*.
+        .. note::
 
-        Effects:
-            - Atomically claims an execution ID with SET NX and expiry.
+            - Precondition: execution_id is a validated execution-ticket
+              identifier.
+            - Precondition: ttl_seconds is positive.
+            - Side effect: Shared replay state under sag:tool_execution:*.
             - Fails closed if Redis/Valkey is unavailable.
-
-        Inputs:
-            - execution_id: Execution-ticket identifier.
-            - ttl_seconds: Remaining ticket lifetime.
-
-        Outputs:
-            - True only for the first successful distributed claim.
         """
         try:
             result = await self._client.set(
@@ -69,49 +57,32 @@ class SharedRedisToolExecutionReplayStore:
         return bool(result)
 
     async def close(self) -> None:
-        """
-        RME
+        """Close the shared Redis/Valkey client pool.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        .. note::
 
-        Modifies:
-            - Owned runtime or dependency state, as described by the operation.
-
-        Effects:
-            - Close the shared Redis/Valkey client pool.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - None.
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
+            - Side effect: Owned runtime or dependency state, as described by
+              the operation.
         """
         await self._client.aclose()
 
 
 def build_runtime_tool_execution_replay_store() -> ToolExecutionReplayStore:
-    """
-    RME
+    """Use distributed shared replay protection in runtime environments.
 
-    Requires:
-        - SAG_TOOL_EXECUTION_REPLAY_BACKEND selects redis or memory.
-        - REDIS_URL and Redis authentication settings are valid for redis mode.
+    :returns: Configured ToolExecutionReplayStore.
 
-    Modifies:
-        - Nothing outside the returned replay-store object.
+    .. note::
 
-    Effects:
-        - Uses distributed shared replay protection in runtime environments.
+        - Precondition: SAG_TOOL_EXECUTION_REPLAY_BACKEND selects redis or
+          memory.
+        - Precondition: REDIS_URL and Redis authentication settings are valid
+          for redis mode.
+        - Side effect: Nothing outside the returned replay-store object.
         - Retains the in-memory implementation only for deterministic tests.
         - Fails closed on unusable Redis/Valkey configuration.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Configured ToolExecutionReplayStore.
     """
     backend = (
         os.getenv("SAG_TOOL_EXECUTION_REPLAY_BACKEND", "redis").strip().lower()

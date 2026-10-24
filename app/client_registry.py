@@ -1,3 +1,5 @@
+"""Provide persistent client and API key registry access."""
+
 import asyncio
 import os
 from typing import Protocol
@@ -14,24 +16,17 @@ class ClientRegistryUnavailable(RuntimeError):
 
 class ClientRegistry(Protocol):
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
-        """
-        RME
+        """Look up an active gateway key and its active client identity.
 
-        Requires:
-            - key_id is a validated public gateway key identifier.
+        :param key_id: Public identifier embedded in a structured gateway API
+            key.
+        :returns: Matching ClientKeyRecord, or None when no active key exists.
 
-        Modifies:
-            - Registry-specific connection or query state, if any.
+        .. note::
 
-        Effects:
-            - Looks up an active gateway key and its active client identity.
-
-        Inputs:
-            - key_id: Public identifier embedded in a structured gateway API
-            - key.
-
-        Outputs:
-            - Matching ClientKeyRecord, or None when no active key exists.
+            - Precondition: key_id is a validated public gateway key
+              identifier.
+            - Side effect: Registry-specific connection or query state, if any.
         """
         ...
 
@@ -42,24 +37,16 @@ class EnvironmentClientRegistry:
     """
 
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
-        """
-        RME
+        """Parse the environment-backed registry for deterministic tests.
 
-        Requires:
-            - SAG_CLIENTS may contain serialized hashed client-key records.
+        :param key_id: Public key identifier to look up.
+        :returns: Matching ClientKeyRecord, or None when the key ID is unknown.
 
-        Modifies:
-            - Nothing.
+        .. note::
 
-        Effects:
-            - Parses the environment-backed registry for deterministic tests.
+            - Precondition: SAG_CLIENTS may contain serialized hashed
+              client-key records.
             - Fails closed when the registry is missing or malformed.
-
-        Inputs:
-            - key_id: Public key identifier to look up.
-
-        Outputs:
-            - Matching ClientKeyRecord, or None when the key ID is unknown.
         """
         configured_clients = os.getenv("SAG_CLIENTS")
         if not configured_clients:
@@ -81,27 +68,19 @@ class PostgresClientRegistry:
         min_size: int = 1,
         max_size: int = 10,
     ) -> None:
-        """
-        RME
+        """Create a closed async PostgreSQL connection pool.
 
-        Requires:
-            - database_url is a PostgreSQL connection string.
-            - min_size and max_size define a valid connection-pool range.
+        :param database_url: PostgreSQL connection string.
+        :param min_size: Minimum number of pooled connections.
+        :param max_size: Maximum number of pooled connections.
 
-        Modifies:
-            - Initializes process-local PostgreSQL pool state.
+        .. note::
 
-        Effects:
-            - Creates a closed async PostgreSQL connection pool.
+            - Precondition: database_url is a PostgreSQL connection string.
+            - Precondition: min_size and max_size define a valid
+              connection-pool range.
+            - Side effect: Initializes process-local PostgreSQL pool state.
             - Defers network connections until the first registry query.
-
-        Inputs:
-            - database_url: PostgreSQL connection string.
-            - min_size: Minimum number of pooled connections.
-            - max_size: Maximum number of pooled connections.
-
-        Outputs:
-            - A configured PostgresClientRegistry instance.
         """
         self._pool = AsyncConnectionPool(
             conninfo=database_url,
@@ -130,27 +109,20 @@ class PostgresClientRegistry:
             self._is_open = True
 
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
-        """
-        RME
+        """Open the pool on first use.
 
-        Requires:
-            - key_id is a validated public gateway key identifier.
-            - Database schema for gateway_clients and gateway_api_keys has been
-            - initialized.
+        :param key_id: Public key identifier to look up.
+        :returns: Matching ClientKeyRecord, or None when no active key exists.
 
-        Modifies:
-            - PostgreSQL connection-pool state.
+        .. note::
 
-        Effects:
-            - Opens the pool on first use.
+            - Precondition: key_id is a validated public gateway key
+              identifier.
+            - Precondition: Database schema for gateway_clients and
+              gateway_api_keys has been initialized.
+            - Side effect: PostgreSQL connection-pool state.
             - Queries only active keys belonging to active clients.
             - Converts database failures into a non-secret registry error.
-
-        Inputs:
-            - key_id: Public key identifier to look up.
-
-        Outputs:
-            - Matching ClientKeyRecord, or None when no active key exists.
         """
         await self._ensure_open()
 
@@ -186,23 +158,13 @@ class PostgresClientRegistry:
         )
 
     async def close(self) -> None:
-        """
-        RME
+        """Close pooled database connections when the pool was opened.
 
-        Requires:
-            - The registry may have opened its process-local connection pool.
+        .. note::
 
-        Modifies:
-            - PostgreSQL connection-pool state.
-
-        Effects:
-            - Closes pooled database connections when the pool was opened.
-
-        Inputs:
-            - None.
-
-        Outputs:
-            - None.
+            - Precondition: The registry may have opened its process-local
+              connection pool.
+            - Side effect: PostgreSQL connection-pool state.
         """
         if self._is_open:
             await self._pool.close()
@@ -211,51 +173,35 @@ class PostgresClientRegistry:
 
 class UnavailableClientRegistry:
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
-        """
-        RME
+        """Fail closed when no usable registry backend is configured.
 
-        Requires:
-            - Arguments satisfy their declared contracts and required configured
-              dependencies are available.
+        :param key_id: Function input.
+        :returns: A value matching the declared ClientKeyRecord | None return
+            contract.
 
-        Modifies:
-            - No state beyond delegated dependency behavior.
+        .. note::
 
-        Effects:
-            - Fail closed when no usable registry backend is configured.
-
-        Inputs:
-            - key_id: Function input.
-
-        Outputs:
-            - A value matching the declared ClientKeyRecord | None return
-              contract.
+            - Precondition: Arguments satisfy their declared contracts and
+              required configured dependencies are available.
         """
         raise ClientRegistryUnavailable("client_registry_not_configured")
 
 
 def build_client_registry() -> ClientRegistry:
-    """
-    RME
+    """Select persistent PostgreSQL storage by default.
 
-    Requires:
-        - SAG_CLIENT_REGISTRY_BACKEND may select postgres or environment.
-        - DATABASE_URL is configured when the postgres backend is selected.
+    :returns: Configured ClientRegistry implementation.
 
-    Modifies:
-        - Initializes registry object state.
+    .. note::
 
-    Effects:
-        - Selects persistent PostgreSQL storage by default.
+        - Precondition: SAG_CLIENT_REGISTRY_BACKEND may select postgres or
+          environment.
+        - Precondition: DATABASE_URL is configured when the postgres backend is
+          selected.
+        - Side effect: Initializes registry object state.
         - Retains an explicit environment backend for deterministic tests only.
         - Fails closed through UnavailableClientRegistry for unusable
-        - configuration.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Configured ClientRegistry implementation.
+          configuration.
     """
     backend = (
         os.getenv("SAG_CLIENT_REGISTRY_BACKEND", "postgres").strip().lower()

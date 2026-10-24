@@ -1,8 +1,8 @@
 # Secure AI Gateway style standard
 
 This document defines the project's own source and documentation style.
-It is intentionally self-contained. The repository does not adopt or vendor an
-external style guide, formatter configuration, or linter policy.
+The repository uses its own coding rules and Sphinx-style Python docstrings;
+it does not vendor an external formatter or general lint policy.
 
 ## Goals
 
@@ -51,28 +51,42 @@ begin with one leading underscore when they are intentionally non-public.
 The project-owned style checker enforces module, function, method, and class
 naming where the rule can be validated safely from Python syntax.
 
-## RMEIO documentation contract
+## Python documentation: Sphinx-style docstrings
 
-RMEIO remains a project requirement and is not replaced by another docstring
-format. Project functions in `app/` and Python utilities in `scripts/` document
-these sections when the function has behavior beyond a trivial wrapper:
+Python uses native Sphinx/reStructuredText docstrings. Start with a concise
+imperative summary, then add the applicable Sphinx Python-domain fields:
 
-- `Requires` -- preconditions and required external state.
-- `Modifies` -- state, files, services, or objects changed.
-- `Effects` -- externally visible behavior and important failure behavior.
-- `Inputs` -- parameters and relevant environmental inputs.
-- `Outputs` -- returned values or produced artifacts.
+- `:param name:` describes a parameter.
+- `:type name:` documents a type when a Python annotation is unavailable.
+- `:returns:` describes a meaningful returned value.
+- `:rtype:` supplies the return type if it is not already annotated.
+- `:raises ExceptionType:` states why a significant exception is raised.
+- `.. note::` explains security invariants, preconditions, side effects,
+  credential handling, and fail-closed behavior when relevant.
 
-The headings appear in exactly that order. The checker validates both presence
-and order for functions that require a full RMEIO contract.
+Write each field on its own line. Keep parameter fields before return and
+exception fields, followed by note directives. Omit inapplicable fields.
+Do not duplicate type hints or use Google-style `Args:`/`Returns:`/`Notes:`
+headings. Short pure helpers may use a single summary line.
 
-Security-sensitive functions should state fail-open/fail-closed behavior and
-secret-handling effects explicitly where relevant.
+Example:
 
-Small pure helpers may use a concise one-line docstring when their contract is
-fully obvious from the name, type signature, and implementation. Public
-security boundaries, persistence operations, credential operations, policy
-checks, network operations, and CLI actions must use full RMEIO documentation.
+```python
+def hash_api_key(api_key: str) -> str:
+    """Compute a digest for a high-entropy gateway API key.
+
+    :param api_key: Complete bearer credential to hash.
+    :returns: Lowercase hexadecimal SHA-256 digest.
+
+    .. note::
+
+        - Intended for randomly generated API keys, not human passwords.
+        - Raw credentials must not be persisted.
+    """
+```
+
+This is Sphinx's native Python-domain field-list syntax, suitable for
+`sphinx.ext.autodoc`; no Google/Napoleon docstring conversion is required.
 
 ## Tests
 
@@ -81,7 +95,7 @@ assertions. Test names describe the condition and expected behavior. Security
 regressions should preserve the concrete invariant being defended rather than
 only checking an implementation detail.
 
-Tests may use compact helper functions without full RMEIO documentation because
+Tests may use compact helper functions without extensive docstrings because
 they are verification code rather than runtime project interfaces.
 
 ## Shell
@@ -134,8 +148,8 @@ make style
 
 CI runs the same whole-repository command. Machine-enforced checks include
 text hygiene, the 80-character limit, Python syntax and structural
-hazards, Python naming, RMEIO presence and order, and Bash shebang and
-strict-mode requirements.
+hazards, Python naming, Sphinx-style docstring presence and field order,
+and Bash shebang and strict-mode requirements.
 
 The checker is intentionally conservative: it rejects clear violations
 and leaves subjective review decisions to code review rather than

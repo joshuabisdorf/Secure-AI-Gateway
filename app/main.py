@@ -1,3 +1,5 @@
+"""Expose the gateway HTTP API and orchestrate request policies."""
+
 import re
 from collections.abc import Awaitable, Callable
 from contextlib import asynccontextmanager
@@ -51,16 +53,15 @@ _request_id_pattern = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 async def lifespan(_: FastAPI):
     """Manage application resource shutdown.
 
-    Requires:
-        Configured persistent resources may own async connection pools.
-    Modifies:
-        Client registry, rate limiter, usage ledger, and replay-store pools.
-    Effects:
-        Leaves connections lazy at startup and closes opened pools at shutdown.
-    Inputs:
-        _: FastAPI application instance.
-    Outputs:
-        Async lifespan context for FastAPI.
+    :param _: FastAPI application instance.
+    :returns: Async lifespan context for FastAPI.
+
+    .. note::
+
+        - Precondition: Configured persistent resources may own async
+          connection pools.
+        - Side effect: Client registry, rate limiter, usage ledger, and
+          replay-store pools.
     """
     yield
 
@@ -86,16 +87,13 @@ app.include_router(tool_execution_router)
 def resolve_request_id(candidate: str | None) -> str:
     """Return a safe request correlation identifier.
 
-    Requires:
-        candidate may contain a caller-supplied request identifier.
-    Modifies:
-        Nothing.
-    Effects:
-        Generates a new ID when the supplied value is absent or unsafe.
-    Inputs:
-        candidate: Optional X-Request-ID header value.
-    Outputs:
-        A validated caller ID or a newly generated gateway request ID.
+    :param candidate: Optional X-Request-ID header value.
+    :returns: A validated caller ID or a newly generated gateway request ID.
+
+    .. note::
+
+        - Precondition: candidate may contain a caller-supplied request
+          identifier.
     """
     if candidate is not None and _request_id_pattern.fullmatch(candidate):
         return candidate
@@ -109,18 +107,14 @@ def _budget_audit_fields(
 ) -> dict[str, int | float | str | None]:
     """Convert usage state into safe audit fields.
 
-    Requires:
-        decision contains current daily usage state.
-        include_cost is true only when cost accounting is known or enforced.
-    Modifies:
-        Nothing.
-    Effects:
-        Omits cumulative cost fields when provider cost is not known.
-    Inputs:
-        decision: Current daily usage-budget decision.
-        include_cost: Whether cost accounting should be exposed.
-    Outputs:
-        Keyword arguments suitable for emit_audit_event.
+    :param decision: Current daily usage-budget decision. include_cost: Whether
+        cost accounting should be exposed.
+    :returns: Keyword arguments suitable for emit_audit_event.
+
+    .. note::
+
+        - Precondition: decision contains current daily usage state.
+          include_cost is true only when cost accounting is known or enforced.
     """
     fields: dict[str, int | float | str | None] = {
         "token_limit_daily": decision.token_limit_daily,
@@ -155,18 +149,15 @@ async def add_request_context(
 ) -> Response:
     """Attach request correlation context.
 
-    Requires:
-        request is an incoming HTTP request.
-        call_next invokes the remaining FastAPI request pipeline.
-    Modifies:
-        request.state and outgoing response headers.
-    Effects:
-        Assigns a request ID, starts latency timing, and returns the ID header.
-    Inputs:
-        request: Incoming HTTP request.
-        call_next: Callable for the remaining request pipeline.
-    Outputs:
-        HTTP response containing X-Request-ID.
+    :param request: Incoming HTTP request. call_next: Callable for the
+        remaining request pipeline.
+    :returns: HTTP response containing X-Request-ID.
+
+    .. note::
+
+        - Precondition: request is an incoming HTTP request. call_next invokes
+          the remaining FastAPI request pipeline.
+        - Side effect: request.state and outgoing response headers.
     """
     request_id = resolve_request_id(request.headers.get("X-Request-ID"))
     request.state.request_id = request_id
@@ -181,16 +172,11 @@ async def add_request_context(
 def health() -> dict[str, str]:
     """Return process health without consulting security-state backends.
 
-    Requires:
-        The process can execute the endpoint.
-    Modifies:
-        Nothing.
-    Effects:
-        Reports process liveness only; it does not claim dependency readiness.
-    Inputs:
-        None.
-    Outputs:
-        Static health status mapping.
+    :returns: Static health status mapping.
+
+    .. note::
+
+        - Precondition: The process can execute the endpoint.
     """
     return {"status": "ok"}
 
@@ -204,31 +190,23 @@ async def chat_completion(
 ) -> ChatCompletionResponse:
     """Apply gateway policy and return a chat-completion response.
 
-    Requires:
-        request satisfies the gateway chat-completion schema.
-        The caller has a valid database-backed gateway API key.
-        Rate, model, PII, injection, tool, and usage policy are configured.
-        Redis rate state and PostgreSQL usage accounting are available.
-        Tool execution state is required only for returned tool calls.
-    Modifies:
-        Shared per-client rate-limit state in Redis.
-        A copied provider request when PII is redacted.
-        Persistent per-client daily usage totals in PostgreSQL.
-        Provider-specific state, audit output, and response policy headers.
-    Effects:
-        Applies authentication and distributed request throttling.
-        Enforces model, PII, prompt-injection, and usage policy.
-        Forwards only the policy-processed request to the provider.
-        Records provider-reported usage after successful completion.
-        Validates untrusted tool calls before issuing short-lived tickets.
-        Fails closed when required policy or shared state is unavailable.
-    Inputs:
-        request: Requested model and chat messages.
-        http_request: HTTP request with request ID and timing context.
-        outgoing_response: Response used to expose safe policy headers.
-        principal: Authenticated client identity from dependency injection.
-    Outputs:
-        OpenAI-style response with optional tool-execution metadata.
+    :param request: Requested model and chat messages. http_request: HTTP
+        request with request ID and timing context. outgoing_response: Response
+        used to expose safe policy headers. principal: Authenticated client
+        identity from dependency injection.
+    :returns: OpenAI-style response with optional tool-execution metadata.
+
+    .. note::
+
+        - Precondition: request satisfies the gateway chat-completion schema.
+          The caller has a valid database-backed gateway API key. Rate, model,
+          PII, injection, tool, and usage policy are configured. Redis rate
+          state and PostgreSQL usage accounting are available. Tool execution
+          state is required only for returned tool calls.
+        - Side effect: Shared per-client rate-limit state in Redis. A copied
+          provider request when PII is redacted. Persistent per-client daily
+          usage totals in PostgreSQL. Provider-specific state, audit output,
+          and response policy headers.
     """
     request_id = http_request.state.request_id
 

@@ -1,3 +1,5 @@
+"""Define the common upstream provider contract."""
+
 from abc import ABC, abstractmethod
 
 from app.models import ChatCompletionRequest, ChatCompletionResponse
@@ -23,22 +25,14 @@ class Provider(ABC):
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        """
-        RME
+        """Execute a chat-completion request through the provider.
 
-        Requires:
-            - request is a validated chat-completion request.
+        :param request: The normalized gateway chat request.
+        :returns: A normalized chat-completion response.
 
-        Modifies:
-            - Provider-specific state, if any.
+        .. note::
 
-        Effects:
-            - Executes a chat-completion request through the provider.
-
-        Inputs:
-            - request: The normalized gateway chat request.
-
-        Outputs:
-            - A normalized chat-completion response.
+            - Precondition: request is a validated chat-completion request.
+            - Side effect: Provider-specific state, if any.
         """
         raise NotImplementedError

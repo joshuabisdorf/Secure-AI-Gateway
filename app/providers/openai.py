@@ -1,3 +1,5 @@
+"""Implement the OpenAI-compatible upstream request transport."""
+
 import os
 
 import httpx
@@ -17,25 +19,16 @@ from app.providers.observed import observe_provider_chat
 
 
 def _serialize_message(message: ChatMessage) -> dict[str, object]:
-    """
-    RME
+    """Serialize OpenAI-compatible message fields for upstream transport.
 
-    Requires:
-        - message is a validated gateway chat message.
+    :param message: Gateway chat message.
+    :returns: Provider-safe message payload.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Serializes OpenAI-compatible message fields for upstream transport.
+        - Precondition: message is a validated gateway chat message.
         - Removes gateway-only execution authorization tickets/risk labels from
-        - tool-call history.
-
-    Inputs:
-        - message: Gateway chat message.
-
-    Outputs:
-        - Provider-safe message payload.
+          tool-call history.
     """
     payload = message.model_dump(exclude_none=True)
     tool_calls = payload.get("tool_calls")
@@ -59,32 +52,25 @@ class OpenAIProvider(Provider):
         transport: httpx.AsyncBaseTransport | None = None,
         include_usage: bool = False,
     ) -> None:
-        """
-        RME
+        """Fail closed when no upstream API key is configured.
 
-        Requires:
-            - api_key or OPENAI_API_KEY provides an upstream OpenAI API key.
-            - base_url, when provided, identifies an OpenAI-compatible API root.
+        :param api_key: Optional explicit upstream OpenAI API key.
+        :param base_url: Optional upstream API root.
+        :param timeout_seconds: Maximum duration of an upstream request.
+        :param transport: Optional httpx transport used for deterministic
+            testing.
+        :param include_usage: Whether to request provider-specific extended
+            usage data.
 
-        Modifies:
-            - Provider instance configuration.
+        .. note::
 
-        Effects:
-            - Fails closed when no upstream API key is configured.
+            - Precondition: api_key or OPENAI_API_KEY provides an upstream
+              OpenAI API key.
+            - Precondition: base_url, when provided, identifies an
+              OpenAI-compatible API root.
+            - Side effect: Provider instance configuration.
             - Optionally requests extended usage accounting from compatible
-            - providers.
-
-        Inputs:
-            - api_key: Optional explicit upstream OpenAI API key.
-            - base_url: Optional upstream API root.
-            - timeout_seconds: Maximum duration of an upstream request.
-            - transport: Optional httpx transport used for deterministic
-            - testing.
-            - include_usage: Whether to request provider-specific extended usage
-            - data.
-
-        Outputs:
-            - A configured OpenAI provider instance.
+              providers.
         """
         resolved_api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not resolved_api_key:
@@ -105,37 +91,30 @@ class OpenAIProvider(Provider):
         self,
         request: ChatCompletionRequest,
     ) -> ChatCompletionResponse:
-        """
-        RME
+        """Send messages and optional authorized function tools/tool choice
+            upstream.
 
-        Requires:
-            - request is a validated gateway chat-completion request.
-            - Any function tools in request were authorized by the gateway
-            - before this call.
-            - The provider has a configured OpenAI API key.
+        :param request: Requested upstream model, messages, and optional
+            authorized tools.
+        :returns: A normalized chat-completion response.
 
-        Modifies:
-            - Upstream OpenAI-compatible API usage and billing.
-            - Process-local provider metrics and trace state through
-            - instrumentation.
+        .. note::
 
-        Effects:
-            - Sends messages and optional authorized function tools/tool choice
-            - upstream.
+            - Precondition: request is a validated gateway chat-completion
+              request.
+            - Precondition: Any function tools in request were authorized by
+              the gateway before this call.
+            - Precondition: The provider has a configured OpenAI API key.
+            - Side effect: Upstream OpenAI-compatible API usage and billing.
+            - Side effect: Process-local provider metrics and trace state
+              through instrumentation.
             - Strips gateway-only execution authorization metadata before
-            - transport.
+              transport.
             - Converts the upstream response, including function tool calls,
-            - into gateway models.
+              into gateway models.
             - Converts upstream failures into non-secret ProviderError reasons.
             - Records provider latency/success/error metadata without prompt or
-            - response content.
-
-        Inputs:
-            - request: Requested upstream model, messages, and optional
-            - authorized tools.
-
-        Outputs:
-            - A normalized chat-completion response.
+              response content.
         """
         payload: dict[str, object] = {
             "model": request.model,

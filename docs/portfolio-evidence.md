@@ -119,9 +119,10 @@ The project uses a self-contained repository-owned style standard. No external
 style guide or linter policy is vendored or adopted as the governing standard.
 
 The hard rule is an 80-character line limit except for genuinely indivisible
-content. Python project functions use ordered RMEIO contracts. The checker also
-covers text hygiene, Python syntax/naming and structural hazards, and Bash
-entrypoint/strict-mode requirements.
+content. Python project functions use Sphinx-style docstrings with native
+field lists.
+The checker also covers text hygiene, Python syntax/naming and structural
+hazards, and Bash entrypoint/strict-mode requirements.
 
 `make style` checks the entire tracked project tree. CI runs the same command.
 There is no legacy baseline, moving exemption, or grandfathered file set.

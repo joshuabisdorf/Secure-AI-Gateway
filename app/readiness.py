@@ -1,3 +1,5 @@
+"""Check required database, cache, and runtime dependencies."""
+
 import asyncio
 import os
 
@@ -8,26 +10,18 @@ from app.redis_client import RedisClientConfigurationError, build_redis_client
 
 
 async def _postgres_ready(database_url: str) -> bool:
-    """
-    RME
+    """Verify PostgreSQL connectivity and the required migrated gateway tables.
 
-    Requires:
-        - database_url identifies the configured PostgreSQL database.
+    :param database_url: PostgreSQL connection string.
+    :returns: True only when PostgreSQL is reachable and required schema
+        objects exist.
 
-    Modifies:
-        - A short-lived PostgreSQL connection/session.
+    .. note::
 
-    Effects:
-        - Verifies PostgreSQL connectivity and the required migrated gateway
-        - tables.
+        - Precondition: database_url identifies the configured PostgreSQL
+          database.
+        - Side effect: A short-lived PostgreSQL connection/session.
         - Returns False instead of exposing backend exception details.
-
-    Inputs:
-        - database_url: PostgreSQL connection string.
-
-    Outputs:
-        - True only when PostgreSQL is reachable and required schema objects
-        - exist.
     """
     try:
         async with await psycopg.AsyncConnection.connect(
@@ -51,26 +45,20 @@ async def _postgres_ready(database_url: str) -> bool:
 
 
 async def _redis_ready(redis_url: str) -> bool:
-    """
-    RME
+    """Ping Redis/Valkey using bounded connect/read timeouts.
 
-    Requires:
-        - redis_url identifies the configured shared Redis/Valkey backend.
+    :param redis_url: Redis-compatible connection URL.
+    :returns: True only when the configured shared backend responds
+        successfully.
 
-    Modifies:
-        - A short-lived shared-backend client connection.
+    .. note::
 
-    Effects:
-        - Pings Redis/Valkey using bounded connect/read timeouts.
+        - Precondition: redis_url identifies the configured shared Redis/Valkey
+          backend.
+        - Side effect: A short-lived shared-backend client connection.
         - Uses the same local or ElastiCache IAM/TLS authentication path as
-        - runtime controls.
+          runtime controls.
         - Returns False instead of exposing backend exception details.
-
-    Inputs:
-        - redis_url: Redis-compatible connection URL.
-
-    Outputs:
-        - True only when the configured shared backend responds successfully.
     """
     try:
         client = build_redis_client(
@@ -112,28 +100,20 @@ def _redis_required() -> bool:
 
 
 async def runtime_ready() -> tuple[bool, tuple[str, ...]]:
-    """
-    RME
+    """Check only backends required by the current runtime configuration.
 
-    Requires:
-        - Runtime backend-selection environment variables describe the active
-        - deployment.
+    :returns: Tuple of overall readiness and safe unavailable-component names.
 
-    Modifies:
-        - Short-lived backend connection state for required shared services.
+    .. note::
 
-    Effects:
-        - Checks only backends required by the current runtime configuration.
+        - Precondition: Runtime backend-selection environment variables
+          describe the active deployment.
+        - Side effect: Short-lived backend connection state for required shared
+          services.
         - Treats missing backend URLs, failed connectivity, or missing
         - PostgreSQL schema as not ready.
         - Returns safe component names without connection strings or exception
-        - contents.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Tuple of overall readiness and safe unavailable-component names.
+          contents.
     """
     unavailable: list[str] = []
 
@@ -151,27 +131,20 @@ async def runtime_ready() -> tuple[bool, tuple[str, ...]]:
 
 
 def main() -> None:
-    """
-    RME
+    """Run the backend readiness checks for Kubernetes exec probes.
 
-    Requires:
-        - Runtime backend environment variables describe the current deployment.
+    :returns: Process exit status and a metadata-only readiness message.
 
-    Modifies:
-        - Short-lived backend connection state and terminal output.
+    .. note::
 
-    Effects:
-        - Runs the backend readiness checks for Kubernetes exec probes.
+        - Precondition: Runtime backend environment variables describe the
+          current deployment.
+        - Side effect: Short-lived backend connection state and terminal
+          output.
         - Exits zero when required backends and schema are ready, nonzero
-        - otherwise.
+          otherwise.
         - Prints only safe component names and never prints connection strings
-        - or credentials.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Process exit status and a metadata-only readiness message.
+          or credentials.
     """
     ready, unavailable = asyncio.run(runtime_ready())
     if ready:

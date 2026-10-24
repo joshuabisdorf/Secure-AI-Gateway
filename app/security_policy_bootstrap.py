@@ -1,3 +1,5 @@
+"""Translate security profiles into runtime policy configuration."""
+
 import os
 
 from app.security_policy import (
@@ -19,26 +21,19 @@ _legacy_policy_variables = (
 def _compile_policy_environment(
     registry: SecurityPolicyRegistry,
 ) -> dict[str, str]:
-    """
-    RME
+    """Convert named profiles/client assignments into the existing internal
+        policy
+    formats.
 
-    Requires:
-        - registry has passed unified security-policy validation.
+    :param registry: Validated unified policy registry.
+    :returns: Environment-variable values consumed by existing enforcement
+        modules.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Converts named profiles/client assignments into the existing internal
-        - policy formats.
+        - Precondition: registry has passed unified security-policy validation.
         - Preserves an empty tool allowlist as the explicit client:- no-tool
-        - record.
-
-    Inputs:
-        - registry: Validated unified policy registry.
-
-    Outputs:
-        - Environment-variable values consumed by existing enforcement modules.
+          record.
     """
     model_records: list[str] = []
     rate_records: list[str] = []
@@ -90,31 +85,22 @@ def _compile_policy_environment(
 
 
 def apply_unified_security_policy_environment() -> None:
-    """
-    RME
+    """Do nothing when the unified registry is not enabled, preserving
+        temporary
+    legacy compatibility.
 
-    Requires:
-        - SAG_SECURITY_POLICY_FILE may identify a unified JSON security-policy
-        - registry.
+    .. note::
 
-    Modifies:
-        - Process environment values used by per-client enforcement modules.
-
-    Effects:
-        - Does nothing when the unified registry is not enabled, preserving
-        - temporary legacy compatibility.
+        - Precondition: SAG_SECURITY_POLICY_FILE may identify a unified JSON
+          security-policy registry.
+        - Side effect: Process environment values used by per-client
+          enforcement modules.
         - Once enabled, clears legacy per-control inputs before validating the
-        - unified registry.
+          unified registry.
         - Compiles a valid registry into internal policy inputs exactly once at
-        - process startup.
+          process startup.
         - Leaves controls unconfigured and records a safe reason when unified
-        - policy loading fails.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - None.
+          policy loading fails.
     """
     configured_path = os.getenv("SAG_SECURITY_POLICY_FILE")
     if not configured_path or not configured_path.strip():

@@ -1,3 +1,5 @@
+"""Emit sanitized security audit events."""
+
 import json
 import logging
 from datetime import datetime, timezone
@@ -52,77 +54,77 @@ def emit_audit_event(
     tool_execution_risk: str | None = None,
     source_request_id: str | None = None,
 ) -> None:
-    """
-    RME
+    """Emit one JSON audit record to application stderr.
 
-    Requires:
-        - request_id identifies the gateway request being audited.
-        - event and outcome describe a security-relevant action or decision.
+    :param request_id: Correlation identifier for the request.
+    :param event: Audit event category.
+    :param outcome: Decision or result for the event.
+    :param client_id: Optional authenticated gateway client identity.
+    :param key_id: Optional public identifier for the authenticated gateway
+        key.
+    :param requested_model: Optional model name requested by the gateway
+        client.
+    :param resolved_model: Optional model name reported by the upstream
+        provider.
+    :param provider: Optional upstream provider name.
+    :param reason: Optional non-secret decision reason.
+    :param latency_ms: Optional elapsed request latency in milliseconds.
+    :param limit_rpm: Optional requests-per-minute limit applied to the client.
+    :param remaining: Optional requests remaining in the current rate-limit
+        window.
+    :param retry_after_seconds: Optional delay before a denied client should
+        retry.
+    :param request_tokens: Optional provider-reported tokens used by one
+        request.
+    :param request_cost_usd: Optional provider-reported USD cost for one
+        request.
+    :param token_limit_daily: Optional configured daily token budget.
+    :param tokens_used_daily: Optional cumulative UTC-day token usage.
+    :param tokens_remaining_daily: Optional remaining UTC-day token capacity.
+    :param cost_limit_daily_usd: Optional configured daily USD budget.
+    :param cost_used_daily_usd: Optional cumulative UTC-day USD cost.
+    :param cost_remaining_daily_usd: Optional remaining UTC-day USD capacity.
+    :param budget_reset_at: Optional ISO timestamp for the next budget reset.
+    :param pii_detected_count: Optional count of PII findings without raw
+        values.
+    :param pii_types: Optional comma-separated PII type names without raw
+        values.
+    :param prompt_injection_detected_count: Optional count of unique injection
+        indicators.
+    :param prompt_injection_score: Optional aggregate deterministic injection
+        score.
+    :param prompt_injection_indicators: Optional comma-separated safe indicator
+        labels.
+    :param tool_requested_count: Optional number of distinct function tools
+        exposed.
+    :param tool_requested_names: Optional comma-separated validated function
+        names.
+    :param tool_denied_names: Optional comma-separated function names denied by
+        policy.
+    :param tool_call_id: Optional provider-issued tool-call identifier.
+    :param tool_execution_id: Optional gateway-issued one-time execution
+        identifier.
+    :param tool_execution_risk: Optional read/write/destructive risk
+        classification.
+    :param source_request_id: Optional chat request that produced the tool
+        call.
 
-    Modifies:
-        - The process logging stream through the audit logger.
-        - Best-effort bounded Prometheus counters derived from sanitized
-        - metadata.
+    .. note::
 
-    Effects:
-        - Emits one JSON audit record to application stderr.
+        - Precondition: request_id identifies the gateway request being
+          audited.
+        - Precondition: event and outcome describe a security-relevant action
+          or decision.
+        - Side effect: The process logging stream through the audit logger.
+        - Side effect: Best-effort bounded Prometheus counters derived from
+          sanitized metadata.
         - Derives metrics only from already-sanitized audit metadata.
         - Observability failures do not interrupt authorization or audit
-        - logging.
+          logging.
         - Omits prompt content, detected PII values, credentials, execution
-        - tickets,
-          tool arguments, and tool outputs from the audit record.
+          tickets, tool arguments, and tool outputs from the audit record.
         - Records prompt-injection and tool-authorization metadata only as safe
-        - labels/names/IDs.
-
-    Inputs:
-        - request_id: Correlation identifier for the request.
-        - event: Audit event category.
-        - outcome: Decision or result for the event.
-        - client_id: Optional authenticated gateway client identity.
-        - key_id: Optional public identifier for the authenticated gateway key.
-        - requested_model: Optional model name requested by the gateway client.
-        - resolved_model: Optional model name reported by the upstream provider.
-        - provider: Optional upstream provider name.
-        - reason: Optional non-secret decision reason.
-        - latency_ms: Optional elapsed request latency in milliseconds.
-        - limit_rpm: Optional requests-per-minute limit applied to the client.
-        - remaining: Optional requests remaining in the current rate-limit
-        - window.
-        - retry_after_seconds: Optional delay before a denied client should
-        - retry.
-        - request_tokens: Optional provider-reported tokens used by one request.
-        - request_cost_usd: Optional provider-reported USD cost for one request.
-        - token_limit_daily: Optional configured daily token budget.
-        - tokens_used_daily: Optional cumulative UTC-day token usage.
-        - tokens_remaining_daily: Optional remaining UTC-day token capacity.
-        - cost_limit_daily_usd: Optional configured daily USD budget.
-        - cost_used_daily_usd: Optional cumulative UTC-day USD cost.
-        - cost_remaining_daily_usd: Optional remaining UTC-day USD capacity.
-        - budget_reset_at: Optional ISO timestamp for the next budget reset.
-        - pii_detected_count: Optional count of PII findings without raw values.
-        - pii_types: Optional comma-separated PII type names without raw values.
-        - prompt_injection_detected_count: Optional count of unique injection
-        - indicators.
-        - prompt_injection_score: Optional aggregate deterministic injection
-        - score.
-        - prompt_injection_indicators: Optional comma-separated safe indicator
-        - labels.
-        - tool_requested_count: Optional number of distinct function tools
-        - exposed.
-        - tool_requested_names: Optional comma-separated validated function
-        - names.
-        - tool_denied_names: Optional comma-separated function names denied by
-        - policy.
-        - tool_call_id: Optional provider-issued tool-call identifier.
-        - tool_execution_id: Optional gateway-issued one-time execution
-        - identifier.
-        - tool_execution_risk: Optional read/write/destructive risk
-        - classification.
-        - source_request_id: Optional chat request that produced the tool call.
-
-    Outputs:
-        - None.
+          labels/names/IDs.
     """
     payload: dict[str, str | float | int] = {
         "timestamp": datetime.now(timezone.utc).isoformat(),

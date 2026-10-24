@@ -1,3 +1,5 @@
+"""Authorize external tool execution with bound signed tickets."""
+
 import binascii
 import re
 import time
@@ -29,27 +31,16 @@ _max_execution_token_chars = 4096
 
 @router.get("/metrics", include_in_schema=False)
 def prometheus_metrics() -> Response:
-    """
-    RME
+    """Serialize the dedicated Secure AI Gateway Prometheus registry.
 
-    Requires:
-        - The endpoint is exposed only on a trusted/internal network boundary in
-        - production.
+    :returns: Prometheus text exposition response.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Serializes the dedicated Secure AI Gateway Prometheus registry.
+        - Precondition: The endpoint is exposed only on a trusted/internal
+          network boundary in production.
         - Does not expose prompts, credentials, client IDs, request IDs, model
-        - names, tool names,
-          tool arguments, or tool results as metric labels.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Prometheus text exposition response.
+          names, tool names, tool arguments, or tool results as metric labels.
     """
     return Response(
         content=metrics_payload(),
@@ -68,32 +59,23 @@ def _deny_execution(
     source_request_id: str | None = None,
     status_code: int = status.HTTP_403_FORBIDDEN,
 ) -> None:
-    """
-    RME
+    """Emit a metadata-only execution denial and raise a generic HTTP error.
 
-    Requires:
-        - principal is authenticated and reason contains no tool
-        - arguments/tickets.
+    :param request_id: Authorization request correlation ID.
+    :param principal: Current authenticated client/key identity.
+    :param reason: Safe internal denial reason.
+    :param tool_name: Optional validated function name.
+    :param tool_call_id: Optional provider tool-call ID.
+    :param risk: Optional read/write/destructive classification.
+    :param source_request_id: Optional source chat request ID.
+    :param status_code: HTTP status returned to the caller.
+    :returns: None; always raises HTTPException.
 
-    Modifies:
-        - Audit logging stream.
+    .. note::
 
-    Effects:
-        - Emits a metadata-only execution denial and raises a generic HTTP
-        - error.
-
-    Inputs:
-        - request_id: Authorization request correlation ID.
-        - principal: Current authenticated client/key identity.
-        - reason: Safe internal denial reason.
-        - tool_name: Optional validated function name.
-        - tool_call_id: Optional provider tool-call ID.
-        - risk: Optional read/write/destructive classification.
-        - source_request_id: Optional source chat request ID.
-        - status_code: HTTP status returned to the caller.
-
-    Outputs:
-        - None; always raises HTTPException.
+        - Precondition: principal is authenticated and reason contains no tool
+          arguments/tickets.
+        - Side effect: Audit logging stream.
     """
     emit_audit_event(
         request_id=request_id,
@@ -120,26 +102,18 @@ def _deny_execution(
 
 
 def _is_canonical_execution_token(token: str) -> bool:
-    """
-    RME
+    """Reject padding, whitespace, punctuation, extra segments, and oversized
+        ticket
+    text before the Base64 decoder is reached.
 
-    Requires:
-        - token is untrusted caller-controlled execution-ticket text.
+    :param token: Candidate gateway execution ticket.
+    :returns: True only for the gateway's unpadded URL-safe Base64 two-segment
+        encoding.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Rejects padding, whitespace, punctuation, extra segments, and
-        - oversized ticket text
-          before the Base64 decoder is reached.
-
-    Inputs:
-        - token: Candidate gateway execution ticket.
-
-    Outputs:
-        - True only for the gateway's unpadded URL-safe Base64 two-segment
-        - encoding.
+        - Precondition: token is untrusted caller-controlled execution-ticket
+          text.
     """
     return (
         len(token) <= _max_execution_token_chars
@@ -157,43 +131,36 @@ async def authorize_tool_execution(
     outgoing_response: Response,
     principal: Principal = Depends(authenticate_api_key),
 ) -> ToolExecutionAuthorizationResponse:
-    """
-    RME
+    """Re-authenticates execution context independently of model output.
 
-    Requires:
-        - Caller authenticates with the same gateway client/key that received
-        - the ticket.
-        - tool_call is the exact model-generated call returned by the gateway.
-        - Current client tool policy, execution registry, signing key, and
-        - replay store are available.
+    :param authorization_request: Exact gateway-returned tool call including
+        execution token/risk.
+    :param http_request: HTTP request with correlation context.
+    :param outgoing_response: Response used for safe authorization headers.
+    :param principal: Current independently authenticated client identity.
+    :returns: Metadata-only authorization response for a downstream executor.
 
-    Modifies:
-        - Distributed/process-local replay state by atomically consuming one
-        - execution ID.
-        - Audit logging stream and response authorization header.
+    .. note::
 
-    Effects:
-        - Re-authenticates execution context independently of model output.
+        - Precondition: Caller authenticates with the same gateway client/key
+          that received the ticket.
+        - Precondition: tool_call is the exact model-generated call returned by
+          the gateway.
+        - Precondition: Current client tool policy, execution registry, signing
+          key, and replay store are available.
+        - Side effect: Distributed/process-local replay state by atomically
+          consuming one execution ID.
+        - Side effect: Audit logging stream and response authorization header.
         - Verifies canonical ticket encoding, HMAC integrity, expiry, identity,
-        - exact arguments,
-          schema, and risk class.
+          exact arguments, schema, and risk class.
         - Rejects malformed ticket encoding as a controlled authorization
-        - denial.
+          denial.
         - Re-checks current per-client tool authorization so revoked tools
-        - cannot execute on stale tickets.
+          cannot execute on stale tickets.
         - Consumes each execution authorization exactly once before returning
-        - allow.
-        - Never logs or returns raw tool arguments or execution-ticket contents.
-
-    Inputs:
-        - authorization_request: Exact gateway-returned tool call including
-        - execution token/risk.
-        - http_request: HTTP request with correlation context.
-        - outgoing_response: Response used for safe authorization headers.
-        - principal: Current independently authenticated client identity.
-
-    Outputs:
-        - Metadata-only authorization response for a downstream executor.
+          allow.
+        - Never logs or returns raw tool arguments or execution-ticket
+          contents.
     """
     request_id = http_request.state.request_id
     tool_call = authorization_request.tool_call

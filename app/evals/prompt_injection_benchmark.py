@@ -1,3 +1,5 @@
+"""Benchmark prompt-injection detection on a versioned corpus."""
+
 import argparse
 import hashlib
 import json
@@ -116,25 +118,16 @@ def _require_exact_keys(
 
 
 def _parse_unit_interval(value: Any, reason: str) -> float:
-    """
-    RME
+    """Perform the parse unit interval operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    :param value: Function input.
+    :param reason: Function input.
+    :returns: A value matching the declared float return contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    .. note::
 
-    Effects:
-        - Performs the parse unit interval operation.
-
-    Inputs:
-        - value: Function input.
-        - reason: Function input.
-
-    Outputs:
-        - A value matching the declared float return contract.
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError(reason)
@@ -163,25 +156,16 @@ def _parse_thresholds(value: Any) -> BenchmarkThresholds:
 
 
 def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
-    """
-    RME
+    """Perform the parse case operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    :param value: Function input.
+    :param seen_ids: Function input.
+    :returns: A value matching the declared BenchmarkCase return contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    .. note::
 
-    Effects:
-        - Performs the parse case operation.
-
-    Inputs:
-        - value: Function input.
-        - seen_ids: Function input.
-
-    Outputs:
-        - A value matching the declared BenchmarkCase return contract.
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if not isinstance(value, dict):
         raise ValueError("invalid_benchmark_case")
@@ -231,32 +215,22 @@ def _parse_case(value: Any, seen_ids: set[str]) -> BenchmarkCase:
 def parse_benchmark_dataset(
     document: str, *, sha256: str = "unknown"
 ) -> PromptInjectionDataset:
-    """
-    RME
+    """Strictly validates dataset structure, thresholds, unique IDs, labels,
+        and
+    messages.
 
-    Requires:
-        - document is intended to be a version-1 prompt-injection benchmark
-        - dataset.
+    :param document: UTF-8 JSON benchmark document.
+    :param sha256: Digest of the raw dataset bytes when available.
+    :returns: Validated PromptInjectionDataset.
+    :raises ValueError: Dataset content is malformed or violates the benchmark
+        schema.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Strictly validates dataset structure, thresholds, unique IDs, labels,
-        - and messages.
+        - Precondition: document is intended to be a version-1 prompt-injection
+          benchmark dataset.
         - Rejects categories that mix attack and benign labels so per-category
-        - rates remain clear.
-
-    Inputs:
-        - document: UTF-8 JSON benchmark document.
-        - sha256: Digest of the raw dataset bytes when available.
-
-    Outputs:
-        - Validated PromptInjectionDataset.
-
-    Raises:
-        - ValueError: Dataset content is malformed or violates the benchmark
-        - schema.
+          rates remain clear.
     """
     try:
         root = json.loads(
@@ -308,28 +282,19 @@ def parse_benchmark_dataset(
 def load_benchmark_dataset(
     path: Path = _DEFAULT_DATASET,
 ) -> PromptInjectionDataset:
-    """
-    RME
+    """Read the dataset, computes its SHA-256 digest, and validates its
+        complete
+    schema.
 
-    Requires:
-        - path identifies a local benchmark JSON file no larger than 2 MiB.
+    :param path: Dataset path; defaults to the committed version-1 benchmark.
+    :returns: Validated PromptInjectionDataset with reproducibility digest.
+    :raises BenchmarkDatasetError: File is unavailable, oversized, undecodable,
+        or invalid.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Reads the dataset, computes its SHA-256 digest, and validates its
-        - complete schema.
-
-    Inputs:
-        - path: Dataset path; defaults to the committed version-1 benchmark.
-
-    Outputs:
-        - Validated PromptInjectionDataset with reproducibility digest.
-
-    Raises:
-        - BenchmarkDatasetError: File is unavailable, oversized, undecodable, or
-        - invalid.
+        - Precondition: path identifies a local benchmark JSON file no larger
+          than 2 MiB.
     """
     try:
         raw = path.read_bytes()
@@ -352,27 +317,19 @@ def _ratio(numerator: int, denominator: int) -> float:
 
 
 def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
-    """
-    RME
+    """Run the deterministic prompt-injection detector against every benchmark
+        case.
 
-    Requires:
-        - dataset has passed benchmark schema validation.
+    :param dataset: Validated benchmark dataset.
+    :returns: BenchmarkReport with overall/category metrics and baseline
+        status.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Runs the deterministic prompt-injection detector against every
-        - benchmark case.
+        - Precondition: dataset has passed benchmark schema validation.
         - Computes confusion-matrix metrics and per-category detection rates.
         - Retains only case IDs for errors; prompt bodies are not copied into
-        - the report.
-
-    Inputs:
-        - dataset: Validated benchmark dataset.
-
-    Outputs:
-        - BenchmarkReport with overall/category metrics and baseline status.
+          the report.
     """
     true_positive = false_positive = true_negative = false_negative = 0
     false_positive_ids: list[str] = []
@@ -450,25 +407,16 @@ def evaluate_benchmark(dataset: PromptInjectionDataset) -> BenchmarkReport:
 def _report_as_dict(
     report: BenchmarkReport, *, show_errors: bool
 ) -> dict[str, Any]:
-    """
-    RME
+    """Perform the report as dict operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    :param report: Function input.
+    :param show_errors: Function input.
+    :returns: A value matching the declared dict[str, Any] return contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    .. note::
 
-    Effects:
-        - Performs the report as dict operation.
-
-    Inputs:
-        - report: Function input.
-        - show_errors: Function input.
-
-    Outputs:
-        - A value matching the declared dict[str, Any] return contract.
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     metrics = report.metrics
     payload: dict[str, Any] = {
@@ -507,25 +455,15 @@ def _report_as_dict(
 
 
 def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
-    """
-    RME
+    """Perform the print text operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    :param report: Function input.
+    :param show_errors: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    .. note::
 
-    Effects:
-        - Performs the print text operation.
-
-    Inputs:
-        - report: Function input.
-        - show_errors: Function input.
-
-    Outputs:
-        - None.
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     metrics = report.metrics
     print(
@@ -559,24 +497,15 @@ def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """
-    RME
+    """Perform the build parser operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    :returns: A value matching the declared argparse.ArgumentParser return
+        contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    .. note::
 
-    Effects:
-        - Performs the build parser operation.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A value matching the declared argparse.ArgumentParser return contract.
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     parser = argparse.ArgumentParser(
         description=(
@@ -616,26 +545,20 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> None:
-    """
-    RME
+    """Run an offline reproducible detector evaluation with no provider/network
+        calls.
 
-    Requires:
-        - The selected benchmark dataset is locally readable and valid.
+    :returns: Text or JSON benchmark metrics without raw benchmark prompt
+        bodies.
 
-    Modifies:
-        - Terminal output only.
+    .. note::
 
-    Effects:
-        - Runs an offline reproducible detector evaluation with no
-        - provider/network calls.
+        - Input: Command-line arguments.
+        - Precondition: The selected benchmark dataset is locally readable and
+          valid.
+        - Side effect: Terminal output only.
         - Exits 2 for dataset errors and, when --enforce-baseline is set, 1 for
-        - regression.
-
-    Inputs:
-        - Command-line arguments.
-
-    Outputs:
-        - Text or JSON benchmark metrics without raw benchmark prompt bodies.
+          regression.
     """
     args = _build_parser().parse_args()
     try:

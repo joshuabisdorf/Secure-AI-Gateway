@@ -1,3 +1,5 @@
+"""Enforce repository text, Python, and shell style invariants."""
+
 from __future__ import annotations
 
 import ast
@@ -47,12 +49,16 @@ _TF_BLOCK_HEADER_RE = re.compile(
 _LONG_ATOM_RE = re.compile(r"\S{81,}")
 _SNAKE_CASE_RE = re.compile(r"^[a-z_][a-z0-9_]*$")
 _CLASS_NAME_RE = re.compile(r"^_?[A-Z][A-Za-z0-9]*$")
-_RMEIO_HEADINGS = (
-    "Requires:",
-    "Modifies:",
-    "Effects:",
-    "Inputs:",
-    "Outputs:",
+_DOCSTRING_FIELD_ORDER = {
+    "param": 0,
+    "returns": 1,
+    "raises": 2,
+    "note": 3,
+}
+_LEGACY_DOCSTRING_HEADING_RE = re.compile(
+    r"^\s*(?:Args|Returns|Raises|Notes|Requires|Modifies|Effects|"
+    r"Inputs|Outputs):\s*$",
+    re.MULTILINE,
 )
 
 
@@ -60,19 +66,14 @@ _RMEIO_HEADINGS = (
 class Violation:
     """Represent one project style violation.
 
-    Requires:
-        path identifies a repository-relative file.
-    Modifies:
-        Nothing.
-    Effects:
-        Stores one immutable diagnostic record.
-    Inputs:
-        path: Repository-relative file path.
-        line: One-based line number, or zero for file-level errors.
-        rule: Stable rule identifier.
-        message: Human-readable diagnostic text.
-    Outputs:
-        An immutable violation value.
+    :param path: Repository-relative file path. line: One-based line number, or
+        zero for file-level errors. rule: Stable rule identifier. message:
+        Human-readable diagnostic text.
+    :returns: An immutable violation value.
+
+    .. note::
+
+        - Precondition: path identifies a repository-relative file.
     """
 
     path: str
@@ -87,17 +88,13 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run a read-only Git command from the repository root.
 
-    Requires:
-        Git is installed and ROOT is inside a Git working tree.
-    Modifies:
-        Nothing.
-    Effects:
-        Executes a Git subprocess and captures its output.
-    Inputs:
-        args: Git arguments after the executable name.
-        check: Whether non-zero exit status raises an exception.
-    Outputs:
-        Completed subprocess result with text output.
+    :param args: Git arguments after the executable name. check: Whether
+        non-zero exit status raises an exception.
+    :returns: Completed subprocess result with text output.
+
+    .. note::
+
+        - Precondition: Git is installed and ROOT is inside a Git working tree.
     """
     return subprocess.run(
         ["git", *args],
@@ -113,16 +110,11 @@ def _run_git(
 def _tracked_files() -> list[Path]:
     """Return tracked text candidates in deterministic order.
 
-    Requires:
-        The repository index is readable by Git.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads tracked paths from Git.
-    Inputs:
-        None.
-    Outputs:
-        Sorted repository-relative paths eligible for style checks.
+    :returns: Sorted repository-relative paths eligible for style checks.
+
+    .. note::
+
+        - Precondition: The repository index is readable by Git.
     """
     output = _run_git("ls-files").stdout
     candidates: list[Path] = []
@@ -143,17 +135,13 @@ def _tracked_files() -> list[Path]:
 def _line_length_exception(path: Path, line: str) -> bool:
     """Return whether an overlong line is indivisible by project policy.
 
-    Requires:
-        line does not include its trailing newline.
-    Modifies:
-        Nothing.
-    Effects:
-        None.
-    Inputs:
-        path: Repository-relative path containing the line.
-        line: Candidate overlong line.
-    Outputs:
-        True only for narrow atomic forms that should not be split.
+    :param path: Repository-relative path containing the line. line: Candidate
+        overlong line.
+    :returns: True only for narrow atomic forms that should not be split.
+
+    .. note::
+
+        - Precondition: line does not include its trailing newline.
     """
     stripped = line.strip()
     if not stripped:
@@ -177,16 +165,12 @@ def _line_length_exception(path: Path, line: str) -> bool:
 def _check_text_file(path: Path) -> list[Violation]:
     """Check universal text-file invariants.
 
-    Requires:
-        path exists under ROOT and contains tracked text.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads the file contents.
-    Inputs:
-        path: Repository-relative file path.
-    Outputs:
-        Violations for universal text style rules.
+    :param path: Repository-relative file path.
+    :returns: Violations for universal text style rules.
+
+    .. note::
+
+        - Precondition: path exists under ROOT and contains tracked text.
     """
     full_path = ROOT / path
     violations: list[Violation] = []
@@ -246,16 +230,12 @@ def _check_text_file(path: Path) -> list[Violation]:
 def _is_runtime_python(path: Path) -> bool:
     """Return whether a Python file is maintained project code.
 
-    Requires:
-        path is repository-relative.
-    Modifies:
-        Nothing.
-    Effects:
-        None.
-    Inputs:
-        path: Repository-relative path.
-    Outputs:
-        True for app modules and Python utilities under scripts.
+    :param path: Repository-relative path.
+    :returns: True for app modules and Python utilities under scripts.
+
+    .. note::
+
+        - Precondition: path is repository-relative.
     """
     return (
         path.suffix == ".py"
@@ -267,53 +247,45 @@ def _is_runtime_python(path: Path) -> bool:
 def _is_dunder(name: str) -> bool:
     """Return whether a Python name is a language-protocol dunder.
 
-    Requires:
-        name is a Python identifier.
-    Modifies:
-        Nothing.
-    Effects:
-        None.
-    Inputs:
-        name: Identifier to inspect.
-    Outputs:
-        True when name starts and ends with two underscores.
+    :param name: Identifier to inspect.
+    :returns: True when name starts and ends with two underscores.
+
+    .. note::
+
+        - Precondition: name is a Python identifier.
     """
     return name.startswith("__") and name.endswith("__")
 
 
-def _rmeio_positions(node: ast.AST) -> list[int]:
-    """Return RMEIO heading positions from a node docstring.
+def _docstring_fields(node: ast.AST) -> list[str]:
+    """Collect Sphinx field-list entries and note directives in source order.
 
-    Requires:
-        node supports an AST docstring.
-    Modifies:
-        Nothing.
-    Effects:
-        None.
-    Inputs:
-        node: Function or method AST node.
-    Outputs:
-        Heading positions in required RMEIO order; missing headings are -1.
+    :param node: Function or method AST node.
+    :returns: Field names in their order of appearance.
     """
     docstring = ast.get_docstring(node, clean=False) or ""
-    return [docstring.find(heading) for heading in _RMEIO_HEADINGS]
+    return [
+        match.group(1) or "note"
+        for match in re.finditer(
+            r"^\s*:(param|returns|raises)(?:\s+[^:]+)?:"
+            r"|^\s*\.\. note::\s*$",
+            docstring,
+            flags=re.MULTILINE,
+        )
+    ]
 
 
-def _requires_rmeio(
+def _requires_docstring(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> bool:
-    """Return whether a function must use the full RMEIO contract.
+    """Return whether a function needs a complete docstring.
 
-    Requires:
-        node is a parsed function definition.
-    Modifies:
-        Nothing.
-    Effects:
-        None.
-    Inputs:
-        node: Parsed function definition.
-    Outputs:
-        True for non-trivial project functions.
+    :param node: Parsed function definition.
+    :returns: True for non-trivial project functions.
+
+    .. note::
+
+        - Precondition: node is a parsed function definition.
     """
     if _is_dunder(node.name):
         return False
@@ -329,42 +301,55 @@ def _requires_rmeio(
     return True
 
 
-def _check_rmeio(
+def _check_docstring(
     path: Path,
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> list[Violation]:
-    """Check one function's RMEIO documentation contract.
+    """Check a function's native Sphinx documentation contract.
 
-    Requires:
-        path identifies maintained runtime Python.
-        node requires a full RMEIO contract.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads the function docstring from the parsed syntax tree.
-    Inputs:
-        path: Repository-relative Python path.
-        node: Function or method syntax node.
-    Outputs:
-        RMEIO presence or ordering violations.
+    :param path: Repository-relative Python path.
+    :param node: Function or method syntax node.
+    :returns: Docstring and field-order violations.
     """
-    positions = _rmeio_positions(node)
-    if any(position < 0 for position in positions):
+    docstring = ast.get_docstring(node) or ""
+    if not docstring.strip():
         return [
             Violation(
                 str(path),
                 node.lineno,
                 "PY006",
-                f"{node.name} requires full RMEIO docstring",
+                f"{node.name} requires a Sphinx-style docstring",
             )
         ]
+
+    if _LEGACY_DOCSTRING_HEADING_RE.search(docstring):
+        return [
+            Violation(
+                str(path),
+                node.lineno,
+                "PY011",
+                f"{node.name} uses a legacy docstring heading",
+            )
+        ]
+
+    fields = _docstring_fields(node)
+    positions = [_DOCSTRING_FIELD_ORDER[name] for name in fields]
     if positions != sorted(positions):
         return [
             Violation(
                 str(path),
                 node.lineno,
                 "PY007",
-                f"{node.name} has RMEIO headings out of order",
+                f"{node.name} has Sphinx fields out of order",
+            )
+        ]
+    if fields.count("returns") > 1:
+        return [
+            Violation(
+                str(path),
+                node.lineno,
+                "PY007",
+                f"{node.name} has duplicate return fields",
             )
         ]
     return []
@@ -373,16 +358,12 @@ def _check_rmeio(
 def _check_python(path: Path) -> list[Violation]:
     """Check Python-specific structural rules without external linters.
 
-    Requires:
-        path identifies UTF-8 Python source under ROOT.
-    Modifies:
-        Nothing.
-    Effects:
-        Parses source into an AST.
-    Inputs:
-        path: Repository-relative Python path.
-    Outputs:
-        Python-specific style violations.
+    :param path: Repository-relative Python path.
+    :returns: Python-specific style violations.
+
+    .. note::
+
+        - Precondition: path identifies UTF-8 Python source under ROOT.
     """
     source = (ROOT / path).read_text(encoding="utf-8")
     try:
@@ -464,8 +445,8 @@ def _check_python(path: Path) -> list[Violation]:
                             f"mutable default in {node.name}",
                         )
                     )
-            if _is_runtime_python(path) and _requires_rmeio(node):
-                violations.extend(_check_rmeio(path, node))
+            if _is_runtime_python(path) and _requires_docstring(node):
+                violations.extend(_check_docstring(path, node))
         if isinstance(node, ast.ClassDef):
             if not _CLASS_NAME_RE.fullmatch(node.name):
                 violations.append(
@@ -482,16 +463,12 @@ def _check_python(path: Path) -> list[Violation]:
 def _check_shell(path: Path) -> list[Violation]:
     """Check repository shell entrypoint conventions.
 
-    Requires:
-        path identifies a UTF-8 shell script under ROOT.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads the script text.
-    Inputs:
-        path: Repository-relative shell script path.
-    Outputs:
-        Shell shebang and strict-mode violations.
+    :param path: Repository-relative shell script path.
+    :returns: Shell shebang and strict-mode violations.
+
+    .. note::
+
+        - Precondition: path identifies a UTF-8 shell script under ROOT.
     """
     text = (ROOT / path).read_text(encoding="utf-8")
     lines = text.splitlines()
@@ -521,16 +498,11 @@ def _check_shell(path: Path) -> list[Violation]:
 def collect_violations() -> tuple[list[Violation], int]:
     """Collect machine-checkable project style violations.
 
-    Requires:
-        Repository files are readable and Git is available.
-    Modifies:
-        Nothing.
-    Effects:
-        Reads every tracked project text file and parses source files.
-    Inputs:
-        None.
-    Outputs:
-        Violations and the checked-file count.
+    :returns: Violations and the checked-file count.
+
+    .. note::
+
+        - Precondition: Repository files are readable and Git is available.
     """
     violations: list[Violation] = []
     checked_files = 0
@@ -555,16 +527,11 @@ def collect_violations() -> tuple[list[Violation], int]:
 def main() -> int:
     """Run the whole-repository style gate and print diagnostics.
 
-    Requires:
-        The command runs from a Git checkout of this project.
-    Modifies:
-        Nothing.
-    Effects:
-        Checks all tracked project text and prints style violations.
-    Inputs:
-        None.
-    Outputs:
-        Process status 0 when clean, otherwise 1.
+    :returns: Process status 0 when clean, otherwise 1.
+
+    .. note::
+
+        - Precondition: The command runs from a Git checkout of this project.
     """
     try:
         violations, checked_files = collect_violations()

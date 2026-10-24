@@ -1,3 +1,5 @@
+"""Resolve AWS secrets and managed-service configuration."""
+
 import argparse
 import json
 import os
@@ -43,30 +45,22 @@ def load_json_secret(
     *,
     client: SecretsManagerClient | None = None,
 ) -> dict[str, Any]:
-    """
-    RME
+    """Retrieve one secret through the AWS default credential chain.
 
-    Requires:
-        - secret_id identifies a Secrets Manager secret containing a JSON object
-        - in SecretString.
-        - The current AWS identity has least-privilege access to the requested
-        - secret.
+    :param secret_id: Secret ARN or name.
+    :param client: Optional injected Secrets Manager client for deterministic
+        tests.
+    :returns: Parsed JSON object.
 
-    Modifies:
-        - Short-lived AWS SDK request/session state only.
+    .. note::
 
-    Effects:
-        - Retrieves one secret through the AWS default credential chain.
+        - Precondition: secret_id identifies a Secrets Manager secret
+          containing a JSON object in SecretString.
+        - Precondition: The current AWS identity has least-privilege access to
+          the requested secret.
+        - Side effect: Short-lived AWS SDK request/session state only.
         - Rejects binary, malformed, or non-object secret values without
-        - exposing contents.
-
-    Inputs:
-        - secret_id: Secret ARN or name.
-        - client: Optional injected Secrets Manager client for deterministic
-        - tests.
-
-    Outputs:
-        - Parsed JSON object.
+          exposing contents.
     """
     if not secret_id or not secret_id.strip():
         raise RuntimeSecretError("secret_id_not_configured")
@@ -91,24 +85,15 @@ def load_json_secret(
 
 
 def _database_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
-    """
-    RME
+    """Validate the exact credential schema, username, and password length.
 
-    Requires:
-        - value is the parsed runtime database secret object.
+    :param value: Candidate runtime database credentials.
+    :returns: Validated username and password.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Validates the exact credential schema, username, and password length.
+        - Precondition: value is the parsed runtime database secret object.
         - Rejects malformed credentials without exposing their values.
-
-    Inputs:
-        - value: Candidate runtime database credentials.
-
-    Outputs:
-        - Validated username and password.
     """
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
@@ -130,29 +115,22 @@ def build_database_conninfo(
     port: str,
     database: str,
 ) -> str:
-    """
-    RME
+    """Produce a libpq connection string with TLS required.
 
-    Requires:
-        - credentials contains only a validated runtime username/password pair.
-        - host, port, and database identify the private RDS database endpoint.
+    :param credentials: Runtime database secret JSON object.
+    :param host: Database hostname.
+    :param port: Database port.
+    :param database: Database name.
+    :returns: PostgreSQL connection string suitable for DATABASE_URL.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Produces a libpq connection string with TLS required.
+        - Precondition: credentials contains only a validated runtime
+          username/password pair.
+        - Precondition: host, port, and database identify the private RDS
+          database endpoint.
         - Escapes connection fields using psycopg rather than string
-        - concatenation.
-
-    Inputs:
-        - credentials: Runtime database secret JSON object.
-        - host: Database hostname.
-        - port: Database port.
-        - database: Database name.
-
-    Outputs:
-        - PostgreSQL connection string suitable for DATABASE_URL.
+          concatenation.
     """
     username, password = _database_credentials(credentials)
     if not host or not host.strip():
@@ -177,24 +155,16 @@ def build_database_conninfo(
 
 
 def _tool_signing_key(value: Mapping[str, Any]) -> str:
-    """
-    RME
+    """Validate exact schema and safe signing-key byte-length bounds.
 
-    Requires:
-        - value is the parsed execution-ticket signing secret object.
+    :param value: Candidate signing-key secret object.
+    :returns: Validated execution-ticket signing key.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Validates exact schema and safe signing-key byte-length bounds.
+        - Precondition: value is the parsed execution-ticket signing secret
+          object.
         - Fails closed without logging or returning malformed secret material.
-
-    Inputs:
-        - value: Candidate signing-key secret object.
-
-    Outputs:
-        - Validated execution-ticket signing key.
     """
     if frozenset(value) != {"signing_key"}:
         raise RuntimeSecretError("tool_signing_secret_schema_invalid")
@@ -208,24 +178,15 @@ def _tool_signing_key(value: Mapping[str, Any]) -> str:
 
 
 def _provider_environment(value: Mapping[str, Any]) -> dict[str, str]:
-    """
-    RME
+    """Allow only the explicitly supported provider environment fields.
 
-    Requires:
-        - value is the parsed optional provider secret object.
+    :param value: Candidate provider-secret mapping.
+    :returns: Validated provider environment additions.
 
-    Modifies:
-        - Nothing.
+    .. note::
 
-    Effects:
-        - Allows only the explicitly supported provider environment fields.
+        - Precondition: value is the parsed optional provider secret object.
         - Rejects non-string or unexpected fields without exposing values.
-
-    Inputs:
-        - value: Candidate provider-secret mapping.
-
-    Outputs:
-        - Validated provider environment additions.
     """
     if not frozenset(value).issubset(_provider_secret_fields):
         raise RuntimeSecretError("provider_secret_schema_invalid")
@@ -241,30 +202,25 @@ def load_gateway_runtime_environment(
     *,
     client: SecretsManagerClient | None = None,
 ) -> dict[str, str]:
-    """
-    RME
+    """Resolve database credentials and execution-ticket signing material from
+        Secrets
+    Manager.
 
-    Requires:
-        - Cloud runtime non-secret endpoint/secret-ID environment is configured.
-        - The Pod Identity role can read only the gateway runtime secret
-        - containers.
+    :param client: Optional injected Secrets Manager client for deterministic
+        tests.
+    :returns: Environment variables required by the gateway child process.
 
-    Modifies:
-        - Nothing; returns environment additions for the child gateway process.
+    .. note::
 
-    Effects:
-        - Resolves database credentials and execution-ticket signing material
-        - from Secrets Manager.
+        - Precondition: Cloud runtime non-secret endpoint/secret-ID environment
+          is configured.
+        - Precondition: The Pod Identity role can read only the gateway runtime
+          secret containers.
+        - Side effect: Nothing; returns environment additions for the child
+          gateway process.
         - Optionally resolves provider credentials when a provider-secret ID is
-        - configured.
+          configured.
         - Never returns AWS credentials or logs secret values.
-
-    Inputs:
-        - client: Optional injected Secrets Manager client for deterministic
-        - tests.
-
-    Outputs:
-        - Environment variables required by the gateway child process.
     """
     database_secret_id = os.getenv("SAG_AWS_DATABASE_SECRET_ID", "")
     signing_secret_id = os.getenv("SAG_AWS_TOOL_SIGNING_SECRET_ID", "")
@@ -291,25 +247,17 @@ def load_gateway_runtime_environment(
 
 
 def exec_with_runtime_environment(command: Sequence[str]) -> None:
-    """
-    RME
+    """Load runtime secrets into an in-memory child environment only.
 
-    Requires:
-        - command contains an executable and arguments.
-        - Cloud runtime secret configuration is valid.
+    :param command: Executable and arguments to run.
+    :returns: None; successful execution replaces the current process.
 
-    Modifies:
-        - Replaces the current process with the requested command.
+    .. note::
 
-    Effects:
-        - Loads runtime secrets into an in-memory child environment only.
+        - Precondition: command contains an executable and arguments.
+        - Precondition: Cloud runtime secret configuration is valid.
+        - Side effect: Replaces the current process with the requested command.
         - Does not write secret values to files or standard output.
-
-    Inputs:
-        - command: Executable and arguments to run.
-
-    Outputs:
-        - None; successful execution replaces the current process.
     """
     if not command:
         raise RuntimeSecretError("runtime_command_required")
@@ -319,26 +267,20 @@ def exec_with_runtime_environment(command: Sequence[str]) -> None:
 
 
 def main() -> None:
-    """
-    RME
+    """Load cloud runtime secrets and execs the gateway command.
 
-    Requires:
-        - CLI arguments contain the gateway command after optional `--`.
-        - Required AWS runtime secret configuration is available.
+    :returns: None; successful execution replaces the current process.
 
-    Modifies:
-        - Process state when the runtime command is executed.
+    .. note::
 
-    Effects:
-        - Loads cloud runtime secrets and execs the gateway command.
+        - Input: Command-line arguments and AWS runtime environment
+          configuration.
+        - Precondition: CLI arguments contain the gateway command after
+          optional `--`.
+        - Precondition: Required AWS runtime secret configuration is available.
+        - Side effect: Process state when the runtime command is executed.
         - Converts safe RuntimeSecretError reasons into CLI parser errors.
         - Does not print secret values.
-
-    Inputs:
-        - Command-line arguments and AWS runtime environment configuration.
-
-    Outputs:
-        - None; successful execution replaces the current process.
     """
     parser = argparse.ArgumentParser(
         description=(
