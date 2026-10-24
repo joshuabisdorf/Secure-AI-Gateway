@@ -34,17 +34,15 @@ async def _authenticate_api_key_once(
 ) -> Principal:
     """Resolve a structured gateway API key to an active client identity.
 
-    Args:
-        request: HTTP request containing gateway request context and cached body
-            bytes.
-        response: HTTP response used for safe tool-authorization headers.
-        credentials: Bearer credentials extracted from the request.
+    :param request: HTTP request containing gateway request context and cached
+        body bytes.
+    :param response: HTTP response used for safe tool-authorization headers.
+    :param credentials: Bearer credentials extracted from the request.
+    :returns: Authenticated Principal containing client_id and key_id after
+        applicable tool authorization.
 
-    Returns:
-        Authenticated Principal containing client_id and key_id after applicable
-        tool authorization.
+    .. note::
 
-    Notes:
         - Precondition: A usable gateway client registry backend is configured.
         - Precondition: The caller may provide an Authorization bearer token.
         - Precondition: Request middleware has assigned a request ID.
@@ -56,10 +54,10 @@ async def _authenticate_api_key_once(
         - Compares a one-way hash of the presented key with the stored hash.
         - For valid chat request bodies, enforces least-privilege function-tool
           exposure.
-        - Leaves invalid/non-chat request-body handling to the endpoint's normal
-          validation.
-        - Records decisions without logging credentials, tool arguments, or tool
-          outputs.
+        - Leaves invalid/non-chat request-body handling to the endpoint's
+          normal validation.
+        - Records decisions without logging credentials, tool arguments, or
+          tool outputs.
     """
     request_id = request.state.request_id
 
@@ -200,15 +198,14 @@ async def authenticate_api_key(
         the
     endpoint.
 
-    Args:
-        request: Incoming protected HTTP request.
-        response: FastAPI response object.
-        credentials: Bearer credentials extracted by FastAPI security handling.
+    :param request: Incoming protected HTTP request.
+    :param response: FastAPI response object.
+    :param credentials: Bearer credentials extracted by FastAPI security
+        handling.
+    :returns: Yields the authenticated Principal exactly once.
 
-    Returns:
-        Yields the authenticated Principal exactly once.
+    .. note::
 
-    Notes:
         - Precondition: Request middleware has assigned a safe request ID.
         - Precondition: A usable client registry and applicable authorization
           policy are configured.

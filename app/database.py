@@ -14,10 +14,10 @@ _MIGRATION_DIRECTORY = Path(__file__).resolve().parents[1] / "db" / "migrations"
 def get_database_url() -> str:
     """Fail when persistent database configuration is missing.
 
-    Returns:
-        Configured PostgreSQL connection string.
+    :returns: Configured PostgreSQL connection string.
 
-    Notes:
+    .. note::
+
         - Precondition: DATABASE_URL may contain the PostgreSQL connection
           string.
     """
@@ -37,19 +37,19 @@ def _migration_files() -> list[Path]:
 async def migrate_database(database_url: str) -> tuple[str, ...]:
     """Create migration tracking when absent.
 
-    Args:
-        database_url: PostgreSQL connection string.
+    :param database_url: PostgreSQL connection string.
+    :returns: Tuple containing filenames applied by this invocation.
 
-    Returns:
-        Tuple containing filenames applied by this invocation.
+    .. note::
 
-    Notes:
-        - Precondition: database_url identifies a reachable PostgreSQL database.
+        - Precondition: database_url identifies a reachable PostgreSQL
+          database.
         - Precondition: Migration files are ordered lexicographically in
           db/migrations.
         - Side effect: PostgreSQL schema and schema_migrations metadata.
         - Applies each unapplied migration exactly once in filename order.
-        - Refuses to continue if an already-applied migration file was modified.
+        - Refuses to continue if an already-applied migration file was
+          modified.
     """
     applied_now: list[str] = []
 
@@ -108,14 +108,13 @@ async def migrate_database(database_url: str) -> tuple[str, ...]:
 async def list_migrations(database_url: str) -> list[tuple[str, str]]:
     """Read applied migration metadata when the tracking table exists.
 
-    Args:
-        database_url: PostgreSQL connection string.
+    :param database_url: PostgreSQL connection string.
+    :returns: Applied migration filename and timestamp strings.
 
-    Returns:
-        Applied migration filename and timestamp strings.
+    .. note::
 
-    Notes:
-        - Precondition: database_url identifies a reachable PostgreSQL database.
+        - Precondition: database_url identifies a reachable PostgreSQL
+          database.
         - Side effect: PostgreSQL query/session state only.
     """
     async with await psycopg.AsyncConnection.connect(
@@ -137,10 +136,10 @@ async def list_migrations(database_url: str) -> list[tuple[str, str]]:
 async def _run_command(args: argparse.Namespace) -> None:
     """Perform the run command operation.
 
-    Args:
-        args: Function input.
+    :param args: Function input.
 
-    Notes:
+    .. note::
+
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -168,10 +167,10 @@ async def _run_command(args: argparse.Namespace) -> None:
 def main() -> None:
     """Apply or displays ordered database migrations.
 
-    Returns:
-        Human-readable migration result written to standard output.
+    :returns: Human-readable migration result written to standard output.
 
-    Notes:
+    .. note::
+
         - Input: Command-line subcommand.
         - Precondition: DATABASE_URL is available in the process environment.
         - Side effect: PostgreSQL schema for the migrate command.

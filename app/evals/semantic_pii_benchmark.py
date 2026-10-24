@@ -98,13 +98,11 @@ def _object_without_duplicate_keys(
 ) -> dict[str, Any]:
     """Reject duplicate JSON keys while constructing benchmark objects.
 
-    Args:
-        pairs: Function input.
+    :param pairs: Function input.
+    :returns: A value matching the declared dict[str, Any] return contract.
 
-    Returns:
-        A value matching the declared dict[str, Any] return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -127,14 +125,12 @@ def _require_exact_keys(
 def _parse_unit_interval(value: Any, reason: str) -> float:
     """Parse a numeric threshold in the inclusive interval [0, 1].
 
-    Args:
-        value: Function input.
-        reason: Function input.
+    :param value: Function input.
+    :param reason: Function input.
+    :returns: A value matching the declared float return contract.
 
-    Returns:
-        A value matching the declared float return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -152,14 +148,12 @@ def parse_dataset(
     """Strictly validates benchmark schema, IDs, labels, expected types, and
     thresholds.
 
-    Args:
-        document: UTF-8 JSON benchmark document.
-        sha256: Digest of the raw document when available.
+    :param document: UTF-8 JSON benchmark document.
+    :param sha256: Digest of the raw document when available.
+    :returns: Validated SemanticPIIDataset.
 
-    Returns:
-        Validated SemanticPIIDataset.
+    .. note::
 
-    Notes:
         - Precondition: document is intended to be a version-1 semantic PII
           benchmark.
         - Requires categories to contain only one label so category detection
@@ -274,13 +268,11 @@ def parse_dataset(
 def load_dataset(path: Path = _DEFAULT_DATASET) -> SemanticPIIDataset:
     """Read the dataset, computes SHA-256, and validates its full schema.
 
-    Args:
-        path: Dataset path.
+    :param path: Dataset path.
+    :returns: Validated semantic PII dataset.
 
-    Returns:
-        Validated semantic PII dataset.
+    .. note::
 
-    Notes:
         - Precondition: path identifies a UTF-8 JSON dataset no larger than 2
           MiB.
     """
@@ -307,14 +299,12 @@ def _ratio(numerator: int, denominator: int) -> float:
 def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
     """Evaluate every case without sending text to a network service.
 
-    Args:
-        dataset: Validated semantic PII benchmark.
+    :param dataset: Validated semantic PII benchmark.
+    :returns: BenchmarkReport with metrics, category results, safe error IDs,
+        and baseline status.
 
-    Returns:
-        BenchmarkReport with metrics, category results, safe error IDs, and
-        baseline status.
+    .. note::
 
-    Notes:
         - Precondition: dataset has passed schema validation.
         - Precondition: The configured local semantic PII model is available.
         - Side effect: Lazy process-local NLP model state on first use.
@@ -395,11 +385,11 @@ def evaluate(dataset: SemanticPIIDataset) -> BenchmarkReport:
 def _print_text(report: BenchmarkReport, *, show_errors: bool) -> None:
     """Print metadata-only benchmark results without source text.
 
-    Args:
-        report: Function input.
-        show_errors: Function input.
+    :param report: Function input.
+    :param show_errors: Function input.
 
-    Notes:
+    .. note::
+
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -443,14 +433,12 @@ def _report_dict(
 ) -> dict[str, Any]:
     """Convert a report to machine-readable metadata without benchmark text.
 
-    Args:
-        report: Function input.
-        show_errors: Function input.
+    :param report: Function input.
+    :param show_errors: Function input.
+    :returns: A value matching the declared dict[str, Any] return contract.
 
-    Returns:
-        A value matching the declared dict[str, Any] return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -479,10 +467,10 @@ def _report_dict(
 def main() -> None:
     """Run the semantic PII benchmark offline.
 
-    Returns:
-        Text or JSON metrics containing no benchmark prompt bodies.
+    :returns: Text or JSON metrics containing no benchmark prompt bodies.
 
-    Notes:
+    .. note::
+
         - Input: Command-line options.
         - Precondition: The local semantic PII model and selected dataset are
           available.

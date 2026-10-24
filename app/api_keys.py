@@ -31,16 +31,14 @@ class Principal:
 def hash_api_key(api_key: str) -> str:
     """Compute a one-way SHA-256 digest for high-entropy API-key storage.
 
-    Args:
-        api_key: Raw gateway API key.
+    :param api_key: Raw gateway API key.
+    :returns: Lowercase hexadecimal SHA-256 digest.
 
-    Returns:
-        Lowercase hexadecimal SHA-256 digest.
+    .. note::
 
-    Notes:
         - Precondition: api_key is the complete gateway bearer credential.
-        - Precondition: Gateway API keys are generated with at least 256 bits of
-          CSPRNG entropy.
+        - Precondition: Gateway API keys are generated with at least 256 bits
+          of CSPRNG entropy.
         - Does not use SHA-256 as a human-password hashing function.
     """
     # Gateway keys contain 256 bits of CSPRNG entropy. A password KDF is not
@@ -52,13 +50,11 @@ def hash_api_key(api_key: str) -> str:
 def parse_key_id(api_key: str) -> str | None:
     """Validate the public key identifier embedded in the bearer credential.
 
-    Args:
-        api_key: Candidate gateway API key.
+    :param api_key: Candidate gateway API key.
+    :returns: The key ID when the key format is valid; otherwise None.
 
-    Returns:
-        The key ID when the key format is valid; otherwise None.
+    .. note::
 
-    Notes:
         - Precondition: api_key may contain a structured gateway API key.
     """
     if not api_key.startswith("sag_"):
@@ -78,17 +74,13 @@ def parse_key_id(api_key: str) -> str | None:
 def parse_client_records(configured_clients: str) -> dict[str, ClientKeyRecord]:
     """Validate client identity and API-key hash configuration.
 
-    Args:
-        configured_clients: Serialized client-key records.
+    :param configured_clients: Serialized client-key records.
+    :returns: Mapping from key ID to validated client-key record.
+    :raises ValueError: The configuration is empty, malformed, or contains
+        duplicates.
 
-    Returns:
-        Mapping from key ID to validated client-key record.
+    .. note::
 
-    Raises:
-        ValueError: The configuration is empty, malformed, or contains
-            duplicates.
-
-    Notes:
         - Precondition: configured_clients uses client_id:key_id:sha256 records
           separated by commas.
         - Rejects malformed or duplicate key identifiers.
@@ -130,15 +122,14 @@ def parse_client_records(configured_clients: str) -> dict[str, ClientKeyRecord]:
 def generate_api_key(client_id: str) -> tuple[str, ClientKeyRecord]:
     """Generate a new high-entropy structured gateway API key.
 
-    Args:
-        client_id: Stable identity assigned to the gateway client.
+    :param client_id: Stable identity assigned to the gateway client.
+    :returns: Tuple containing the raw API key and its hashed client-key
+        record.
 
-    Returns:
-        Tuple containing the raw API key and its hashed client-key record.
+    .. note::
 
-    Notes:
-        - Precondition: client_id is 1-64 characters using letters, digits, dot,
-          underscore, or hyphen.
+        - Precondition: client_id is 1-64 characters using letters, digits,
+          dot, underscore, or hyphen.
         - Side effect: Cryptographic random generator state maintained by the
           operating system.
         - Produces a server-side record containing only the key hash.
@@ -159,15 +150,13 @@ def generate_api_key(client_id: str) -> tuple[str, ClientKeyRecord]:
 def format_client_record(record: ClientKeyRecord) -> str:
     """Serialize a client-key record for SAG_CLIENTS configuration.
 
-    Args:
-        record: Client-key record to serialize.
+    :param record: Client-key record to serialize.
+    :returns: client_id:key_id:sha256 configuration record.
 
-    Returns:
-        client_id:key_id:sha256 configuration record.
+    .. note::
 
-    Notes:
-        - Precondition: record contains a validated client identity, key ID, and
-          API-key digest.
+        - Precondition: record contains a validated client identity, key ID,
+          and API-key digest.
     """
     return f"{record.client_id}:{record.key_id}:{record.api_key_sha256}"
 
@@ -177,18 +166,14 @@ def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
         existing
     path.
 
-    Args:
-        path: Destination path for one raw API key.
+    :param path: Destination path for one raw API key.
+    :returns: Writable UTF-8 text stream for the newly created secret file.
+    :raises FileExistsError: The destination already exists, including a
+        pre-existing symlink.
+    :raises OSError: The file cannot be created securely.
 
-    Returns:
-        Writable UTF-8 text stream for the newly created secret file.
+    .. note::
 
-    Raises:
-        FileExistsError: The destination already exists, including a
-            pre-existing symlink.
-        OSError: The file cannot be created securely.
-
-    Notes:
         - Precondition: path identifies a new file in an existing writable
           directory.
         - Side effect: Creates the requested filesystem path with owner-only
@@ -212,11 +197,11 @@ def open_api_key_secret_file(path: str | os.PathLike[str]) -> TextIO:
 def write_api_key_secret(secret_file: TextIO, api_key: str) -> None:
     """Write exactly one API key plus a trailing newline.
 
-    Args:
-        secret_file: Secure destination stream.
-        api_key: Raw API key to deliver.
+    :param secret_file: Secure destination stream.
+    :param api_key: Raw API key to deliver.
 
-    Notes:
+    .. note::
+
         - Precondition: secret_file is an open writable stream created for
           API-key delivery.
         - Precondition: api_key is the complete raw gateway bearer credential.
@@ -237,13 +222,11 @@ def managed_api_key_secret_file(
 ) -> Iterator[TextIO]:
     """Keeps a successfully written secret file after normal completion.
 
-    Args:
-        path: Destination path for API-key delivery.
+    :param path: Destination path for API-key delivery.
+    :returns: Context-managed writable secret stream.
 
-    Returns:
-        Context-managed writable secret stream.
+    .. note::
 
-    Notes:
         - Precondition: path satisfies open_api_key_secret_file requirements.
         - Side effect: Creates a 0600 secret file and removes it when the
           protected operation fails.
@@ -265,11 +248,11 @@ def managed_api_key_secret_file(
 def main() -> None:
     """Generate a gateway API key without printing the raw credential.
 
-    Returns:
-        Raw client API key in the requested secret file.
-        Client identity, secret-file path, and server record on standard output.
+    :returns: Raw client API key in the requested secret file. Client identity,
+        secret-file path, and server record on standard output.
 
-    Notes:
+    .. note::
+
         - Input: Command-line client ID and --api-key-file path.
         - Precondition: A client ID and explicit API-key output path are
           supplied on the command line.

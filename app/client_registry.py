@@ -18,14 +18,14 @@ class ClientRegistry(Protocol):
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
         """Look up an active gateway key and its active client identity.
 
-        Args:
-            key_id: Public identifier embedded in a structured gateway API key.
+        :param key_id: Public identifier embedded in a structured gateway API
+            key.
+        :returns: Matching ClientKeyRecord, or None when no active key exists.
 
-        Returns:
-            Matching ClientKeyRecord, or None when no active key exists.
+        .. note::
 
-        Notes:
-            - Precondition: key_id is a validated public gateway key identifier.
+            - Precondition: key_id is a validated public gateway key
+              identifier.
             - Side effect: Registry-specific connection or query state, if any.
         """
         ...
@@ -39,15 +39,13 @@ class EnvironmentClientRegistry:
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
         """Parse the environment-backed registry for deterministic tests.
 
-        Args:
-            key_id: Public key identifier to look up.
+        :param key_id: Public key identifier to look up.
+        :returns: Matching ClientKeyRecord, or None when the key ID is unknown.
 
-        Returns:
-            Matching ClientKeyRecord, or None when the key ID is unknown.
+        .. note::
 
-        Notes:
-            - Precondition: SAG_CLIENTS may contain serialized hashed client-key
-              records.
+            - Precondition: SAG_CLIENTS may contain serialized hashed
+              client-key records.
             - Fails closed when the registry is missing or malformed.
         """
         configured_clients = os.getenv("SAG_CLIENTS")
@@ -72,18 +70,16 @@ class PostgresClientRegistry:
     ) -> None:
         """Create a closed async PostgreSQL connection pool.
 
-        Args:
-            database_url: PostgreSQL connection string.
-            min_size: Minimum number of pooled connections.
-            max_size: Maximum number of pooled connections.
+        :param database_url: PostgreSQL connection string.
+        :param min_size: Minimum number of pooled connections.
+        :param max_size: Maximum number of pooled connections.
+        :returns: A configured PostgresClientRegistry instance.
 
-        Returns:
-            A configured PostgresClientRegistry instance.
+        .. note::
 
-        Notes:
             - Precondition: database_url is a PostgreSQL connection string.
-            - Precondition: min_size and max_size define a valid connection-pool
-              range.
+            - Precondition: min_size and max_size define a valid
+              connection-pool range.
             - Side effect: Initializes process-local PostgreSQL pool state.
             - Defers network connections until the first registry query.
         """
@@ -116,14 +112,13 @@ class PostgresClientRegistry:
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
         """Open the pool on first use.
 
-        Args:
-            key_id: Public key identifier to look up.
+        :param key_id: Public key identifier to look up.
+        :returns: Matching ClientKeyRecord, or None when no active key exists.
 
-        Returns:
-            Matching ClientKeyRecord, or None when no active key exists.
+        .. note::
 
-        Notes:
-            - Precondition: key_id is a validated public gateway key identifier.
+            - Precondition: key_id is a validated public gateway key
+              identifier.
             - Precondition: Database schema for gateway_clients and
               gateway_api_keys has been initialized.
             - Side effect: PostgreSQL connection-pool state.
@@ -166,7 +161,8 @@ class PostgresClientRegistry:
     async def close(self) -> None:
         """Close pooled database connections when the pool was opened.
 
-        Notes:
+        .. note::
+
             - Precondition: The registry may have opened its process-local
               connection pool.
             - Side effect: PostgreSQL connection-pool state.
@@ -180,14 +176,12 @@ class UnavailableClientRegistry:
     async def get_key_record(self, key_id: str) -> ClientKeyRecord | None:
         """Fail closed when no usable registry backend is configured.
 
-        Args:
-            key_id: Function input.
-
-        Returns:
-            A value matching the declared ClientKeyRecord | None return
+        :param key_id: Function input.
+        :returns: A value matching the declared ClientKeyRecord | None return
             contract.
 
-        Notes:
+        .. note::
+
             - Precondition: Arguments satisfy their declared contracts and
               required configured dependencies are available.
         """
@@ -197,10 +191,10 @@ class UnavailableClientRegistry:
 def build_client_registry() -> ClientRegistry:
     """Select persistent PostgreSQL storage by default.
 
-    Returns:
-        Configured ClientRegistry implementation.
+    :returns: Configured ClientRegistry implementation.
 
-    Notes:
+    .. note::
+
         - Precondition: SAG_CLIENT_REGISTRY_BACKEND may select postgres or
           environment.
         - Precondition: DATABASE_URL is configured when the postgres backend is

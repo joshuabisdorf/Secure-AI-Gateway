@@ -29,10 +29,10 @@ _MIGRATION_PATH = (
 def get_database_url() -> str:
     """Fail when persistent database configuration is missing.
 
-    Returns:
-        Configured PostgreSQL connection string.
+    :returns: Configured PostgreSQL connection string.
 
-    Notes:
+    .. note::
+
         - Precondition: DATABASE_URL may contain the PostgreSQL connection
           string.
     """
@@ -45,11 +45,12 @@ def get_database_url() -> str:
 async def initialize_database(database_url: str) -> None:
     """Create gateway_clients, gateway_api_keys, and supporting indexes.
 
-    Args:
-        database_url: PostgreSQL connection string.
+    :param database_url: PostgreSQL connection string.
 
-    Notes:
-        - Precondition: database_url identifies a reachable PostgreSQL database.
+    .. note::
+
+        - Precondition: database_url identifies a reachable PostgreSQL
+          database.
         - Precondition: The client-registry migration file exists in the
           repository.
         - Side effect: PostgreSQL schema.
@@ -75,11 +76,11 @@ async def insert_client_key_record(
 ) -> None:
     """Create the client when it does not already exist.
 
-    Args:
-        database_url: PostgreSQL connection string.
-        record: Hashed gateway client-key record.
+    :param database_url: PostgreSQL connection string.
+    :param record: Hashed gateway client-key record.
 
-    Notes:
+    .. note::
+
         - Precondition: database_url identifies an initialized PostgreSQL
           database.
         - Precondition: record contains a validated client ID, key ID, and
@@ -144,15 +145,13 @@ async def create_client_key(
 ) -> str:
     """Generate a new high-entropy gateway key.
 
-    Args:
-        database_url: PostgreSQL connection string.
-        client_id: Stable gateway client identity.
-        secret_file: Optional secure one-time credential delivery stream.
+    :param database_url: PostgreSQL connection string.
+    :param client_id: Stable gateway client identity.
+    :param secret_file: Optional secure one-time credential delivery stream.
+    :returns: Raw API key for programmatic callers.
 
-    Returns:
-        Raw API key for programmatic callers.
+    .. note::
 
-    Notes:
         - Precondition: database_url identifies an initialized PostgreSQL
           database.
         - Precondition: client_id is valid for gateway identity generation.
@@ -185,15 +184,13 @@ async def create_client_key(
 async def revoke_client_key(database_url: str, key_id: str) -> bool:
     """Revokes the key immediately for subsequent authentication lookups.
 
-    Args:
-        database_url: PostgreSQL connection string.
-        key_id: Public gateway key identifier to revoke.
+    :param database_url: PostgreSQL connection string.
+    :param key_id: Public gateway key identifier to revoke.
+    :returns: True when this call changed an active key to revoked; False when
+        already revoked.
 
-    Returns:
-        True when this call changed an active key to revoked; False when already
-        revoked.
+    .. note::
 
-    Notes:
         - Precondition: database_url identifies an initialized PostgreSQL
           database.
         - Precondition: key_id identifies a stored gateway API key.
@@ -239,15 +236,14 @@ async def rotate_client_keys(
 ) -> tuple[str, str, tuple[str, ...]]:
     """Create one replacement API key and stores only its hash.
 
-    Args:
-        database_url: PostgreSQL connection string.
-        client_id: Client identity whose active keys are being rotated.
-        secret_file: Optional secure one-time credential delivery stream.
+    :param database_url: PostgreSQL connection string.
+    :param client_id: Client identity whose active keys are being rotated.
+    :param secret_file: Optional secure one-time credential delivery stream.
+    :returns: Tuple containing the new raw API key, new key ID, and revoked key
+        IDs.
 
-    Returns:
-        Tuple containing the new raw API key, new key ID, and revoked key IDs.
+    .. note::
 
-    Notes:
         - Precondition: database_url identifies an initialized PostgreSQL
           database.
         - Precondition: client_id identifies an active client with at least one
@@ -261,8 +257,8 @@ async def rotate_client_keys(
           existing keys.
         - Revokes all previously active keys for the client in the same
           transaction.
-        - Rolls back the full rotation when secret delivery or any database step
-          fails.
+        - Rolls back the full rotation when secret delivery or any database
+          step fails.
     """
     async with await psycopg.AsyncConnection.connect(
         database_url
@@ -354,13 +350,11 @@ async def rotate_client_keys(
 async def import_environment_records(database_url: str) -> int:
     """Migrates existing hashed client records without requiring raw API keys.
 
-    Args:
-        database_url: PostgreSQL connection string.
+    :param database_url: PostgreSQL connection string.
+    :returns: Number of client-key records imported or confirmed present.
 
-    Returns:
-        Number of client-key records imported or confirmed present.
+    .. note::
 
-    Notes:
         - Precondition: SAG_CLIENTS contains the previous environment-backed
           hashed registry.
         - Precondition: database_url identifies an initialized PostgreSQL
@@ -383,13 +377,11 @@ async def list_client_keys(
 ) -> list[tuple[str, str, bool, bool]]:
     """Read non-secret client and key metadata.
 
-    Args:
-        database_url: PostgreSQL connection string.
+    :param database_url: PostgreSQL connection string.
+    :returns: Tuples of client_id, key_id, client_active, and key_active.
 
-    Returns:
-        Tuples of client_id, key_id, client_active, and key_active.
+    .. note::
 
-    Notes:
         - Precondition: database_url identifies an initialized PostgreSQL
           database.
         - Side effect: PostgreSQL query/session state only.
@@ -418,14 +410,12 @@ async def list_client_keys(
 async def _run_command(args: argparse.Namespace) -> None:
     """Execute the selected administrative command.
 
-    Args:
-        args: Parsed command-line namespace.
+    :param args: Parsed command-line namespace.
+    :returns: Human-readable non-secret command status on standard output. Raw
+        API key in the requested secret file for create/rotate.
 
-    Returns:
-        Human-readable non-secret command status on standard output.
-        Raw API key in the requested secret file for create/rotate.
+    .. note::
 
-    Notes:
         - Precondition: args contains one supported client-registry subcommand.
         - Precondition: DATABASE_URL identifies the registry database.
         - Precondition: create/rotate commands provide a new --api-key-file
@@ -518,11 +508,11 @@ def main() -> None:
         keys,
     or lists non-secret metadata.
 
-    Returns:
-        Human-readable non-secret command result written to standard output.
-        Raw API keys only in explicitly requested 0600 output files.
+    :returns: Human-readable non-secret command result written to standard
+        output. Raw API keys only in explicitly requested 0600 output files.
 
-    Notes:
+    .. note::
+
         - Input: Command-line subcommand and arguments.
         - Precondition: DATABASE_URL is available in the process environment.
         - Side effect: PostgreSQL client-registry state for write commands.

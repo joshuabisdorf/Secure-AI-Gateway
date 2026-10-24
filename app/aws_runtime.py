@@ -47,17 +47,15 @@ def load_json_secret(
 ) -> dict[str, Any]:
     """Retrieve one secret through the AWS default credential chain.
 
-    Args:
-        secret_id: Secret ARN or name.
-        client: Optional injected Secrets Manager client for deterministic
-            tests.
+    :param secret_id: Secret ARN or name.
+    :param client: Optional injected Secrets Manager client for deterministic
+        tests.
+    :returns: Parsed JSON object.
 
-    Returns:
-        Parsed JSON object.
+    .. note::
 
-    Notes:
-        - Precondition: secret_id identifies a Secrets Manager secret containing
-          a JSON object in SecretString.
+        - Precondition: secret_id identifies a Secrets Manager secret
+          containing a JSON object in SecretString.
         - Precondition: The current AWS identity has least-privilege access to
           the requested secret.
         - Side effect: Short-lived AWS SDK request/session state only.
@@ -89,13 +87,11 @@ def load_json_secret(
 def _database_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
     """Validate the exact credential schema, username, and password length.
 
-    Args:
-        value: Candidate runtime database credentials.
+    :param value: Candidate runtime database credentials.
+    :returns: Validated username and password.
 
-    Returns:
-        Validated username and password.
+    .. note::
 
-    Notes:
         - Precondition: value is the parsed runtime database secret object.
         - Rejects malformed credentials without exposing their values.
     """
@@ -121,16 +117,14 @@ def build_database_conninfo(
 ) -> str:
     """Produce a libpq connection string with TLS required.
 
-    Args:
-        credentials: Runtime database secret JSON object.
-        host: Database hostname.
-        port: Database port.
-        database: Database name.
+    :param credentials: Runtime database secret JSON object.
+    :param host: Database hostname.
+    :param port: Database port.
+    :param database: Database name.
+    :returns: PostgreSQL connection string suitable for DATABASE_URL.
 
-    Returns:
-        PostgreSQL connection string suitable for DATABASE_URL.
+    .. note::
 
-    Notes:
         - Precondition: credentials contains only a validated runtime
           username/password pair.
         - Precondition: host, port, and database identify the private RDS
@@ -163,13 +157,11 @@ def build_database_conninfo(
 def _tool_signing_key(value: Mapping[str, Any]) -> str:
     """Validate exact schema and safe signing-key byte-length bounds.
 
-    Args:
-        value: Candidate signing-key secret object.
+    :param value: Candidate signing-key secret object.
+    :returns: Validated execution-ticket signing key.
 
-    Returns:
-        Validated execution-ticket signing key.
+    .. note::
 
-    Notes:
         - Precondition: value is the parsed execution-ticket signing secret
           object.
         - Fails closed without logging or returning malformed secret material.
@@ -188,13 +180,11 @@ def _tool_signing_key(value: Mapping[str, Any]) -> str:
 def _provider_environment(value: Mapping[str, Any]) -> dict[str, str]:
     """Allow only the explicitly supported provider environment fields.
 
-    Args:
-        value: Candidate provider-secret mapping.
+    :param value: Candidate provider-secret mapping.
+    :returns: Validated provider environment additions.
 
-    Returns:
-        Validated provider environment additions.
+    .. note::
 
-    Notes:
         - Precondition: value is the parsed optional provider secret object.
         - Rejects non-string or unexpected fields without exposing values.
     """
@@ -216,14 +206,12 @@ def load_gateway_runtime_environment(
         Secrets
     Manager.
 
-    Args:
-        client: Optional injected Secrets Manager client for deterministic
-            tests.
+    :param client: Optional injected Secrets Manager client for deterministic
+        tests.
+    :returns: Environment variables required by the gateway child process.
 
-    Returns:
-        Environment variables required by the gateway child process.
+    .. note::
 
-    Notes:
         - Precondition: Cloud runtime non-secret endpoint/secret-ID environment
           is configured.
         - Precondition: The Pod Identity role can read only the gateway runtime
@@ -261,13 +249,11 @@ def load_gateway_runtime_environment(
 def exec_with_runtime_environment(command: Sequence[str]) -> None:
     """Load runtime secrets into an in-memory child environment only.
 
-    Args:
-        command: Executable and arguments to run.
+    :param command: Executable and arguments to run.
+    :returns: None; successful execution replaces the current process.
 
-    Returns:
-        None; successful execution replaces the current process.
+    .. note::
 
-    Notes:
         - Precondition: command contains an executable and arguments.
         - Precondition: Cloud runtime secret configuration is valid.
         - Side effect: Replaces the current process with the requested command.
@@ -283,14 +269,14 @@ def exec_with_runtime_environment(command: Sequence[str]) -> None:
 def main() -> None:
     """Load cloud runtime secrets and execs the gateway command.
 
-    Returns:
-        None; successful execution replaces the current process.
+    :returns: None; successful execution replaces the current process.
 
-    Notes:
+    .. note::
+
         - Input: Command-line arguments and AWS runtime environment
           configuration.
-        - Precondition: CLI arguments contain the gateway command after optional
-          `--`.
+        - Precondition: CLI arguments contain the gateway command after
+          optional `--`.
         - Precondition: Required AWS runtime secret configuration is available.
         - Side effect: Process state when the runtime command is executed.
         - Converts safe RuntimeSecretError reasons into CLI parser errors.

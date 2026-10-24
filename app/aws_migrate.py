@@ -32,13 +32,11 @@ def _admin_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
 def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
     """Perform the runtime credentials operation.
 
-    Args:
-        value: Function input.
+    :param value: Function input.
+    :returns: A value matching the declared tuple[str, str] return contract.
 
-    Returns:
-        A value matching the declared tuple[str, str] return contract.
+    .. note::
 
-    Notes:
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -58,10 +56,11 @@ def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
 def _database_coordinates() -> tuple[str, int, str]:
     """Perform the database coordinates operation.
 
-    Returns:
-        A value matching the declared tuple[str, int, str] return contract.
+    :returns: A value matching the declared tuple[str, int, str] return
+        contract.
 
-    Notes:
+    .. note::
+
         - Precondition: Arguments satisfy their declared contracts and required
           configured dependencies are available.
     """
@@ -102,13 +101,13 @@ async def provision_runtime_role(
     """Create or rotate the gateway login without granting DDL/admin
         capabilities.
 
-    Args:
-        admin_conninfo: Administrative PostgreSQL connection string.
-        admin_username: RDS migration-owner role name.
-        runtime_username: Least-privilege gateway role name.
-        runtime_password: Gateway role password.
+    :param admin_conninfo: Administrative PostgreSQL connection string.
+    :param admin_username: RDS migration-owner role name.
+    :param runtime_username: Least-privilege gateway role name.
+    :param runtime_password: Gateway role password.
 
-    Notes:
+    .. note::
+
         - Precondition: admin_conninfo authenticates as the RDS administrative
           database role over TLS.
         - Precondition: Database migrations have already created the gateway
@@ -117,9 +116,10 @@ async def provision_runtime_role(
           credentials.
         - Side effect: PostgreSQL role metadata and grants for the gateway
           runtime login.
-        - Grants CONNECT, schema USAGE, DML on current tables, and sequence use.
-        - Configures equivalent default privileges for future objects created by
-          the migration role.
+        - Grants CONNECT, schema USAGE, DML on current tables, and sequence
+          use.
+        - Configures equivalent default privileges for future objects created
+          by the migration role.
     """
     _, _, database = _database_coordinates()
     runtime_identifier = sql.Identifier(runtime_username)
@@ -193,10 +193,10 @@ async def provision_runtime_role(
 async def migrate_aws_database() -> tuple[str, ...]:
     """Apply versioned schema migrations using the administrative role.
 
-    Returns:
-        Tuple of migration filenames applied by this invocation.
+    :returns: Tuple of migration filenames applied by this invocation.
 
-    Notes:
+    .. note::
+
         - Precondition: Migration Pod Identity can read the RDS-managed admin
           secret and runtime DB secret.
         - Precondition: Private RDS endpoint coordinates are supplied as
@@ -230,10 +230,10 @@ async def migrate_aws_database() -> tuple[str, ...]:
 def main() -> None:
     """Apply cloud database migrations and runtime-role grants.
 
-    Returns:
-        Safe migration status without credentials or connection strings.
+    :returns: Safe migration status without credentials or connection strings.
 
-    Notes:
+    .. note::
+
         - Precondition: AWS migration environment and Pod Identity are
           configured.
         - Side effect: RDS schema and least-privilege runtime role.
