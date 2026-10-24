@@ -219,7 +219,8 @@ class RequestBodyLimitMiddleware:
         replayed = False
 
         async def replay_receive() -> dict[str, Any]:
-            """Replay the buffered request body to the downstream ASGI application.
+            """Replay the buffered request body to the downstream
+            ASGI application.
 
             :returns: A value matching the declared dict[str, Any] return
                 contract.
