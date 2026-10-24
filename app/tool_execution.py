@@ -402,7 +402,8 @@ def _issue_execution_ticket(
     tool_call: ToolCall,
     spec: ToolExecutionSpec,
 ) -> tuple[str, ExecutionTicketMetadata]:
-    """Issue a short-lived HMAC-SHA256 ticket without embedding raw tool arguments.
+    """Issue a short-lived HMAC-SHA256 ticket without embedding raw tool
+        arguments.
 
     Args:
         client_id: Authenticated client identity.
@@ -611,7 +612,8 @@ def verify_execution_ticket(
     client_id: str,
     key_id: str,
 ) -> ExecutionTicketMetadata:
-    """Verifie ticket signature, expiry, identity, call ID/name, argument digest,
+    """Verify ticket signature, expiry, identity, call ID/name, argument
+        digest,
     schema fingerprint, and risk.
 
     Args:
@@ -794,7 +796,8 @@ class RedisToolExecutionReplayStore:
         self._client = Redis.from_url(redis_url, decode_responses=True)
 
     async def claim(self, execution_id: str, ttl_seconds: int) -> bool:
-        """Use SET NX with expiry so only one gateway replica can authorize the ticket.
+        """Use SET NX with expiry so only one gateway replica can authorize the
+            ticket.
 
         Args:
             execution_id: Ticket execution identifier.
@@ -836,7 +839,8 @@ class RedisToolExecutionReplayStore:
 
 
 def build_tool_execution_replay_store() -> ToolExecutionReplayStore:
-    """Select distributed replay protection for runtime and memory for deterministic
+    """Select distributed replay protection for runtime and memory for
+        deterministic
     tests.
 
     Returns:

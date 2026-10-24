@@ -20,7 +20,8 @@ _SECURITY_HEADERS = (
 
 
 def get_max_request_body_bytes() -> int:
-    """Fail application startup when the configured limit is invalid or outside the
+    """Fail application startup when the configured limit is invalid or outside
+        the
     safe range.
 
     Returns:
@@ -136,7 +137,8 @@ class RequestBodyLimitMiddleware:
         receive: Callable[[], Awaitable[dict[str, Any]]],
         send: Callable[[dict[str, Any]], Awaitable[None]],
     ) -> None:
-        """Reject declared or streamed request bodies above max_body_bytes with HTTP 413.
+        """Reject declared or streamed request bodies above max_body_bytes with
+            HTTP 413.
 
         Args:
             scope: ASGI connection scope.

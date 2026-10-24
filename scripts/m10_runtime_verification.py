@@ -51,7 +51,8 @@ def _percentile(values: list[float], percentile: float) -> float:
 def _latency_summary(
     latencies_ms: list[float], elapsed_seconds: float
 ) -> dict[str, float]:
-    """Summarize local request throughput and latency without applying a pass/fail
+    """Summarize local request throughput and latency without applying a
+        pass/fail
     capacity threshold.
 
     Args:
@@ -107,7 +108,8 @@ def _gateway_environment(
     database_url: str,
     redis_url: str,
 ) -> dict[str, str]:
-    """Build an isolated zero-cost runtime environment using the mock provider and
+    """Build an isolated zero-cost runtime environment using the mock provider
+        and
     real shared state.
 
     Args:
@@ -161,7 +163,8 @@ def _gateway_environment(
 
 
 def _spawn_gateway(port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
-    """Start a single-worker gateway replica with logs suppressed from benchmark
+    """Start a single-worker gateway replica with logs suppressed from
+        benchmark
     output.
 
     Args:
@@ -200,7 +203,8 @@ def _spawn_gateway(port: int, env: dict[str, str]) -> subprocess.Popen[bytes]:
 
 
 def _stop_process(process: subprocess.Popen[bytes]) -> None:
-    """Terminate the process gracefully when possible and kills it after a bounded
+    """Terminate the process gracefully when possible and kill it after a
+        bounded
     wait.
 
     Args:
@@ -266,7 +270,8 @@ def _post_with_failover(
     api_key: str,
     payload: dict[str, object],
 ) -> tuple[float, str, bool]:
-    """Send one request to the preferred replica and retries once on another replica
+    """Send one request to the preferred replica and retry once on another
+        replica
     after transport/5xx failure.
 
     Args:
@@ -324,7 +329,8 @@ def _benchmark_requests(
     request_count: int,
     concurrency: int,
 ) -> dict[str, Any]:
-    """Issue a bounded concurrent request batch and records successful end-to-end
+    """Issue a bounded concurrent request batch and record successful
+        end-to-end
     latency.
 
     Args:
@@ -382,7 +388,8 @@ async def _rate_limiter_contention_benchmark(
     *,
     operations: int,
 ) -> dict[str, float]:
-    """Measure direct distributed limiter contention across four independent clients.
+    """Measure direct distributed limiter contention across four independent
+        clients.
 
     Args:
         redis_url: Redis-compatible connection URL.

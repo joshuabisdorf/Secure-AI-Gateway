@@ -54,7 +54,8 @@ class UsageLedger(Protocol):
         client_id: str,
         budget: ClientUsageBudget,
     ) -> UsageBudgetDecision:
-        """Return current daily usage and whether another request may be forwarded.
+        """Return current daily usage and whether another request may be
+            forwarded.
 
         Args:
             client_id: Function input.
@@ -77,7 +78,8 @@ class UsageLedger(Protocol):
         total_tokens: int,
         cost_usd: Decimal,
     ) -> UsageBudgetDecision:
-        """Atomically add provider-reported usage and return updated daily totals.
+        """Atomically add provider-reported usage and return updated daily
+            totals.
 
         Args:
             client_id: Function input.
@@ -177,7 +179,8 @@ def parse_client_usage_budgets(
 
 
 def get_client_usage_budget(client_id: str) -> ClientUsageBudget:
-    """Fail closed when budget policy is absent, malformed, or missing the client.
+    """Fail closed when budget policy is absent, malformed, or missing the
+        client.
 
     Args:
         client_id: Authenticated gateway client identity.

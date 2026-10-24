@@ -19,7 +19,8 @@ _legacy_policy_variables = (
 def _compile_policy_environment(
     registry: SecurityPolicyRegistry,
 ) -> dict[str, str]:
-    """Convert named profiles/client assignments into the existing internal policy
+    """Convert named profiles/client assignments into the existing internal
+        policy
     formats.
 
     Args:
@@ -83,7 +84,8 @@ def _compile_policy_environment(
 
 
 def apply_unified_security_policy_environment() -> None:
-    """Doe nothing when the unified registry is not enabled, preserving temporary
+    """Do nothing when the unified registry is not enabled, preserving
+        temporary
     legacy compatibility.
 
     Notes:

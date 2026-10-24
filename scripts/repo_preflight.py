@@ -90,7 +90,8 @@ def check_required_paths(files: list[str]) -> None:
 
 
 def check_tracked_artifacts(files: list[str]) -> None:
-    """Reject tracked local secrets, state files, and generated Python \ artifacts.
+    """Reject tracked local secrets, state files, and generated Python \
+        artifacts.
 
     Args:
         files: Current tracked file paths.
@@ -121,7 +122,8 @@ def check_tracked_artifacts(files: list[str]) -> None:
 
 
 def check_action_pins(files: list[str]) -> None:
-    """Require third-party GitHub Actions to use immutable 40-character SHA \ pins.
+    """Require third-party GitHub Actions to use immutable 40-character SHA \
+        pins.
 
     Args:
         files: Current tracked file paths.
@@ -189,7 +191,8 @@ def check_current_tree_secret_markers(files: list[str]) -> None:
 
 
 def check_history_sensitive_filenames() -> None:
-    """Inspect full Git history for filenames that commonly contain local \ secrets.
+    """Inspect full Git history for filenames that commonly contain local \
+        secrets.
 
     Returns:
         None on success.

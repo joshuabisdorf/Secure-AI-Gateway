@@ -73,7 +73,8 @@ class SemanticPIIUnavailable(HTTPException):
     """Fail-closed HTTP error for an unavailable semantic PII analyzer."""
 
     def __init__(self, reason: str) -> None:
-        """Represent semantic PII unavailability as a sanitized HTTP 503 response.
+        """Represent semantic PII unavailability as a sanitized HTTP 503
+            response.
 
         Args:
             reason: Safe diagnostic reason label.
@@ -102,7 +103,8 @@ class SemanticPIIFinding:
 
 class SemanticPIIAnalyzer(Protocol):
     def analyze(self, text: str) -> tuple[SemanticPIIFinding, ...]:
-        """Return non-overlapping semantic PII spans without retaining raw values.
+        """Return non-overlapping semantic PII spans without retaining raw
+            values.
 
         Args:
             text: Function input.
@@ -119,7 +121,8 @@ class SemanticPIIAnalyzer(Protocol):
 
 
 def _context_window(text: str, start: int, end: int) -> str:
-    """Limit context inspection around an entity/span to a bounded local window.
+    """Limit context inspection around an entity/span to a bounded local
+        window.
 
     Args:
         text: Source message text.
@@ -190,7 +193,8 @@ def _select_non_overlapping(
 
 class SpacySemanticPIIAnalyzer:
     def __init__(self, model_name: str = _DEFAULT_MODEL) -> None:
-        """Defer expensive NLP model loading until semantic inspection is needed.
+        """Defer expensive NLP model loading until semantic inspection is
+            needed.
 
         Args:
             model_name: Installed spaCy model package name.
@@ -243,7 +247,8 @@ class SpacySemanticPIIAnalyzer:
         return self._nlp
 
     def analyze(self, text: str) -> tuple[SemanticPIIFinding, ...]:
-        """Use local NER plus bounded context to identify person names, personal
+        """Use local NER plus bounded context to identify person names,
+            personal
         locations, and dates of birth.
 
         Args:
@@ -330,7 +335,8 @@ def redact_semantic_text(
 
 
 def build_semantic_pii_analyzer() -> SemanticPIIAnalyzer:
-    """Construct the configured semantic PII analyzer without loading its model yet.
+    """Construct the configured semantic PII analyzer without loading its model
+        yet.
 
     Returns:
         Configured SemanticPIIAnalyzer.

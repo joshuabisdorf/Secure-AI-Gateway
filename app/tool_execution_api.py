@@ -102,7 +102,8 @@ def _deny_execution(
 
 
 def _is_canonical_execution_token(token: str) -> bool:
-    """Reject padding, whitespace, punctuation, extra segments, and oversized ticket
+    """Reject padding, whitespace, punctuation, extra segments, and oversized
+        ticket
     text before the Base64 decoder is reached.
 
     Args:

@@ -350,7 +350,8 @@ def parse_security_policy_registry(document: str) -> SecurityPolicyRegistry:
 
 
 def clear_security_policy_cache() -> None:
-    """Clear the process-local parsed policy cache used by tests and file reloads.
+    """Clear the process-local parsed policy cache used by tests and file
+        reloads.
 
     Notes:
         - Precondition: Arguments satisfy their declared contracts and required
@@ -421,7 +422,8 @@ def load_security_policy_registry(
 def resolve_client_security_policy(
     client_id: str,
 ) -> ResolvedSecurityPolicy | None:
-    """Return None only when unified policy configuration is not enabled, allowing
+    """Return None only when unified policy configuration is not enabled,
+        allowing
     temporary migration compatibility with legacy per-control environment
     variables.
 
