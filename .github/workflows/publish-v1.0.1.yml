@@ -65,44 +65,16 @@ jobs:
           test "$(git rev-parse "$RELEASE_TAG^{}")" = "$RELEASE_SHA"
           test "$(git cat-file -t "refs/tags/$RELEASE_TAG")" = tag
 
-      - name: Dispatch the existing tagged container workflow
+      - name: Verify the dispatched tagged container workflow
         if: steps.guard.outputs.publish == 'true'
-        id: dispatch
         shell: bash
         run: |
           set -euo pipefail
-          echo "started=$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-            >> "$GITHUB_OUTPUT"
-          gh workflow run release.yml \
-            --repo "$GITHUB_REPOSITORY" --ref "$RELEASE_TAG"
-
-      - name: Wait for successful tagged image verification
-        if: steps.guard.outputs.publish == 'true'
-        shell: bash
-        env:
-          STARTED: ${{ steps.dispatch.outputs.started }}
-        run: |
-          set -euo pipefail
-          run_id=''
-          for attempt in $(seq 1 60); do
-            runs="$(gh api \
-              "repos/$GITHUB_REPOSITORY/actions/workflows/"\
-              "release.yml/runs?event=workflow_dispatch&per_page=50")"
-            run_id="$(jq -r \
-              --arg sha "$RELEASE_SHA" --arg started "$STARTED" \
-              '[.workflow_runs[] | select(.head_sha == $sha'\
-              ' and .created_at >= $started)]'\
-              ' | sort_by(.created_at) | last | .id // empty' \
-              <<< "$runs")"
-            if [[ -n "$run_id" ]]; then
-              break
-            fi
-            sleep 5
-          done
-          if [[ -z "$run_id" ]]; then
-            echo "Tagged release workflow did not start." >&2
-            exit 1
-          fi
+          run_id=40126963001
+          run_sha="$(gh run view "$run_id" \
+            --repo "$GITHUB_REPOSITORY" \
+            --json headSha --jq '.headSha')"
+          test "$run_sha" = "$RELEASE_SHA"
           gh run watch "$run_id" \
             --repo "$GITHUB_REPOSITORY" --exit-status --interval 15
 
