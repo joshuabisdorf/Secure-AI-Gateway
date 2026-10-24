@@ -1,3 +1,5 @@
+"""Apply database migrations using AWS runtime credentials."""
+
 import asyncio
 import os
 from collections.abc import Mapping
@@ -28,24 +30,17 @@ def _admin_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
-    """
-    RME
+    """Perform the runtime credentials operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        value: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
+    Returns:
+        A value matching the declared tuple[str, str] return contract.
 
-    Effects:
-        - Performs the runtime credentials operation.
-
-    Inputs:
-        - value: Function input.
-
-    Outputs:
-        - A value matching the declared tuple[str, str] return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     if frozenset(value) != {"username", "password"}:
         raise RuntimeSecretError("database_secret_schema_invalid")
@@ -61,24 +56,14 @@ def _runtime_credentials(value: Mapping[str, Any]) -> tuple[str, str]:
 
 
 def _database_coordinates() -> tuple[str, int, str]:
-    """
-    RME
+    """Perform the database coordinates operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Returns:
+        A value matching the declared tuple[str, int, str] return contract.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
-
-    Effects:
-        - Performs the database coordinates operation.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - A value matching the declared tuple[str, int, str] return contract.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     host = os.getenv("SAG_DATABASE_HOST", "").strip()
     database = os.getenv("SAG_DATABASE_NAME", "").strip()
@@ -114,33 +99,26 @@ async def provision_runtime_role(
     runtime_username: str,
     runtime_password: str,
 ) -> None:
-    """
-    RME
+    """Create or rotates the gateway login without granting DDL/admin capabilities.
 
-    Requires:
-        - admin_conninfo authenticates as the RDS administrative database role
-        - over TLS.
-        - Database migrations have already created the gateway runtime tables.
-        - runtime_username/password are generated deployment credentials.
+    Args:
+        admin_conninfo: Administrative PostgreSQL connection string.
+        admin_username: RDS migration-owner role name.
+        runtime_username: Least-privilege gateway role name.
+        runtime_password: Gateway role password.
 
-    Modifies:
-        - PostgreSQL role metadata and grants for the gateway runtime login.
-
-    Effects:
-        - Creates or rotates the gateway login without granting DDL/admin
-        - capabilities.
+    Notes:
+        - Precondition: admin_conninfo authenticates as the RDS administrative
+          database role over TLS.
+        - Precondition: Database migrations have already created the gateway
+          runtime tables.
+        - Precondition: runtime_username/password are generated deployment
+          credentials.
+        - Side effect: PostgreSQL role metadata and grants for the gateway
+          runtime login.
         - Grants CONNECT, schema USAGE, DML on current tables, and sequence use.
         - Configures equivalent default privileges for future objects created by
-        - the migration role.
-
-    Inputs:
-        - admin_conninfo: Administrative PostgreSQL connection string.
-        - admin_username: RDS migration-owner role name.
-        - runtime_username: Least-privilege gateway role name.
-        - runtime_password: Gateway role password.
-
-    Outputs:
-        - None.
+          the migration role.
     """
     _, _, database = _database_coordinates()
     runtime_identifier = sql.Identifier(runtime_username)
@@ -212,29 +190,20 @@ async def provision_runtime_role(
 
 
 async def migrate_aws_database() -> tuple[str, ...]:
-    """
-    RME
+    """Apply versioned schema migrations using the administrative role.
 
-    Requires:
-        - Migration Pod Identity can read the RDS-managed admin secret and
-        - runtime DB secret.
-        - Private RDS endpoint coordinates are supplied as non-secret
-        - environment variables.
+    Returns:
+        Tuple of migration filenames applied by this invocation.
 
-    Modifies:
-        - PostgreSQL schema, migration metadata, runtime role password, and
-        - grants.
-
-    Effects:
-        - Applies versioned schema migrations using the administrative role.
+    Notes:
+        - Precondition: Migration Pod Identity can read the RDS-managed admin
+          secret and runtime DB secret.
+        - Precondition: Private RDS endpoint coordinates are supplied as
+          non-secret environment variables.
+        - Side effect: PostgreSQL schema, migration metadata, runtime role
+          password, and grants.
         - Creates/rotates a least-privilege runtime login for gateway pods.
         - Does not expose either secret value to standard output.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Tuple of migration filenames applied by this invocation.
     """
     admin_secret_id = os.getenv("SAG_AWS_RDS_ADMIN_SECRET_ID", "")
     runtime_secret_id = os.getenv("SAG_AWS_DATABASE_SECRET_ID", "")
@@ -258,26 +227,18 @@ async def migrate_aws_database() -> tuple[str, ...]:
 
 
 def main() -> None:
-    """
-    RME
+    """Apply cloud database migrations and runtime-role grants.
 
-    Requires:
-        - AWS migration environment and Pod Identity are configured.
+    Returns:
+        Safe migration status without credentials or connection strings.
 
-    Modifies:
-        - RDS schema and least-privilege runtime role.
-        - Terminal output containing metadata only.
-
-    Effects:
-        - Applies cloud database migrations and runtime-role grants.
+    Notes:
+        - Precondition: AWS migration environment and Pod Identity are
+          configured.
+        - Side effect: RDS schema and least-privilege runtime role.
+        - Side effect: Terminal output containing metadata only.
         - Exits nonzero with a safe reason when secret/configuration loading
-        - fails.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Safe migration status without credentials or connection strings.
+          fails.
     """
     try:
         applied = asyncio.run(migrate_aws_database())

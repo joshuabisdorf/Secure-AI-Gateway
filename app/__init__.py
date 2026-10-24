@@ -1,3 +1,5 @@
+"""Secure AI Gateway application package."""
+
 from app.security_policy_bootstrap import (
     apply_unified_security_policy_environment,
 )

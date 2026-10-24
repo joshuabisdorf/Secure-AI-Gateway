@@ -1,3 +1,5 @@
+"""Manage PostgreSQL connections and queries."""
+
 import argparse
 import asyncio
 import hashlib
@@ -10,23 +12,14 @@ _MIGRATION_DIRECTORY = Path(__file__).resolve().parents[1] / "db" / "migrations"
 
 
 def get_database_url() -> str:
-    """
-    RME
+    """Fail when persistent database configuration is missing.
 
-    Requires:
-        - DATABASE_URL may contain the PostgreSQL connection string.
+    Returns:
+        Configured PostgreSQL connection string.
 
-    Modifies:
-        - Nothing.
-
-    Effects:
-        - Fails when persistent database configuration is missing.
-
-    Inputs:
-        - None.
-
-    Outputs:
-        - Configured PostgreSQL connection string.
+    Notes:
+        - Precondition: DATABASE_URL may contain the PostgreSQL connection
+          string.
     """
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
@@ -42,26 +35,21 @@ def _migration_files() -> list[Path]:
 
 
 async def migrate_database(database_url: str) -> tuple[str, ...]:
-    """
-    RME
+    """Create migration tracking when absent.
 
-    Requires:
-        - database_url identifies a reachable PostgreSQL database.
-        - Migration files are ordered lexicographically in db/migrations.
+    Args:
+        database_url: PostgreSQL connection string.
 
-    Modifies:
-        - PostgreSQL schema and schema_migrations metadata.
+    Returns:
+        Tuple containing filenames applied by this invocation.
 
-    Effects:
-        - Creates migration tracking when absent.
+    Notes:
+        - Precondition: database_url identifies a reachable PostgreSQL database.
+        - Precondition: Migration files are ordered lexicographically in
+          db/migrations.
+        - Side effect: PostgreSQL schema and schema_migrations metadata.
         - Applies each unapplied migration exactly once in filename order.
         - Refuses to continue if an already-applied migration file was modified.
-
-    Inputs:
-        - database_url: PostgreSQL connection string.
-
-    Outputs:
-        - Tuple containing filenames applied by this invocation.
     """
     applied_now: list[str] = []
 
@@ -118,23 +106,17 @@ async def migrate_database(database_url: str) -> tuple[str, ...]:
 
 
 async def list_migrations(database_url: str) -> list[tuple[str, str]]:
-    """
-    RME
+    """Read applied migration metadata when the tracking table exists.
 
-    Requires:
-        - database_url identifies a reachable PostgreSQL database.
+    Args:
+        database_url: PostgreSQL connection string.
 
-    Modifies:
-        - PostgreSQL query/session state only.
+    Returns:
+        Applied migration filename and timestamp strings.
 
-    Effects:
-        - Reads applied migration metadata when the tracking table exists.
-
-    Inputs:
-        - database_url: PostgreSQL connection string.
-
-    Outputs:
-        - Applied migration filename and timestamp strings.
+    Notes:
+        - Precondition: database_url identifies a reachable PostgreSQL database.
+        - Side effect: PostgreSQL query/session state only.
     """
     async with await psycopg.AsyncConnection.connect(
         database_url
@@ -153,24 +135,14 @@ async def list_migrations(database_url: str) -> list[tuple[str, str]]:
 
 
 async def _run_command(args: argparse.Namespace) -> None:
-    """
-    RME
+    """Perform the run command operation.
 
-    Requires:
-        - Arguments satisfy their declared contracts and required configured
-          dependencies are available.
+    Args:
+        args: Function input.
 
-    Modifies:
-        - No state beyond delegated dependency behavior.
-
-    Effects:
-        - Performs the run command operation.
-
-    Inputs:
-        - args: Function input.
-
-    Outputs:
-        - None.
+    Notes:
+        - Precondition: Arguments satisfy their declared contracts and required
+          configured dependencies are available.
     """
     database_url = get_database_url()
     if args.command == "migrate":
@@ -194,24 +166,16 @@ async def _run_command(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    """
-    RME
+    """Apply or displays ordered database migrations.
 
-    Requires:
-        - DATABASE_URL is available in the process environment.
+    Returns:
+        Human-readable migration result written to standard output.
 
-    Modifies:
-        - PostgreSQL schema for the migrate command.
-        - Terminal output.
-
-    Effects:
-        - Applies or displays ordered database migrations.
-
-    Inputs:
-        - Command-line subcommand.
-
-    Outputs:
-        - Human-readable migration result written to standard output.
+    Notes:
+        - Input: Command-line subcommand.
+        - Precondition: DATABASE_URL is available in the process environment.
+        - Side effect: PostgreSQL schema for the migrate command.
+        - Side effect: Terminal output.
     """
     parser = argparse.ArgumentParser(
         description="Manage Secure AI Gateway PostgreSQL schema migrations."
